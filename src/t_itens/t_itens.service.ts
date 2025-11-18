@@ -1,5 +1,9 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { PrismaClient as TenantClient, Prisma } from '../../prisma/generated/client_tenant';
+import {
+  TenantPrisma as Prisma,
+  type TenantClient,
+} from '../lib/prisma-clients';
+import type { Prisma as PrismaTypes } from '../../prisma/generated/client_tenant';
 import { TenantDbService } from '../tenant-db/tenant-db.service';
 import { CreateTItemDto } from './dto/create-t_itens.dto';
 import { UpdateTItemDto } from './dto/update-t_itens.dto';
@@ -55,7 +59,7 @@ export class TItensService {
   private buildWhere(
     cdemp: number,
     cditem: number,
-  ): Prisma.t_itensWhereUniqueInput {
+  ): PrismaTypes.t_itensWhereUniqueInput {
     return {
       cdemp_cditem: {
         cdemp,
@@ -68,7 +72,7 @@ export class TItensService {
     const prisma = await this.getPrisma(tenant);
     const cdemp = await this.getCompanyId(tenant, prisma);
 
-    const data: Prisma.t_itensUncheckedCreateInput = {
+    const data: PrismaTypes.t_itensUncheckedCreateInput = {
       cdemp,
       deitem: dto.deitem,
       barcodeit: dto.barcodeit,
@@ -126,7 +130,7 @@ export class TItensService {
     }
   
     // 2) Montar o payload de update
-    const data: Prisma.t_itensUncheckedUpdateInput = {
+    const data: PrismaTypes.t_itensUncheckedUpdateInput = {
       ...dto,
       updatedat: new Date(),
     };
@@ -191,8 +195,8 @@ export class TItensService {
 
   private buildFilters(
     filters?: Record<string, string | string[]>,
-  ): Prisma.t_itensWhereInput {
-    const where: Prisma.t_itensWhereInput = {};
+  ): PrismaTypes.t_itensWhereInput {
+    const where: PrismaTypes.t_itensWhereInput = {};
     if (!filters) return where;
 
     for (const [rawKey, rawValue] of Object.entries(filters)) {

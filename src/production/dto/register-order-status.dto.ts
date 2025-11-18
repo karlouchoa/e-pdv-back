@@ -5,7 +5,7 @@ export type OrderStatus = (typeof ORDER_STATUS_VALUES)[number];
 
 export class RegisterOrderStatusDto {
   @IsIn(ORDER_STATUS_VALUES)
-  status: OrderStatus;
+  status!: OrderStatus;
 
   @IsOptional()
   @IsDateString()
@@ -13,7 +13,7 @@ export class RegisterOrderStatusDto {
 
   @IsString()
   @MaxLength(120)
-  responsible: string;
+  responsible!: string;
 
   @IsOptional()
   @IsString()

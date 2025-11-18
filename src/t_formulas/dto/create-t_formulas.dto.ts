@@ -2,25 +2,25 @@ import { IsInt, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class CreateTFormulaDto {
   @IsInt()
-  cditem: number;
+  cditem!: number;
 
   @IsInt()
-  empitem: number;
+  empitem!: number;
 
   @IsString()
-  undven: string;
+  undven!: string;
 
   @IsInt()
-  matprima: number;
+  matprima!: number;
 
   @IsNumber()
-  qtdemp: number;
+  qtdemp!: number;
 
   @IsString()
-  undmp: string;
+  undmp!: string;
 
   @IsInt()
-  empitemmp: number;
+  empitemmp!: number;
 
   @IsOptional()
   @IsString()

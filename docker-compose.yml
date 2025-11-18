@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  gold-backend:
+    container_name: gold-backend
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3023:3023"
+    environment:
+      NODE_ENV: production
+      PORT: 3023
+      DATABASE_URL: "sqlserver://103.199.184.26:15453;database=acessos;user=srmobile;password=P90pO89o;encrypt=true;trustServerCertificate=true;"
+    networks:
+      - vpn_docker
+         
+
+networks:
+  vpn_docker:
+    external: true
+    driver: bridge

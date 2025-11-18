@@ -1,11 +1,16 @@
-import { Injectable } from '@nestjs/common';
-import PDFDocument from 'pdfkit';
-import type PDFKit from 'pdfkit';
+﻿import { Injectable } from '@nestjs/common';
+// import PDFDocument from 'pdfkit';
+// import type PDFKit from 'pdfkit';
+import PDFDocument = require('pdfkit');
+type PDFKit = PDFKit.PDFDocument; // se precisar do tipo
+
 import type { Prisma } from '../../prisma/generated/client_tenant';
 
 type BomWithItems = Prisma.bom_headersGetPayload<{
   include: { items: true };
-}>;
+}> & {
+  product_description?: string | null;
+};
 
 interface TableColumn {
   label: string;
@@ -54,7 +59,7 @@ export class BomPdfService {
       .font('Helvetica-Bold')
       .fontSize(20)
       .fillColor('#111827')
-      .text('BOM · Ficha Técnica de Produção', {
+      .text('Ficha técnica de produção', {
         width: this.contentWidth(doc),
       });
 
@@ -79,11 +84,14 @@ export class BomPdfService {
 
   private renderMetadata(doc: PDFKit.PDFDocument, bom: BomWithItems) {
     const metadata = [
-      { label: 'Produto a ser produzido', value: bom.product_code },
-      { label: 'Versão', value: bom.version },
-      { label: 'Número do lote', value: this.formatDecimal(bom.lot_size) },
       {
-        label: 'Data da geração do BOM',
+        label: 'Produto a ser produzido',
+        value: this.formatProduct(bom),
+      },
+      { label: 'Versao', value: bom.version },
+      { label: 'Numero do lote', value: this.formatDecimal(bom.lot_size) },
+      {
+        label: 'Data da geracao do BOM',
         value: this.formatDate(bom.created_at),
       },
     ];
@@ -110,7 +118,7 @@ export class BomPdfService {
         .font('Helvetica-Bold')
         .fontSize(9)
         .fillColor('#6b7280')
-        .text('OBSERVAÇÕES', {
+        .text('OBSERVACOES', {
           width: this.contentWidth(doc),
         });
       doc
@@ -137,7 +145,7 @@ export class BomPdfService {
         .font('Helvetica')
         .fontSize(10)
         .fillColor('#6b7280')
-        .text('Nenhuma matéria-prima cadastrada.');
+        .text('Nenhuma materia-prima cadastrada.');
       doc.moveDown();
       return;
     }
@@ -190,24 +198,31 @@ export class BomPdfService {
       columns[columns.length - 1].width += delta;
     }
 
-    const headerHeight = 22;
+    const headerHeight = 16;
     this.ensureSpace(doc, headerHeight + 4);
 
     const tableTop = doc.y;
     doc.save();
+    
     doc
-      .roundedRect(startX, tableTop, tableWidth, headerHeight, 4)
-      .fill('#1f2937');
+    .lineWidth(1)
+    .roundedRect(startX, tableTop, tableWidth, headerHeight, 4)
+    .fillAndStroke('#ffffff', '#000000'); // fundo branco, borda preta
     doc.restore();
 
     const columnOffsets = this.buildColumnOffsets(columns, startX);
-    doc.font('Helvetica-Bold').fontSize(9).fillColor('#ffffff');
+    doc.font('Helvetica-Bold').fontSize(7).fillColor('#000000');
 
     columns.forEach((col, index) => {
-      doc.text(col.label.toUpperCase(), columnOffsets[index] + 6, tableTop + 6, {
-        width: col.width - 12,
-        align: col.align ?? 'left',
-      });
+      doc.text(
+        col.label.toUpperCase(),
+        columnOffsets[index] + 6,
+        tableTop + 4,
+        {
+          width: col.width - 12,
+          align: 'center',
+        },
+      );
     });
 
     doc.y = tableTop + headerHeight;
@@ -223,15 +238,26 @@ export class BomPdfService {
         doc.restore();
       }
 
-      doc.font('Helvetica').fontSize(10).fillColor('#111827');
+      doc.font('Helvetica').fontSize(8).fillColor('#111827');
       columns.forEach((col, colIndex) => {
+        const label = col.label.toLowerCase();
+        const isItemColumn = label === 'item';
+        const isCodigoColumn = label === 'código' || label === 'codigo';
+        const isDescriptionColumn =
+          label === 'descrição' || label === 'descricao';
+        let align: 'left' | 'right' | 'center' = 'right';
+        if (isDescriptionColumn) {
+          align = 'left';
+        } else if (isItemColumn || isCodigoColumn) {
+          align = 'center';
+        }
         doc.text(
           col.value(item, index),
           columnOffsets[colIndex] + 6,
           rowTop + 6,
           {
             width: col.width - 12,
-            align: col.align ?? 'left',
+            align: col.align ?? align,
           },
         );
       });
@@ -240,6 +266,12 @@ export class BomPdfService {
     });
 
     doc.moveDown();
+  }
+
+  private formatProduct(bom: BomWithItems) {
+    return bom.product_description
+      ? `${bom.product_code} - ${bom.product_description}`
+      : bom.product_code;
   }
 
   private renderTotals(doc: PDFKit.PDFDocument, bom: BomWithItems) {
@@ -251,33 +283,36 @@ export class BomPdfService {
     const top = doc.y;
 
     doc.save();
-    doc.roundedRect(startX, top, boxWidth, boxHeight, 6).fill('#111827');
+    doc
+      .roundedRect(startX, top, boxWidth, boxHeight, 6)
+      .fillAndStroke('#ffffff', '#000000');
     doc.restore();
 
     doc
       .font('Helvetica-Bold')
       .fontSize(12)
-      .fillColor('#ffffff')
+      .fillColor('#111827')
       .text('Custos totais de produção', startX + 18, top + 14, {
         width: boxWidth - 36,
+        align: 'right',
       });
 
     doc
       .font('Helvetica')
       .fontSize(11)
-      .fillColor('#ffffff')
+      .fillColor('#111827')
       .text(
         `Custo total do lote: ${this.formatCurrency(bom.total_cost)}`,
         startX + 18,
         top + 32,
-        { width: boxWidth - 36 },
+        { width: boxWidth - 36, align: 'right' },
       );
 
     doc.text(
       `Custo unitário estimado: ${this.formatCurrency(bom.unit_cost)}`,
       startX + 18,
       top + 46,
-      { width: boxWidth - 36 },
+      { width: boxWidth - 36, align: 'right' },
     );
 
     doc.y = top + boxHeight + 12;
@@ -322,4 +357,11 @@ export class BomPdfService {
     return typeof value === 'number' ? value : Number(value);
   }
 }
+
+
+
+
+
+
+
 

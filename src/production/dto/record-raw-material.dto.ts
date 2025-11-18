@@ -11,7 +11,7 @@ import {
 export class RecordRawMaterialDto {
   @IsString()
   @MaxLength(80)
-  component_code: string;
+  component_code!: string;
 
   @IsOptional()
   @IsString()
@@ -21,11 +21,11 @@ export class RecordRawMaterialDto {
   @Type(() => Number)
   @IsNumber({ allowNaN: false, allowInfinity: false })
   @Min(0)
-  quantity_used: number;
+  quantity_used!: number;
 
   @IsString()
   @MaxLength(10)
-  unit: string;
+  unit!: string;
 
   @IsOptional()
   @Type(() => Number)

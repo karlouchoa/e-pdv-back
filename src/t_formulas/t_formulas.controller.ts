@@ -12,9 +12,14 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import type { Request } from 'express';
 import { TFormulasService } from './t_formulas.service';
 import { CreateTFormulaDto } from './dto/create-t_formulas.dto';
 import { UpdateTFormulaDto } from './dto/update-t_formulas.dto';
+
+interface TenantRequest extends Request {
+  user: { tenant: string };
+}
 
 @Controller('t_formulas')
 export class TFormulasController {
@@ -22,13 +27,13 @@ export class TFormulasController {
 
   @UseGuards(AuthGuard('jwt'))
   @Post()
-  create(@Req() req, @Body() dto: CreateTFormulaDto) {
+  create(@Req() req: TenantRequest, @Body() dto: CreateTFormulaDto) {
     return this.tFormulasService.create(req.user.tenant, dto);
   }
 
   @UseGuards(AuthGuard('jwt'))
   @Get()
-  findAll(@Req() req, @Query('cditem') cditem?: string) {
+  findAll(@Req() req: TenantRequest, @Query('cditem') cditem?: string) {
     const filters =
       typeof cditem === 'string' && cditem.trim().length > 0
         ? { cditem: this.parseCditem(cditem) }
@@ -52,7 +57,7 @@ export class TFormulasController {
 
   @UseGuards(AuthGuard('jwt'))
   @Get(':id')
-  findOne(@Req() req, @Param('id') id: string) {
+  findOne(@Req() req: TenantRequest, @Param('id') id: string) {
     console.log(req) 
     return this.tFormulasService.findOne(req.user.tenant, +id);
   }
@@ -60,7 +65,7 @@ export class TFormulasController {
   @UseGuards(AuthGuard('jwt'))
   @Patch(':id')
   update(
-    @Req() req,
+    @Req() req: TenantRequest,
     @Param('id') id: string,
     @Body() dto: UpdateTFormulaDto,
   ) {
@@ -69,7 +74,7 @@ export class TFormulasController {
 
   @UseGuards(AuthGuard('jwt'))
   @Delete(':id')
-  remove(@Req() req, @Param('id') id: string) {
+  remove(@Req() req: TenantRequest, @Param('id') id: string) {
     return this.tFormulasService.remove(req.user.tenant, +id);
   }
 }

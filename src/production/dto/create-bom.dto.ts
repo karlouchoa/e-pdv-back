@@ -17,29 +17,29 @@ export class CreateBomDto {
   @IsString()
   @MaxLength(80)
   @IsNotEmpty()
-  productCode: string;
+  productCode!: string;
 
   @IsString()
   @MaxLength(20)
   @IsNotEmpty()
-  version: string;
+  version!: string;
 
   @Type(() => Number)
   @IsNumber({ allowInfinity: false, allowNaN: false })
   @Min(0.0001)
-  lotSize: number;
+  lotSize!: number;
 
   @IsInt()
   @Min(0)
-  validityDays: number;
+  validityDays!: number;
 
   @Type(() => Number)
   @IsNumber({ allowInfinity: false, allowNaN: false })
-  marginTarget: number;
+  marginTarget!: number;
 
   @Type(() => Number)
   @IsNumber({ allowInfinity: false, allowNaN: false })
-  marginAchieved: number;
+  marginAchieved!: number;
 
   @IsOptional()
   @IsString()
@@ -50,5 +50,5 @@ export class CreateBomDto {
   @ArrayMinSize(1)
   @ValidateNested({ each: true })
   @Type(() => BomItemDto)
-  items: BomItemDto[];
+  items!: BomItemDto[];
 }

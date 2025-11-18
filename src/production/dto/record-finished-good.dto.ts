@@ -11,7 +11,7 @@ import {
 export class RecordFinishedGoodDto {
   @IsString()
   @MaxLength(80)
-  product_code: string;
+  product_code!: string;
 
   @IsOptional()
   @IsString()
@@ -21,7 +21,7 @@ export class RecordFinishedGoodDto {
   @Type(() => Number)
   @IsNumber({ allowNaN: false, allowInfinity: false })
   @Min(0)
-  quantity_good: number;
+  quantity_good!: number;
 
   @Type(() => Number)
   @IsOptional()

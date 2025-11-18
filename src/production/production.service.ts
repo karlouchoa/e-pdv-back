@@ -4,9 +4,9 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import {
-  Prisma,
-  PrismaClient as TenantClient,
-} from '../../prisma/generated/client_tenant';
+  TenantPrisma as Prisma,
+  type TenantClient,
+} from '../lib/prisma-clients';
 import { TenantDbService } from '../tenant-db/tenant-db.service';
 import { BomPdfService } from './bom-pdf.service';
 
@@ -62,7 +62,14 @@ export class ProductionService {
 
   async getBomPdf(tenant: string, id: string) {
     const bom = await this.getBom(tenant, id);
-    const file = await this.bomPdfService.createBomPdf(bom);
+    const productDescription = await this.getProductDescription(
+      tenant,
+      bom.product_code,
+    );
+    const file = await this.bomPdfService.createBomPdf({
+      ...bom,
+      product_description: productDescription,
+    });
 
     return {
       filename: this.buildBomPdfFilename(
@@ -462,6 +469,28 @@ export class ProductionService {
       where: { order_id: id },
       orderBy: { consumed_at: 'desc' },
     });
+  }
+
+  private async getProductDescription(
+    tenant: string,
+    productCode: string,
+  ): Promise<string | null> {
+    const code = productCode?.trim();
+    if (!code) {
+      return null;
+    }
+
+    const db = await this.prisma(tenant);
+    const numericCode = Number(code);
+    const where = Number.isFinite(numericCode)
+      ? { cditem: numericCode }
+      : { deitem: code };
+    const product = await db.t_itens.findFirst({
+      where,
+      select: { deitem: true },
+    });
+
+    return product?.deitem?.trim() ?? null;
   }
 
   private buildBomPdfFilename(

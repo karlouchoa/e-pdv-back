@@ -1,24 +1,65 @@
-import { Injectable, OnModuleDestroy } from '@nestjs/common';
-import { PrismaClient as TenantClient } from '../../prisma/generated/client_tenant';
-import { PrismaClient as MainClient } from '../../prisma/generated/client_main';
+import { Injectable, OnModuleDestroy, Logger } from '@nestjs/common';
+import {
+  TenantPrismaClient,
+  type TenantClient,
+  MainPrismaClient,
+  type MainClient,
+} from '../lib/prisma-clients';
 
 @Injectable()
 export class TenantDbService implements OnModuleDestroy {
-  private connections = new Map<string, TenantClient>();
-  private main = new MainClient();
+  private readonly logger = new Logger(TenantDbService.name);
 
   /**
-   * Identifica o tenant (campo banco) a partir do login informado na tela,
-   * comparando com as colunas login (email) ou nome da tabela t_acessos.
-   * Retorna tambem metadados complementares, como o logoUrl.
+   * Cache de conexões Prisma por tenant
    */
-  async getTenantMetadataByIdentifier(
-    identifier: string,
-  ): Promise<{ slug: string; logoUrl: string | null; companyName: string | null }> {
+  
+  /*private connections = new Map<string, TenantClient>();*/
+  private connections: Map<string, TenantClient> = new Map();
+
+
+  /**
+   * Conexão fixa com o banco principal (t_acessos, t_empresas, etc)
+   */
+  private readonly main: MainClient = new MainPrismaClient();
+
+  /**
+   * Monta dinamicamente a connection string de cada tenant
+   * com base nas variáveis de ambiente.
+   */
+  private buildTenantConnectionString(dbName: string): string {
+    const host = process.env.DB_HOST;
+    const port = process.env.DB_PORT;
+    const user = process.env.DB_USER;
+    const pass = process.env.DB_PASS;
+
+    if (!host || !port || !user || !pass) {
+      throw new Error(
+        'Variáveis de ambiente do SQL Server não foram definidas: DB_HOST, DB_PORT, DB_USER, DB_PASS.',
+      );
+    }
+
+    return (
+      `sqlserver://${host}:${port};` +
+      `database=${dbName};` +
+      `user=${user};` +
+      `password=${pass};` +
+      `encrypt=true;trustServerCertificate=true;`
+    );
+  }
+
+  /**
+   * Retorna metadados do tenant com base no login do usuário.
+   */
+  async getTenantMetadataByIdentifier(identifier: string): Promise<{
+    slug: string;
+    logoUrl: string | null;
+    companyName: string | null;
+  }> {
     const normalized = identifier?.trim();
 
     if (!normalized) {
-      throw new Error('Login nao informado.');
+      throw new Error('Login não informado.');
     }
 
     const tenant = await this.main.t_acessos.findFirst({
@@ -28,53 +69,77 @@ export class TenantDbService implements OnModuleDestroy {
       },
     });
 
-    const slug = tenant?.banco?.trim();
-    const logoRaw =
-      (tenant as { logoUrl?: string | null } | null)?.logoUrl ?? null;
-    const logoUrl = logoRaw?.trim() ?? null;
-    const companyRaw =
-      (tenant as { empresa?: string | null } | null)?.empresa ?? null;
-    const companyName = companyRaw?.trim() ?? null;
+    if (!tenant) {
+      throw new Error(
+        `Nenhum tenant correspondente ao login '${normalized}' encontrado.`,
+      );
+    }
+
+    const slug = tenant.banco?.trim();
+    const logoUrl = (tenant as any)?.logoUrl?.trim?.() || null;
+    const companyName = (tenant as any)?.empresa?.trim?.() || null;
 
     if (!slug) {
       throw new Error(
-        `Tenant nao encontrado para o login '${normalized}' em t_acessos.`,
+        `Tenant encontrado, mas o campo 'banco' está vazio para '${normalized}'.`,
       );
     }
 
     return { slug, logoUrl, companyName };
   }
 
+  /**
+   * Retorna o PrismaClient do tenant para consultas no banco específico.
+   */
   async getTenantClient(tenantSlug: string): Promise<TenantClient> {
-    // Busca o tenant no banco "acessos" usando o subdominio (campo banco)
     const tenant = await this.main.t_acessos.findFirst({
       where: { ativo: 'S', banco: tenantSlug },
     });
 
     if (!tenant) {
       throw new Error(
-        `Tenant '${tenantSlug}' nao encontrado ou inativo em t_acessos.`,
+        `Tenant '${tenantSlug}' não encontrado ou inativo em t_acessos.`,
       );
     }
 
-    // Monta a connection string dinamica
-    const connectionString = `sqlserver://103.199.184.26:15453;database=${tenant.banco};user=srmobile;password=P90pO89o;encrypt=true;trustServerCertificate=true;`;
+    const databaseName = tenant.banco?.trim();
+    if (!databaseName) {
+      throw new Error(
+        `Tenant '${tenantSlug}' encontrado, mas o campo 'banco' estǭ vazio.`,
+      );
+    }
 
-    // Cache da conexao
+    const connectionString = this.buildTenantConnectionString(databaseName);
+
+    // Usa cache para evitar múltiplas conexões
     if (!this.connections.has(connectionString)) {
-      const client = new TenantClient({
+      this.logger.log(`Criando nova conexão Prisma para tenant: ${tenantSlug}`);
+
+      const client = new TenantPrismaClient({
         datasources: { db: { url: connectionString } },
       });
+
       this.connections.set(connectionString, client);
     }
 
     return this.connections.get(connectionString)!;
   }
 
+  /**
+   * Finaliza todas as conexões quando o módulo é desligado.
+   */
+ 
   async onModuleDestroy() {
-    for (const client of this.connections.values()) {
-      await client.$disconnect();
-    }
+    this.logger.log('Desconectando Prisma (main + tenants)...');
+  
+    const disconnects = Array.from(this.connections.values()).map((client) =>
+      client.$disconnect(),
+    );
+    await Promise.allSettled(disconnects);
+    this.connections.clear();
+
     await this.main.$disconnect();
   }
+  
+
 }

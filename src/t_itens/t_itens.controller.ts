@@ -14,6 +14,11 @@ import { TItensService } from './t_itens.service';
 import { CreateTItemDto } from './dto/create-t_itens.dto';
 import { UpdateTItemDto } from './dto/update-t_itens.dto';
 import { AuthGuard } from '@nestjs/passport';
+import type { Request } from 'express';
+
+interface TenantRequest extends Request {
+  user: { tenant: string };
+}
 
 @Controller('t_itens')
 export class TItensController {
@@ -22,14 +27,17 @@ export class TItensController {
   /** 🔹 CREATE */
   @UseGuards(AuthGuard('jwt'))
   @Post()
-  create(@Req() req, @Body() dto: CreateTItemDto) {
+  create(@Req() req: TenantRequest, @Body() dto: CreateTItemDto) {
     return this.tItensService.create(req.user.tenant, dto);
   }
 
   /** 🔹 FIND ALL */
   @UseGuards(AuthGuard('jwt'))
   @Get()
-  findAll(@Req() req, @Query() query: Record<string, string | string[]>) {
+  findAll(
+    @Req() req: TenantRequest,
+    @Query() query: Record<string, string | string[]>,
+  ) {
     // console.log(
     //   '[t_itens] Request:',
     //   req.method,
@@ -43,21 +51,25 @@ export class TItensController {
   /** 🔹 FIND ONE (UUID) */
   @UseGuards(AuthGuard('jwt'))
   @Get(':id')
-  findOne(@Req() req, @Param('id') id: string) {
+  findOne(@Req() req: TenantRequest, @Param('id') id: string) {
     return this.tItensService.findOne(req.user.tenant, id);
   }
 
   /** 🔹 UPDATE (UUID) */
   @UseGuards(AuthGuard('jwt'))
   @Patch(':id')
-  update(@Req() req, @Param('id') id: string, @Body() dto: UpdateTItemDto) {
+  update(
+    @Req() req: TenantRequest,
+    @Param('id') id: string,
+    @Body() dto: UpdateTItemDto,
+  ) {
     return this.tItensService.update(req.user.tenant, id, dto);
   }
 
   /** 🔹 DELETE (UUID) */
   @UseGuards(AuthGuard('jwt'))
   @Delete(':id')
-  remove(@Req() req, @Param('id') id: string) {
+  remove(@Req() req: TenantRequest, @Param('id') id: string) {
     return this.tItensService.remove(req.user.tenant, id);
   }
 }

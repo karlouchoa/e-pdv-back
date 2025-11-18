@@ -10,7 +10,7 @@ import {
 export class BomItemDto {
   @IsString()
   @MaxLength(80)
-  componentCode: string;
+  componentCode!: string;
 
   @IsOptional()
   @IsString()
@@ -20,10 +20,10 @@ export class BomItemDto {
   @Type(() => Number)
   @IsNumber({ allowNaN: false, allowInfinity: false })
   @Min(0)
-  quantity: number;
+  quantity!: number;
 
   @Type(() => Number)
   @IsNumber({ allowNaN: false, allowInfinity: false })
   @Min(0)
-  unitCost: number;
+  unitCost!: number;
 }

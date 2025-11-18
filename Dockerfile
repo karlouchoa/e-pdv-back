@@ -1,37 +1,41 @@
-###
-# 1) BUILD IMAGE — dependências + build
-###
-FROM node:20-alpine AS builder
+# --- BUILD ---
+    FROM node:20-alpine AS builder
 
-WORKDIR /app
-
-# Copia somente manifests primeiro (melhora cache)
-COPY package*.json ./
-RUN npm install --production=false
-
-# Copia o restante do código
-COPY . .
-
-# Build do Nest (gera dist/)
-RUN npm run build
-
-
-###
-# 2) RUNNER IMAGE — leve e segura
-###
-FROM node:20-alpine AS runner
-
-WORKDIR /app
-
-# Copia somente o build final
-COPY --from=builder /app/dist ./dist
-
-# Copia apenas dependências de produção
-COPY package*.json ./
-RUN npm install --production
-
-# Usuário sem privilégios
-USER node
-
-EXPOSE 3023
-CMD ["node", "dist/main"]
+    WORKDIR /app
+    
+    # Copia Prisma primeiro
+    COPY prisma ./prisma
+    
+    # Copia package.json
+    COPY package*.json ./
+    
+    # Instala dependências
+    RUN npm install
+    
+    # Gera Prisma Clients
+    RUN npx prisma generate --schema=prisma/schema_main.prisma
+    RUN npx prisma generate --schema=prisma/schema_tenant.prisma
+    
+    # Copia resto do fonte
+    COPY . .
+    
+    # Compila
+    RUN npm run build
+    
+    
+    # --- RUNTIME ---
+    FROM node:20-alpine AS runner
+    
+    WORKDIR /app
+    
+    ENV NODE_ENV=production
+    
+    # Copia arquivos necessários
+    COPY --from=builder /app/node_modules ./node_modules
+    COPY --from=builder /app/dist ./dist
+    COPY --from=builder /app/prisma ./prisma
+    
+    EXPOSE 3023
+    
+    CMD ["node", "dist/main.js"]
+    

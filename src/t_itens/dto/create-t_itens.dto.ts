@@ -3,7 +3,7 @@ import { IsString, IsOptional, IsNumber, IsIn } from 'class-validator';
 
 export class CreateTItemDto {
   @IsString()
-  deitem: string;
+  deitem!: string;
 
   @IsOptional()
   @IsString()
