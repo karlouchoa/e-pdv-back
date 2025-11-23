@@ -34,6 +34,7 @@ const tenantPrismaModule = requirePrismaModule<TenantPrismaModule>(
 const mainPrismaModule = requirePrismaModule<MainPrismaModule>('client_main');
 
 export const TenantPrisma = tenantPrismaModule.Prisma;
+export { Prisma } from '@prisma/client';
 export const TenantPrismaClient = tenantPrismaModule.PrismaClient;
 export type TenantPrismaTypes = typeof TenantPrisma;
 export type TenantClient = InstanceType<typeof TenantPrismaClient>;

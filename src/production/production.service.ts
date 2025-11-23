@@ -60,6 +60,62 @@ export class ProductionService {
     return bom;
   }
 
+  // production.service.ts
+
+  // ... imports (assumindo que 'NotFoundException' e 'PrismaService' estão definidos)
+
+  async getLatestProductFormula(tenant: string, productCode: string) {
+    // 1. Conecta ao banco de dados do tenant
+    const db = await this.prisma(tenant);
+
+    // 2. Busca o ID da BOM mais recente para o produto específico.
+    const latestBomHeader = await db.bom_headers.findFirst({
+        where: {
+            tenant_id: tenant,
+            product_code: productCode,
+        },
+        // Ordena pelo campo 'created_at' para garantir que pegamos a BOM mais recente
+        orderBy: {
+            created_at: 'desc',
+        },
+        select: {
+            id: true, // Apenas precisamos do ID aqui
+        },
+    });
+
+    if (!latestBomHeader) {
+        throw new NotFoundException(
+            `Nenhuma fórmula/BOM encontrada para o produto '${productCode}'.`
+        );
+    }
+    
+    // O ID mais recente encontrado é:
+    const latestBomId = latestBomHeader.id;
+
+
+    // 3. Usa o ID encontrado para buscar a BOM completa (cabeçalho + itens)
+    // Reutilizando a lógica existente em `getBom`
+    const bomDetails = await db.bom_headers.findUnique({
+        where: {
+            id: latestBomId, // Usa o ID da BOM mais recente
+        },
+        include: {
+            items: { 
+                orderBy: { 
+                    line_number: 'asc' 
+                } 
+            },
+        },
+    });
+
+    // Esta verificação é redundante se o passo 2 funcionou, mas é uma boa prática
+    if (!bomDetails) {
+        throw new NotFoundException(`BOM '${latestBomId}' não encontrada após a busca inicial.`);
+    }
+
+    return bomDetails;
+  }
+  
   async getBomPdf(tenant: string, id: string) {
     const bom = await this.getBom(tenant, id);
     const productDescription = await this.getProductDescription(

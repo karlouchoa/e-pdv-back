@@ -1,0 +1,39 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    // ESSENCIAL PARA DECORATORS DO NESTJS
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+
+    // Configurações Padrão de Compilação
+    //"module": "commonjs",
+    "module": "NodeNext",
+    "target": "es2020", // Use uma versão moderna para melhor compatibilidade (es2020 ou superior)
+    "sourceMap": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
+
+
+    // Configurações de Checagem de Tipo e Resolução
+    "strict": true,
+    "esModuleInterop": true,
+    //"moduleResolution": "node",
+    "moduleResolution": "nodenext",
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+
+    "resolvePackageJsonExports": true,
+    "isolatedModules": true,
+    "declaration": true,
+    
+    
+    "baseUrl": "./",
+    "incremental": true,
+    
+    // Relacionado ao erro de decorator em versões recentes
+    "useDefineForClassFields": true
+    
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

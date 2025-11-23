@@ -44,6 +44,16 @@ export class ProductionController {
     return tenant;
   }
 
+  @Get('bom/product/:productCode')
+  getLatestBomByProductCode(
+    @Req() req: TenantRequest,
+    @Param('productCode') productCode: string,
+  ) {
+    const tenant = this.getTenant(req);
+    // Chama a nova função do service para buscar a BOM mais recente
+    return this.productionService.getLatestProductFormula(tenant, productCode);
+  }
+
   @Get('bom')
   listBoms(@Req() req: TenantRequest) {
     return this.productionService.listBomRecords(this.getTenant(req));
