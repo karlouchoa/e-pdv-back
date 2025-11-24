@@ -23,15 +23,13 @@
     "forceConsistentCasingInFileNames": true,
 
     "resolvePackageJsonExports": true,
-    "isolatedModules": true,
     "declaration": true,
-    
-    
+
     "baseUrl": "./",
     "incremental": true,
-    
-    // Relacionado ao erro de decorator em versões recentes
-    "useDefineForClassFields": true
+
+    "isolatedModules": false,
+    "useDefineForClassFields": false
     
   },
   "include": ["src/**/*"],
