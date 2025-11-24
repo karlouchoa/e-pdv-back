@@ -71,18 +71,55 @@ export class TItensService {
   async create(tenant: string, dto: CreateTItemDto) {
     const prisma = await this.getPrisma(tenant);
     const cdemp = await this.getCompanyId(tenant, prisma);
-
-    const data: PrismaTypes.t_itensUncheckedCreateInput = {
+  
+    const data = {
       cdemp,
-      deitem: dto.deitem,
-      barcodeit: dto.barcodeit,
-      preco: dto.preco,
-      // demais campos opcionais
+  
+      // mapeamento DTO → banco
+      deitem: dto.name,
+      defat: dto.description ?? "",
+      undven: dto.unit ?? "UN",
+      cdgruit: dto.category ? Number(dto.category) : null,
+  
+      preco: dto.salePrice ?? 0,
+      custo: dto.costPrice ?? 0,
+  
+      codncm: dto.ncm || null,
+      cest: dto.cest || null,
+      codcst: dto.cst || null,
+      barcodeit: dto.barcode || null,
+  
+      diasent: dto.leadTimeDays ?? 0,
+  
+      itprodsn: dto.itprodsn ?? "N",
+      matprima: dto.matprima ?? "N",
+  
+      obsitem: dto.notes ?? null,
+      locfotitem: dto.imagePath ?? null,
+  
+      // defaults obrigatórios
+      ativosn: "S",
+      negativo: "S",
+      aceitadesc: "S",
+  
+      qtembitem: 0,
+      pesobr: 0,
+      pesolq: 0,
+      eminitem: 0,
+      emaxitem: 0,
+      percipi: 0,
+      valcmp: 0,
+      precomin: 0,
+      percom: 0,
+      sldatual: 0,
+  
+      datacadit: new Date(),
+      updatedat: new Date(),
     };
-
+  
     return prisma.t_itens.create({ data });
   }
-
+  
   async findAll(
     tenant: string,
     filters?: Record<string, string | string[]>,
@@ -110,42 +147,67 @@ export class TItensService {
   }
 
 
-  async update(tenant: string, id: string, dto: UpdateTItemDto) {
+  async update(tenant: string, uuid: string, dto: UpdateTItemDto) {
     const prisma = await this.getPrisma(tenant);
     const cdemp = await this.getCompanyId(tenant, prisma);
   
-    // 1) Buscar o item pelo GUID + empresa
+    // 1️⃣ Buscar o item pelo UUID
     const existing = await prisma.t_itens.findFirst({
       where: {
-        ID: id,
         cdemp,
-      },
-      select: {
-        cditem: true,
+        ID: uuid, // <-- UUID verdadeiro
       },
     });
   
     if (!existing) {
-      throw new NotFoundException('Item não encontrado para este identificador.');
+      throw new Error('Item não encontrado para este tenant.');
     }
   
-    // 2) Montar o payload de update
-    const data: PrismaTypes.t_itensUncheckedUpdateInput = {
-      ...dto,
+    const cditem = existing.cditem; // <- chave real
+  
+    // 2️⃣ Construir data de atualização
+    const data: any = {
+      deitem: dto.name,
+      defat: dto.description,
+      undven: dto.unit,
+      cdgruit: dto.category ? Number(dto.category) : undefined,
+  
+      preco: dto.salePrice,
+      custo: dto.costPrice,
+  
+      codncm: dto.ncm,
+      cest: dto.cest,
+      codcst: dto.cst,
+      barcodeit: dto.barcode,
+  
+      diasent: dto.leadTimeDays,
+  
+      itprodsn: dto.itprodsn,
+      matprima: dto.matprima,
+  
+      obsitem: dto.notes,
+      locfotitem: dto.imagePath,
+  
       updatedat: new Date(),
     };
   
-    // 3) Atualizar usando a PK composta
+    // Remove undefined
+    Object.keys(data).forEach(
+      key => data[key] === undefined && delete data[key],
+    );
+  
+    // 3️⃣ UPDATE via PK composta (cdemp + cditem)
     return prisma.t_itens.update({
       where: {
         cdemp_cditem: {
           cdemp,
-          cditem: existing.cditem,
+          cditem,
         },
       },
       data,
     });
   }
+  
   
   async remove(tenant: string, id: string) {
     const prisma = await this.getPrisma(tenant);

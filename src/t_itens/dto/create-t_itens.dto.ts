@@ -1,55 +1,82 @@
-import { Transform } from 'class-transformer';
-import { IsString, IsOptional, IsNumber, IsIn } from 'class-validator';
+import { Transform } from "class-transformer";
+import {
+  IsString,
+  IsOptional,
+  IsNumber,
+  IsBoolean,
+  IsIn,
+  IsNotEmpty,
+} from "class-validator";
 
 export class CreateTItemDto {
   @IsString()
-  deitem!: string;
+  @IsNotEmpty()
+  name!: string;
 
   @IsOptional()
   @IsString()
-  barcodeit?: string;
+  description?: string;
 
   @IsOptional()
   @IsString()
-  codcst?: string;
+  unit?: string;
 
   @IsOptional()
   @IsString()
-  clasfis?: string;
+  category?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => Number(value))
+  @IsNumber()
+  salePrice?: number;
+
+  @IsOptional()
+  @Transform(({ value }) => Number(value))
+  @IsNumber()
+  costPrice?: number;
+
+  @IsOptional()
+  @Transform(({ value }) => Number(value))
+  @IsNumber()
+  leadTimeDays?: number;
+
+  @IsOptional()
+  @IsString()
+  ncm?: string;
 
   @IsOptional()
   @IsString()
   cest?: string;
 
   @IsOptional()
-  @IsNumber()
-  preco?: number;
-
-  @IsOptional()
-  @IsNumber()
-  custo?: number;
+  @IsString()
+  cst?: string;
 
   @IsOptional()
   @IsString()
-  @IsIn(['S', 'N'])
-  @Transform(({ value }) =>
-    typeof value === 'string' && value.trim() === '' ? 'N' : value,
-  )
+  barcode?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isComposed?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  isRawMaterial?: boolean;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
+  @IsOptional()
+  @IsString()
+  imagePath?: string;
+
+  @IsOptional()
+  @IsIn(["S", "N"])
   itprodsn?: string;
 
   @IsOptional()
-  @IsString()
-  @IsIn(['S', 'N'])
-  @Transform(({ value }) =>
-    typeof value === 'string' && value.trim() === '' ? 'N' : value,
-  )
+  @IsIn(["S", "N"])
   matprima?: string;
-
-  @IsOptional()
-  @IsString()
-  obsitem?: string;
-
-  @IsOptional()
-  @IsString()
-  locfotitem?: string;
 }

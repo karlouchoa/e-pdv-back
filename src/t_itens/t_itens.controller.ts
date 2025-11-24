@@ -25,10 +25,22 @@ export class TItensController {
   constructor(private readonly tItensService: TItensService) {}
 
   /** 🔹 CREATE */
-  @UseGuards(AuthGuard('jwt'))
   @Post()
+  @UseGuards(AuthGuard("jwt"))
   create(@Req() req: TenantRequest, @Body() dto: CreateTItemDto) {
     return this.tItensService.create(req.user.tenant, dto);
+  }
+
+  
+  /** 🔹 UPDATE (UUID) */
+  @UseGuards(AuthGuard('jwt'))
+  @Patch(':id')
+  update(
+    @Req() req: TenantRequest,
+    @Param('id') id: string,
+    @Body() dto: UpdateTItemDto,
+  ) {
+    return this.tItensService.update(req.user.tenant, id, dto);
   }
 
   /** 🔹 FIND ALL */
@@ -53,17 +65,6 @@ export class TItensController {
   @Get(':id')
   findOne(@Req() req: TenantRequest, @Param('id') id: string) {
     return this.tItensService.findOne(req.user.tenant, id);
-  }
-
-  /** 🔹 UPDATE (UUID) */
-  @UseGuards(AuthGuard('jwt'))
-  @Patch(':id')
-  update(
-    @Req() req: TenantRequest,
-    @Param('id') id: string,
-    @Body() dto: UpdateTItemDto,
-  ) {
-    return this.tItensService.update(req.user.tenant, id, dto);
   }
 
   /** 🔹 DELETE (UUID) */

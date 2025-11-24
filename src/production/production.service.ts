@@ -28,10 +28,11 @@ export class ProductionService {
     private readonly bomPdfService: BomPdfService,
   ) {}
 
+  
   private async prisma(tenant: string): Promise<TenantClient> {
     return this.tenantDb.getTenantClient(tenant);
   }
-
+  
   //
   // --------------------------------------------------------------------------
   //  BOM (Ficha Técnica)
@@ -140,59 +141,95 @@ export class ProductionService {
   async createBom(tenant: string, dto: CreateBomDto) {
     const db = await this.prisma(tenant);
 
+    // 💥 Garante que version enviado pelo frontend será ignorado
     const totalCost = dto.items.reduce(
-      (s, i) => s + i.quantity * i.unitCost,
-      0,
+      (acc, item) => acc + Number(item.quantity) * Number(item.unitCost),
+      0
     );
-
-    const unitCost =
-      dto.lotSize > 0 ? Number(totalCost / dto.lotSize) : 0;
-
-    try {
-      return db.$transaction(async (tx) => {
-        const header = await tx.bom_headers.create({
-          data: {
-            tenant_id: tenant,
-            product_code: dto.productCode,
-            version: dto.version,
-            lot_size: dto.lotSize,
-            validity_days: dto.validityDays,
-            margin_target: dto.marginTarget,
-            margin_achieved: dto.marginAchieved,
-            total_cost: totalCost,
-            unit_cost: unitCost,
-            notes: dto.notes ?? null,
-          },
-        });
-
-        await tx.bom_items.createMany({
-          data: dto.items.map((item, index) => ({
-            bom_id: header.id,
-            line_number: index + 1,
-            component_code: item.componentCode,
-            description: item.description || null,
-            quantity: item.quantity,
-            unit_cost: item.unitCost,
-          })),
-        });
-
-        return tx.bom_headers.findUnique({
-          where: { id: header.id },
-          include: { items: { orderBy: { line_number: 'asc' } } },
-        });
+  
+    const unitCost = dto.lotSize > 0 ? Number(totalCost / dto.lotSize) : 0;
+  
+    return db.$transaction(async (tx) => {
+      // 1️⃣ Pegar versões existentes
+      const existing = await tx.bom_headers.findMany({
+        where: {
+          tenant_id: tenant,
+          product_code: dto.productCode,
+        },
+        select: { version: true },
       });
-    } catch (e) {
-      if (
-        e instanceof Prisma.PrismaClientKnownRequestError &&
-        e.code === 'P2002'
-      ) {
-        throw new ConflictException(
-          'Já existe um BOM com mesmo produto/versão.',
-        );
-      }
-      throw e;
-    }
+  
+      // 2️⃣ Calcular a próxima versão
+      const nextVersion = this.getNextVersion(existing.map(v => v.version));
+  
+      // 3️⃣ Criar novo header
+      const header = await tx.bom_headers.create({
+        data: {
+          tenant_id: tenant,
+          product_code: dto.productCode,
+          version: nextVersion,
+          lot_size: dto.lotSize,
+          validity_days: dto.validityDays,
+          margin_target: dto.marginTarget,
+          margin_achieved: dto.marginAchieved,
+          total_cost: totalCost,
+          unit_cost: unitCost,
+          notes: dto.notes ?? null,
+        },
+      });
+  
+      // 4️⃣ Criar itens
+      const items = dto.items.map((item, index) => ({
+        bom_id: header.id,
+        line_number: index + 1,
+        component_code: item.componentCode,
+        description: item.description,
+        quantity: Number(item.quantity),
+        unit_cost: Number(item.unitCost),
+      }));
+  
+      await tx.bom_items.createMany({ data: items });
+  
+      return {
+        id: header.id,
+        version: nextVersion,
+        message: "BOM criado com auto-versionamento simples.",
+      };
+    });
   }
+  
+
+  private parseVersion(v: string) {
+    const [major, minor] = v.split(".").map(Number);
+    return { major, minor };
+  }
+  
+  private buildVersion(major: number, minor: number) {
+    return `${major}.${minor}`;
+  }
+  
+  /**
+   * 🔥 Auto-versionamento simples:
+   * - Primeira versão → 1.0
+   * - Demais → incrementa minor
+   */
+  private getNextVersion(existingVersions: string[]) {
+    if (!existingVersions || existingVersions.length === 0) {
+      return "1.0";
+    }
+  
+    const parsed = existingVersions
+      .map(v => this.parseVersion(v))
+      .sort((a, b) =>
+        a.major === b.major
+          ? b.minor - a.minor
+          : b.major - a.major
+      );
+  
+    const last = parsed[0];
+    return this.buildVersion(last.major, last.minor + 1);
+  }
+  
 
   async updateBom(tenant: string, id: string, dto: UpdateBomDto) {
     const db = await this.prisma(tenant);
