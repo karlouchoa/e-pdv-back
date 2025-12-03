@@ -6,9 +6,12 @@ type PDFKit = PDFKit.PDFDocument; // se precisar do tipo
 
 import type { Prisma } from '../../prisma/generated/client_tenant';
 
-type BomWithItems = Prisma.bom_headersGetPayload<{
-  include: { items: true };
-}> & {
+type PrismaBomWithItems = Prisma.bom_headersGetPayload<{
+  include: { bom_items: true };
+}>;
+
+type BomWithItems = Omit<PrismaBomWithItems, 'bom_items'> & {
+  items: PrismaBomWithItems['bom_items'];
   product_description?: string | null;
 };
 

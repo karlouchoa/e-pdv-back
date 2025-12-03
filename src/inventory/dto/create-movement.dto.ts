@@ -3,10 +3,12 @@ import {
   IsDateString,
   IsIn,
   IsInt,
+  isNotEmpty,
   IsNotEmpty,
   IsNumber,
   IsOptional,
   IsPositive,
+  isString,
   IsString,
   MaxLength,
   ValidateNested,
@@ -29,10 +31,9 @@ class MovementDocumentDto {
 }
 
 export class CreateMovementDto {
-  @Type(() => Number)
-  @IsInt()
-  @IsPositive()
-  itemId!: number;
+  @IsOptional()
+  @IsString()
+  itemId!: string;
 
   @IsNotEmpty()
   @IsIn(['E', 'S', 'e', 's'])
@@ -59,9 +60,8 @@ export class CreateMovementDto {
   notes?: string;
 
   @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  warehouse?: number;
+  @IsString()
+  warehouse?: string;
 
   @IsOptional()
   @Type(() => Number)

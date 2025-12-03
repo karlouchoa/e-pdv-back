@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import type {
   Prisma,
   PrismaClient as TenantClient,
+  t_formulas as FormulaModel,
 } from '../../prisma/generated/client_tenant';
 import { TenantDbService } from '../tenant-db/tenant-db.service';
 import { CreateTFormulaDto } from './dto/create-t_formulas.dto';
@@ -15,14 +16,6 @@ interface TFormulasFilters {
 export class TFormulasService {
   private readonly defaultCompanyId = 1;
   private readonly companyCache = new Map<string, number>();
-  private readonly formulaInclude: Prisma.t_formulasInclude = {
-    materiaPrima: {
-      select: {
-        valcmp: true,
-        custo: true,
-      },
-    },
-  };
 
   constructor(private readonly tenantDbService: TenantDbService) {}
 
@@ -57,11 +50,9 @@ export class TFormulasService {
     prisma: TenantClient,
     cdemp: number,
     autocod: number,
-    include?: Prisma.t_formulasInclude,
   ) {
     const formula = await prisma.t_formulas.findFirst({
       where: { cdemp, autocod },
-      include,
     });
 
     if (!formula) {
@@ -105,27 +96,22 @@ export class TFormulasService {
     const formulas = await prisma.t_formulas.findMany({
       where,
       orderBy: { autocod: 'asc' },
-      // include: this.formulaInclude,
-      include: {
-        materiaPrima: {
-          select: {
-            deitem: true,
-            custo: true,
-            undven: true,
-          }
-        }
-      }
     });
 
-    console.log("🔵 [PRISMA] formulas retornadas:", JSON.stringify(formulas, null, 2));
+    const enrichedFormulas = await this.includeMateriaPrima(prisma, formulas);
 
-    if (filters?.cditem !== undefined && formulas.length === 0) {
+    console.log(
+      '[PRISMA] formulas retornadas:',
+      JSON.stringify(enrichedFormulas, null, 2),
+    );
+
+    if (filters?.cditem !== undefined && enrichedFormulas.length === 0) {
       throw new NotFoundException(
         `Nenhuma formula encontrada para o item ${filters.cditem}`,
       );
     }
 
-    return formulas;
+    return enrichedFormulas;
   }
 
   async findOne(tenant: string, id: number) {
@@ -159,6 +145,42 @@ export class TFormulasService {
     return prisma.t_formulas.delete({
       where: this.buildWhere(id),
     });
+  }
+
+  private async includeMateriaPrima(
+    prisma: TenantClient,
+    formulas: FormulaModel[],
+  ) {
+    const materiaPrimaIds = Array.from(
+      new Set(
+        formulas
+          .map((formula) => formula.matprima)
+          .filter((value): value is number => typeof value === 'number'),
+      ),
+    );
+
+    if (materiaPrimaIds.length === 0) {
+      return formulas;
+    }
+
+    const materiaPrima = await prisma.t_itens.findMany({
+      where: { cditem: { in: materiaPrimaIds } },
+      select: {
+        cditem: true,
+        deitem: true,
+        custo: true,
+        undven: true,
+      },
+    });
+
+    const materiaPrimaMap = new Map(
+      materiaPrima.map((item) => [item.cditem, item]),
+    );
+
+    return formulas.map((formula) => ({
+      ...formula,
+      materiaPrima: materiaPrimaMap.get(formula.matprima) ?? null,
+    }));
   }
 }
 

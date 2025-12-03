@@ -345,54 +345,84 @@ export class InventoryService {
 
   async createMovement(tenant: string, dto: CreateMovementDto) {
     const prisma = await this.prisma(tenant);
-    const cdemp = await this.getCompanyId(tenant, prisma);
+  
+    // 1️⃣ Data do movimento
     const movementDate = dto.date ? new Date(dto.date) : new Date();
-    if (Number.isNaN(movementDate.getTime())) {
-      throw new BadRequestException('Data do lancamento invalida.');
+    if (isNaN(movementDate.getTime())) {
+      throw new BadRequestException('Data do lançamento inválida.');
     }
-
+  
+    // 2️⃣ Normalização e cálculos básicos
     const type = this.normalizeType(dto.type);
     const quantity = Math.abs(dto.quantity);
     const signedQty = this.applySignedQuantity(type, quantity);
-
+    const unitPrice = dto.unitPrice ?? null;
+    const totalValue = this.computeTotalValue(quantity, unitPrice);
+  
+    // 3️⃣ Buscar item pelo GUID --------- (CORRETO)
+    const item = await prisma.t_itens.findFirst({
+      where: { ID: dto.itemId }, // 👈 campo real do Prisma é ID, não id
+    });
+  
+    if (!item) {
+      throw new BadRequestException(`Item '${dto.itemId}' não encontrado.`);
+    }
+  
+    const cditem = item.cditem;   // ok (int)
+    const empitem = item.cdemp;   // ok (int) empresa do item
+  
+    // 4️⃣ Buscar empresa selecionada via GUID --------- (CORRETO)
+    const empresa = await prisma.t_emp.findFirst({
+      where: { ID: dto.warehouse }, // 👈 novamente campo real é ID
+    });
+  
+    if (!empresa) {
+      throw new BadRequestException(
+        `Empresa/Almoxarifado '${dto.warehouse}' não encontrada.`,
+      );
+    }
+  
+    const cdemp = empresa.cdemp; // empresa selecionada
+  
+    // 5️⃣ Saldo anterior
     const previousBalance = await this.getStartingBalance(
       prisma,
       cdemp,
-      dto.itemId,
+      cditem,
       movementDate,
     );
-
+  
     const currentBalance = previousBalance + signedQty;
-    const unitPrice = dto.unitPrice ?? null;
-    const totalValue = this.computeTotalValue(quantity, unitPrice);
-
+  
+    // 6️⃣ Criar movimento
     const created = await prisma.t_movest.create({
       data: {
-        cdemp,
-        cditem: dto.itemId,
+        cdemp,              // empresa onde o movimento acontece
+        cditem,             // código numérico do item
         data: movementDate,
         st: type,
         qtde: quantity,
         preco: unitPrice,
         valor: totalValue,
-        numdoc: dto.document?.number,
+        numdoc: dto.document?.number ?? null,
         datadoc: dto.document?.date ? new Date(dto.document.date) : null,
-        especie: dto.document?.type,
-        clifor: dto.customerOrSupplier,
-        empitem: dto.warehouse,
+        especie: dto.document?.type ?? null,
+        clifor: dto.customerOrSupplier ?? null,
+        empitem,            // empresa do item (código numérico)
         saldoant: previousBalance,
         sldantemp: currentBalance,
-        obs: dto.notes,
+        obs: dto.notes ?? null,
         datalan: movementDate,
         isdeleted: false,
         createdat: new Date(),
         updatedat: new Date(),
       },
     });
-
+  
+    // 7️⃣ Retorno padrão
     return {
       id: created.nrlan,
-      itemId: created.cditem,
+      itemId: cditem,
       type,
       quantity,
       unitPrice,
@@ -402,4 +432,7 @@ export class InventoryService {
       date: created.data,
     };
   }
+  
+ 
+  
 }

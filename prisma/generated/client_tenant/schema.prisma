@@ -2174,6 +2174,7 @@ model t_emp {
   isdeleted              Boolean?  @default(false, map: "DF__t_emp__isdeleted__1C7D1A4B")
   createdat              DateTime? @default(now(), map: "DF__t_emp__createdat__1D713E84") @db.DateTime
   updatedat              DateTime? @default(now(), map: "DF__t_emp__updatedat__1E6562BD") @db.DateTime
+  ID                     String?   @default(dbgenerated("newid()"), map: "DF__t_emp__ID__79DDE984") @db.UniqueIdentifier
 }
 
 model t_encargocalculo {
@@ -2721,19 +2722,18 @@ model t_formulalote {
 
 /// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
 model t_formulas {
-  autocod      Int      @id(map: "PK_t_formulas") @default(autoincrement())
-  cditem       Int
-  empitem      Int
-  undven       String   @db.VarChar(3)
-  matprima     Int
-  qtdemp       Decimal  @db.Decimal(18, 6)
-  undmp        String   @db.VarChar(3)
-  empitemmp    Int
-  deitem_iv    String?  @db.VarChar(60)
-  cdemp        Int?
-  CreatedAt    DateTime @default(now(), map: "DF__t_formula__Creat__2B554987") @db.DateTime
-  UpdatedAt    DateTime @default(now(), map: "DF__t_formula__Updat__2C496DC0") @db.DateTime
-  materiaPrima t_itens? @relation("FormulaMateriaPrima", fields: [empitemmp, matprima], references: [cdemp, cditem])
+  autocod   Int      @id(map: "PK_t_formulas") @default(autoincrement())
+  cditem    Int
+  empitem   Int
+  undven    String   @db.VarChar(3)
+  matprima  Int
+  qtdemp    Decimal  @db.Decimal(18, 6)
+  undmp     String   @db.VarChar(3)
+  empitemmp Int
+  deitem_iv String?  @db.VarChar(60)
+  cdemp     Int?
+  CreatedAt DateTime @default(now(), map: "DF__t_formula__Creat__2B554987") @db.DateTime
+  UpdatedAt DateTime @default(now(), map: "DF__t_formula__Updat__2C496DC0") @db.DateTime
 }
 
 model t_fpgto {
@@ -3445,7 +3445,6 @@ model t_itens {
   createdat        DateTime?     @db.DateTime
   updatedat        DateTime?     @db.DateTime
   T_CCLASSTRIB     T_CCLASSTRIB? @relation(fields: [CCLASSTRIB_ID], references: [ID], onDelete: NoAction, onUpdate: NoAction, map: "FK_T_ITENS_T_CCLASSTRIB")
-  formulas         t_formulas[]  @relation("FormulaMateriaPrima")
 
   @@id([cdemp, cditem], map: "PK_t_itens")
   @@index([deitem], map: "idx_deitem")
@@ -7218,100 +7217,132 @@ model usuponto {
   UpdatedAt DateTime @default(now(), map: "DF__usuponto__Update__0955373E") @db.DateTime
 }
 
-model bom_headers {
-  id              String      @id @default(dbgenerated("newid()")) @db.UniqueIdentifier
-  tenant_id       String      @db.VarChar(80)
-  product_code    String      @db.VarChar(80)
-  version         String      @db.VarChar(20)
-  lot_size        Decimal     @db.Decimal(18, 4)
-  validity_days   Int
-  margin_target   Decimal     @db.Decimal(18, 4)
-  total_cost      Decimal     @db.Decimal(18, 4)
-  unit_cost       Decimal     @db.Decimal(18, 4)
-  margin_achieved Decimal     @db.Decimal(18, 4)
-  notes           String?     @db.VarChar(2000)
-  created_at      DateTime    @default(now()) @db.DateTime
-  updated_at      DateTime    @default(now()) @db.DateTime
-  items           bom_items[]
-
-  @@unique([tenant_id, product_code, version], map: "UQ_bom_headers_tenant_product_version")
-  @@index([tenant_id], map: "IX_bom_headers_tenant")
-}
-
-model bom_items {
-  id             Int         @id @default(autoincrement())
-  bom_id         String      @db.UniqueIdentifier
-  line_number    Int
-  component_code String      @db.VarChar(80)
-  description    String?     @db.VarChar(200)
-  quantity       Decimal     @db.Decimal(18, 4)
-  unit_cost      Decimal     @db.Decimal(18, 4)
-  created_at     DateTime    @default(now()) @db.DateTime
-  updated_at     DateTime    @default(now()) @db.DateTime
-  header         bom_headers @relation(fields: [bom_id], references: [id], onDelete: Cascade, map: "FK_bom_items_headers")
-
-  @@index([bom_id], map: "IX_bom_items_bom_id")
-}
-
 model production_orders {
-  id               String                    @id @default(dbgenerated("newid()")) @db.UniqueIdentifier
-  external_code    String                    @db.VarChar(80)
-  product_code     String                    @db.VarChar(80)
-  quantity_planned Decimal                   @db.Decimal(18, 4)
-  unit             String                    @db.VarChar(10)
-  start_date       DateTime                  @db.DateTime
-  due_date         DateTime                  @db.DateTime
-  notes            String?                   @db.VarChar(2000)
-  created_at       DateTime                  @default(now()) @db.DateTime
-  updated_at       DateTime                  @default(now()) @db.DateTime
-  statuses         production_order_status[]
-  finished_goods   order_finished_goods[]
-  raw_materials    order_raw_materials[]
-
-  @@unique([external_code], map: "UQ_production_orders_external_code")
+  id                   String                    @id(map: "PK_production_orders") @default(dbgenerated("newid()"), map: "DF_production_orders_id") @db.UniqueIdentifier
+  external_code        String                    @unique(map: "UQ__producti__C0B15987B388830C") @db.NVarChar(100)
+  product_code         String                    @db.NVarChar(80)
+  quantity_planned     Decimal                   @db.Decimal(18, 4)
+  unit                 String                    @db.NVarChar(10)
+  start_date           DateTime                  @db.Date
+  due_date             DateTime                  @db.Date
+  notes                String?                   @db.NVarChar(Max)
+  created_at           DateTime                  @default(dbgenerated("sysutcdatetime()"), map: "DF_production_orders_created")
+  updated_at           DateTime                  @default(dbgenerated("sysutcdatetime()"), map: "DF_production_orders_updated")
+  lote                 Int?
+  validate             DateTime?                 @db.DateTime
+  boxes_qty            Int?
+  box_cost             Decimal?                  @db.Decimal(18, 4)
+  labor_per_unit       Decimal?                  @db.Decimal(18, 4)
+  sale_price           Decimal?                  @db.Decimal(18, 4)
+  markup               Decimal?                  @db.Decimal(18, 4)
+  post_sale_tax        Decimal?                  @db.Decimal(18, 4)
+  custom_validate_date DateTime?                 @db.DateTime
+  OP                   Int                       @default(autoincrement())
+  author_user          String?                   @db.VarChar(30)
+  ingredients          Decimal?                  @db.Decimal(18, 4)
+  labor                Decimal?                  @db.Decimal(18, 4)
+  packaging            Decimal?                  @db.Decimal(18, 4)
+  taxes                Decimal?                  @db.Decimal(18, 4)
+  Overhead             Decimal?                  @db.Decimal(18, 4)
+  totalCost            Decimal?                  @db.Decimal(18, 4)
+  unitCost             Decimal?                  @db.Decimal(18, 4)
+  finished_goods       order_finished_goods[]
+  raw_materials        order_raw_materials[]
+  statuses             production_order_status[]
 }
 
 model production_order_status {
-  id          Int               @id @default(autoincrement())
+  id          BigInt            @id(map: "PK_production_order_status") @default(autoincrement())
   order_id    String            @db.UniqueIdentifier
-  status      String            @db.VarChar(30)
-  responsible String            @db.VarChar(80)
-  remarks     String?           @db.VarChar(500)
-  event_time  DateTime?         @db.DateTime
-  created_at  DateTime          @default(now()) @db.DateTime
-  order       production_orders @relation(fields: [order_id], references: [id], onDelete: Cascade, map: "FK_production_order_status_order")
+  status      String            @db.NVarChar(20)
+  event_time  DateTime          @default(dbgenerated("sysutcdatetime()"), map: "DF_production_order_status_event")
+  responsible String            @db.NVarChar(120)
+  remarks     String?           @db.NVarChar(Max)
+  status_user String?           @db.VarChar(30)
+  order       production_orders @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_production_order_status_order")
 
-  @@index([order_id], map: "IX_production_order_status_order")
+  @@unique([order_id, event_time(sort: Desc)], map: "UX_order_status_hist")
 }
 
 model order_finished_goods {
-  id             Int               @id @default(autoincrement())
+  id             BigInt            @id(map: "PK_order_finished_goods") @default(autoincrement())
   order_id       String            @db.UniqueIdentifier
-  product_code   String            @db.VarChar(80)
-  lot_number     String?           @db.VarChar(80)
+  product_code   String            @db.NVarChar(80)
+  lot_number     String?           @db.NVarChar(80)
   quantity_good  Decimal           @db.Decimal(18, 4)
-  quantity_scrap Decimal           @default(0) @db.Decimal(18, 4)
+  quantity_scrap Decimal           @default(0, map: "DF_finished_goods_scrap") @db.Decimal(18, 4)
   unit_cost      Decimal?          @db.Decimal(18, 4)
-  posted_at      DateTime?         @db.DateTime
-  created_at     DateTime          @default(now()) @db.DateTime
-  order          production_orders @relation(fields: [order_id], references: [id], onDelete: Cascade, map: "FK_order_finished_goods_order")
+  posted_at      DateTime          @default(dbgenerated("sysutcdatetime()"), map: "DF_finished_goods_posted")
+  order          production_orders @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_order_finished_goods_order")
 
   @@index([order_id], map: "IX_order_finished_goods_order")
 }
 
 model order_raw_materials {
-  id             Int               @id @default(autoincrement())
+  id             BigInt            @id(map: "PK_order_raw_materials") @default(autoincrement())
   order_id       String            @db.UniqueIdentifier
-  component_code String            @db.VarChar(80)
-  description    String?           @db.VarChar(200)
+  component_code String            @db.NVarChar(80)
+  description    String?           @db.NVarChar(200)
   quantity_used  Decimal           @db.Decimal(18, 4)
-  unit           String            @db.VarChar(10)
+  unit           String            @db.NVarChar(10)
   unit_cost      Decimal?          @db.Decimal(18, 4)
-  warehouse      String?           @db.VarChar(30)
-  batch_number   String?           @db.VarChar(80)
-  consumed_at    DateTime?         @db.DateTime
-  created_at     DateTime          @default(now()) @db.DateTime
-  order          production_orders @relation(fields: [order_id], references: [id], onDelete: Cascade, map: "FK_order_raw_materials_order")
+  warehouse      String?           @db.NVarChar(80)
+  batch_number   String?           @db.NVarChar(80)
+  consumed_at    DateTime          @default(dbgenerated("sysutcdatetime()"), map: "DF_raw_materials_consumed")
+  order          production_orders @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_order_raw_materials_order")
 
   @@index([order_id], map: "IX_order_raw_materials_order")
+  @@index([component_code], map: "IX_order_raw_materials_component")
+}
+
+model bom_headers {
+  id              String      @id(map: "PK_bom_headers") @default(dbgenerated("newid()"), map: "DF_bom_headers_id") @db.UniqueIdentifier
+  tenant_id       String      @db.NVarChar(80)
+  product_code    String      @db.NVarChar(80)
+  version         String      @db.NVarChar(20)
+  lot_size        Decimal     @db.Decimal(18, 4)
+  validity_days   Int
+  margin_target   Decimal     @db.Decimal(9, 4)
+  total_cost      Decimal     @db.Decimal(18, 4)
+  unit_cost       Decimal     @db.Decimal(18, 4)
+  margin_achieved Decimal     @db.Decimal(9, 4)
+  notes           String?     @db.NVarChar(Max)
+  created_at      DateTime    @default(dbgenerated("sysutcdatetime()"), map: "DF_bom_headers_created")
+  updated_at      DateTime    @default(dbgenerated("sysutcdatetime()"), map: "DF_bom_headers_updated")
+  bom_items       bom_items[]
+
+  @@unique([tenant_id, product_code, version], map: "UX_bom_headers")
+}
+
+model bom_items {
+  id             BigInt      @id(map: "PK_bom_items") @default(autoincrement())
+  bom_id         String      @db.UniqueIdentifier
+  line_number    Int
+  component_code String      @db.NVarChar(80)
+  description    String?     @db.NVarChar(200)
+  quantity       Decimal     @db.Decimal(18, 4)
+  unit_cost      Decimal     @db.Decimal(18, 4)
+  created_at     DateTime    @default(dbgenerated("sysutcdatetime()"), map: "DF_bom_items_created")
+  updated_at     DateTime?   @default(now(), map: "DF__bom_items__updat__0B087586") @db.DateTime
+  bom_headers    bom_headers @relation(fields: [bom_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_bom_items_header")
+
+  @@index([bom_id, line_number], map: "IX_bom_items_bom")
+}
+
+model t_auditoriaEstoque {
+  ID          String   @id(map: "PK_t_auditoriaEstoque") @default(dbgenerated("newid()"), map: "DF__t_auditoriaE__ID__0DE4E231") @db.UniqueIdentifier
+  data        DateTime @default(now(), map: "DF__t_auditori__data__0ED9066A") @db.DateTime
+  usuario     String?  @db.VarChar(20)
+  cdemp       Int
+  cditem      Int
+  qtde        Decimal  @db.Decimal(18, 4)
+  tipo        String   @db.Char(1)
+  saldo_ant   Decimal  @db.Decimal(18, 4)
+  saldo_atual Decimal  @db.Decimal(18, 4)
+  origem      String?  @db.VarChar(50)
+
+  @@index([cdemp, cditem], map: "IX_t_auditoriaEstoque_cdemp_cditem")
+  @@index([cditem], map: "IX_t_auditoriaEstoque_cditem")
+  @@index([data], map: "IX_t_auditoriaEstoque_data")
+  @@index([usuario], map: "IX_t_auditoriaEstoque_usuario")
 }

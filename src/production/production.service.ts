@@ -3,10 +3,12 @@ import {
   NotFoundException,
   ConflictException,
 } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import {
   TenantPrisma as Prisma,
   type TenantClient,
 } from '../lib/prisma-clients';
+import type { Prisma as TenantPrismaTypes } from '../../prisma/generated/client_tenant';
 import { TenantDbService } from '../tenant-db/tenant-db.service';
 import { BomPdfService } from './bom-pdf.service';
 
@@ -23,10 +25,68 @@ import { FindProductionOrdersQueryDto } from './dto/find-production-orders.dto';
 
 @Injectable()
 export class ProductionService {
+  private readonly defaultOrderStatus = 'PENDENTE';
+  private readonly systemStatusResponsible = 'SISTEMA';
+
   constructor(
     private readonly tenantDb: TenantDbService,
     private readonly bomPdfService: BomPdfService,
   ) {}
+
+  private readonly orderScalarSelect: TenantPrismaTypes.production_ordersSelect = {
+    id: true,
+    external_code: true,
+    product_code: true,
+    quantity_planned: true,
+    unit: true,
+    start_date: true,
+    due_date: true,
+    notes: true,
+    created_at: true,
+    updated_at: true,
+    lote: true,
+    validate: true,
+    boxes_qty: true,
+    box_cost: true,
+    labor_per_unit: true,
+    sale_price: true,
+    markup: true,
+    post_sale_tax: true,
+    custom_validate_date: true,
+    OP: true,
+    author_user: true,
+    ingredients: true,
+    labor: true,
+    packaging: true,
+    taxes: true,
+    Overhead: true,
+    totalCost: true,
+    unitCost: true,
+  };
+
+  private buildOrderSelect(options?: {
+    rawMaterials?: boolean;
+    statuses?: boolean;
+    finishedGoods?: boolean;
+  }): TenantPrismaTypes.production_ordersSelect {
+    const base: TenantPrismaTypes.production_ordersSelect = {
+      ...this.orderScalarSelect,
+    };
+
+    if (options?.statuses) {
+      base.statuses = { orderBy: { event_time: 'desc' } };
+    }
+
+    if (options?.finishedGoods) {
+      base.finished_goods = { orderBy: { posted_at: 'desc' } };
+    }
+
+    if (options?.rawMaterials) {
+      base.raw_materials = { orderBy: { consumed_at: 'desc' } };
+    }
+
+    return base;
+  }
 
   
   private async prisma(tenant: string): Promise<TenantClient> {
@@ -43,7 +103,7 @@ export class ProductionService {
     const db = await this.prisma(tenant);
     return db.bom_headers.findMany({
       where: { tenant_id: tenant },
-      include: { items: { orderBy: { line_number: 'asc' } } },
+      include: { bom_items: { orderBy: { line_number: 'asc' } } },
       orderBy: [{ created_at: 'desc' }],
     });
   }
@@ -53,19 +113,18 @@ export class ProductionService {
 
     const bom = await db.bom_headers.findFirst({
       where: { id, tenant_id: tenant },
-      include: { items: { orderBy: { line_number: 'asc' } } },
+      include: { bom_items: { orderBy: { line_number: 'asc' } } },
     });
 
     if (!bom) throw new NotFoundException(`BOM '${id}' não encontrado.`);
 
-    return bom;
+    return {
+      ...bom,
+      items: bom.bom_items,  // <-- padroniza o nome
+    };
   }
 
-  // production.service.ts
-
-  // ... imports (assumindo que 'NotFoundException' e 'PrismaService' estão definidos)
-
-  async getLatestProductFormula(tenant: string, productCode: string) {
+   async getLatestProductFormula(tenant: string, productCode: string) {
     // 1. Conecta ao banco de dados do tenant
     const db = await this.prisma(tenant);
 
@@ -101,7 +160,7 @@ export class ProductionService {
             id: latestBomId, // Usa o ID da BOM mais recente
         },
         include: {
-            items: { 
+          bom_items: { 
                 orderBy: { 
                     line_number: 'asc' 
                 } 
@@ -123,8 +182,11 @@ export class ProductionService {
       tenant,
       bom.product_code,
     );
+
+    const { bom_items: _bomItems, ...bomForPdf } = bom;
+    
     const file = await this.bomPdfService.createBomPdf({
-      ...bom,
+      ...bomForPdf,
       product_description: productDescription,
     });
 
@@ -236,7 +298,7 @@ export class ProductionService {
 
     const existing = await db.bom_headers.findFirst({
       where: { id, tenant_id: tenant },
-      include: { items: true },
+      include: { bom_items: true },
     });
 
     if (!existing)
@@ -247,7 +309,7 @@ export class ProductionService {
           quantity: Number(i.quantity),
           unitCost: Number(i.unitCost),
         }))
-      : existing.items.map(i => ({
+      : existing.bom_items.map(i => ({
           quantity: Number(i.quantity),
           unitCost: Number(i.unit_cost),
         }));
@@ -297,7 +359,7 @@ export class ProductionService {
 
       return tx.bom_headers.findUnique({
         where: { id },
-        include: { items: { orderBy: { line_number: 'asc' } } },
+        include: { bom_items: { orderBy: { line_number: 'asc' } } },
       });
     });
   }
@@ -326,17 +388,84 @@ export class ProductionService {
   async createOrder(tenant: string, dto: CreateProductionOrderDto) {
     const db = await this.prisma(tenant);
 
+
+    const externalCode =
+      dto.external_code && dto.external_code.trim().length > 0
+        ? dto.external_code.trim()
+        : randomUUID();
+
+    const rawMaterials =
+      dto.raw_materials?.length && dto.raw_materials.length > 0
+        ? dto.raw_materials.map((item) => ({
+            component_code: item.component_code,
+            description: this.normalizeNullableString(item.description),
+            quantity_used: item.quantity_used,
+            unit: item.unit,
+            unit_cost:
+              item.unit_cost !== undefined && item.unit_cost !== null
+                ? Number(item.unit_cost)
+                : null,
+            warehouse: this.normalizeNullableString(item.warehouse),
+            batch_number: this.normalizeNullableString(item.batch_number),
+            ...(item.consumed_at && {
+              consumed_at: new Date(item.consumed_at),
+            }),
+          }))
+        : undefined;
+
     try {
       return db.production_orders.create({
         data: {
-          external_code: dto.external_code,
+          external_code: externalCode,
           product_code: dto.product_code,
           quantity_planned: dto.quantity_planned,
           unit: dto.unit,
+          OP: dto.OP,
           start_date: new Date(dto.start_date),
           due_date: new Date(dto.due_date),
-          notes: dto.notes ?? null,
+          notes: this.normalizeNullableString(dto.notes) ?? null,
+          ...(dto.author_user ? { author_user: dto.author_user } : {}),
+          ...(dto.ingredients != null ? { ingredients: Number(dto.ingredients) } : {}),
+          ...(dto.labor != null ? { labor: Number(dto.labor) } : {}),
+          ...(dto.packaging != null ? { packaging: Number(dto.packaging) } : {}),
+          ...(dto.taxes != null ? { taxes: Number(dto.taxes) } : {}),
+          ...(dto.Overhead != null ? { overhead: Number(dto.Overhead) } : {}),
+          ...(dto.totalCost != null ? { totalCost: Number(dto.totalCost) } : {}),
+          ...(dto.unitCost != null ? { unitCost: Number(dto.unitCost) } : {}),
+          ...(dto.lote != null ? { lote: dto.lote } : {}),
+          ...(dto.validate ? { validate: new Date(dto.validate) } : {}),
+          ...(dto.custom_validate_date
+            ? { custom_validate_date: new Date(dto.custom_validate_date) }
+            : {}),
+          ...(dto.boxes_qty != null ? { boxes_qty: dto.boxes_qty } : {}),
+          ...(dto.box_cost != null ? { box_cost: Number(dto.box_cost) } : {}),
+          ...(dto.labor_per_unit != null
+            ? { labor_per_unit: Number(dto.labor_per_unit) }
+            : {}),
+          ...(dto.sale_price != null ? { sale_price: Number(dto.sale_price) } : {}),
+          ...(dto.markup != null ? { markup: Number(dto.markup) } : {}),
+          ...(dto.post_sale_tax != null
+            ? { post_sale_tax: Number(dto.post_sale_tax) }
+            : {}),
+          ...(rawMaterials?.length
+            ? {
+                raw_materials: {
+                  create: rawMaterials,
+                },
+              }
+            : {}),
+          statuses: {
+            create: {
+              status: this.defaultOrderStatus,
+              responsible: this.systemStatusResponsible,
+              remarks: null,
+            },
+          },
         },
+        select: this.buildOrderSelect({
+          statuses: true,
+          rawMaterials: true,
+        }),
       });
     } catch (e) {
       if (
@@ -367,6 +496,7 @@ export class ProductionService {
         }),
       },
       orderBy: { created_at: 'desc' },
+      select: this.buildOrderSelect(),
     });
   }
 
@@ -375,11 +505,11 @@ export class ProductionService {
 
     const order = await db.production_orders.findUnique({
       where: { id },
-      include: {
-        statuses: { orderBy: { event_time: 'desc' } },
-        finished_goods: { orderBy: { posted_at: 'desc' } },
-        raw_materials: { orderBy: { consumed_at: 'desc' } },
-      },
+      select: this.buildOrderSelect({
+        statuses: true,
+        finishedGoods: true,
+        rawMaterials: true,
+      }),
     });
 
     if (!order)
@@ -419,7 +549,47 @@ export class ProductionService {
             dto.due_date != null
               ? new Date(dto.due_date)
               : exists.due_date,
-          notes: dto.notes ?? exists.notes,
+          notes:
+            dto.notes !== undefined
+              ? this.normalizeNullableString(dto.notes)
+              : exists.notes,
+          ...(dto.lote !== undefined ? { lote: dto.lote } : {}),
+          ...(dto.validate !== undefined
+            ? dto.validate
+              ? { validate: new Date(dto.validate) }
+              : { validate: null }
+            : {}),
+          ...(dto.custom_validate_date !== undefined
+            ? dto.custom_validate_date
+              ? { custom_validate_date: new Date(dto.custom_validate_date) }
+              : { custom_validate_date: null }
+            : {}),
+          ...(dto.boxes_qty !== undefined ? { boxes_qty: dto.boxes_qty } : {}),
+          ...(dto.box_cost !== undefined
+            ? dto.box_cost != null
+              ? { box_cost: Number(dto.box_cost) }
+              : { box_cost: null }
+            : {}),
+          ...(dto.labor_per_unit !== undefined
+            ? dto.labor_per_unit != null
+              ? { labor_per_unit: Number(dto.labor_per_unit) }
+              : { labor_per_unit: null }
+            : {}),
+          ...(dto.sale_price !== undefined
+            ? dto.sale_price != null
+              ? { sale_price: Number(dto.sale_price) }
+              : { sale_price: null }
+            : {}),
+          ...(dto.markup !== undefined
+            ? dto.markup != null
+              ? { markup: Number(dto.markup) }
+              : { markup: null }
+            : {}),
+          ...(dto.post_sale_tax !== undefined
+            ? dto.post_sale_tax != null
+              ? { post_sale_tax: Number(dto.post_sale_tax) }
+              : { post_sale_tax: null }
+            : {}),
           updated_at: new Date(),
         },
       });
@@ -612,5 +782,10 @@ export class ProductionService {
     const month = `${date.getMonth() + 1}`.padStart(2, '0');
     const day = `${date.getDate()}`.padStart(2, '0');
     return `${year}${month}${day}`;
+  }
+
+  private normalizeNullableString(value?: string | null) {
+    const trimmed = value?.trim();
+    return trimmed?.length ? trimmed : null;
   }
 }

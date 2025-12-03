@@ -1655,7 +1655,8 @@ exports.Prisma.T_empScalarFieldEnum = {
   GerTitNaVend: 'GerTitNaVend',
   isdeleted: 'isdeleted',
   createdat: 'createdat',
-  updatedat: 'updatedat'
+  updatedat: 'updatedat',
+  ID: 'ID'
 };
 
 exports.Prisma.T_encargocalculoScalarFieldEnum = {
@@ -5305,6 +5306,71 @@ exports.Prisma.UsupontoScalarFieldEnum = {
   UpdatedAt: 'UpdatedAt'
 };
 
+exports.Prisma.Production_ordersScalarFieldEnum = {
+  id: 'id',
+  external_code: 'external_code',
+  product_code: 'product_code',
+  quantity_planned: 'quantity_planned',
+  unit: 'unit',
+  start_date: 'start_date',
+  due_date: 'due_date',
+  notes: 'notes',
+  created_at: 'created_at',
+  updated_at: 'updated_at',
+  lote: 'lote',
+  validate: 'validate',
+  boxes_qty: 'boxes_qty',
+  box_cost: 'box_cost',
+  labor_per_unit: 'labor_per_unit',
+  sale_price: 'sale_price',
+  markup: 'markup',
+  post_sale_tax: 'post_sale_tax',
+  custom_validate_date: 'custom_validate_date',
+  OP: 'OP',
+  author_user: 'author_user',
+  ingredients: 'ingredients',
+  labor: 'labor',
+  packaging: 'packaging',
+  taxes: 'taxes',
+  Overhead: 'Overhead',
+  totalCost: 'totalCost',
+  unitCost: 'unitCost'
+};
+
+exports.Prisma.Production_order_statusScalarFieldEnum = {
+  id: 'id',
+  order_id: 'order_id',
+  status: 'status',
+  event_time: 'event_time',
+  responsible: 'responsible',
+  remarks: 'remarks',
+  status_user: 'status_user'
+};
+
+exports.Prisma.Order_finished_goodsScalarFieldEnum = {
+  id: 'id',
+  order_id: 'order_id',
+  product_code: 'product_code',
+  lot_number: 'lot_number',
+  quantity_good: 'quantity_good',
+  quantity_scrap: 'quantity_scrap',
+  unit_cost: 'unit_cost',
+  posted_at: 'posted_at'
+};
+
+exports.Prisma.Order_raw_materialsScalarFieldEnum = {
+  id: 'id',
+  order_id: 'order_id',
+  component_code: 'component_code',
+  description: 'description',
+  quantity_used: 'quantity_used',
+  unit: 'unit',
+  unit_cost: 'unit_cost',
+  warehouse: 'warehouse',
+  batch_number: 'batch_number',
+  consumed_at: 'consumed_at'
+};
+
 exports.Prisma.Bom_headersScalarFieldEnum = {
   id: 'id',
   tenant_id: 'tenant_id',
@@ -5333,53 +5399,17 @@ exports.Prisma.Bom_itemsScalarFieldEnum = {
   updated_at: 'updated_at'
 };
 
-exports.Prisma.Production_ordersScalarFieldEnum = {
-  id: 'id',
-  external_code: 'external_code',
-  product_code: 'product_code',
-  quantity_planned: 'quantity_planned',
-  unit: 'unit',
-  start_date: 'start_date',
-  due_date: 'due_date',
-  notes: 'notes',
-  created_at: 'created_at',
-  updated_at: 'updated_at'
-};
-
-exports.Prisma.Production_order_statusScalarFieldEnum = {
-  id: 'id',
-  order_id: 'order_id',
-  status: 'status',
-  responsible: 'responsible',
-  remarks: 'remarks',
-  event_time: 'event_time',
-  created_at: 'created_at'
-};
-
-exports.Prisma.Order_finished_goodsScalarFieldEnum = {
-  id: 'id',
-  order_id: 'order_id',
-  product_code: 'product_code',
-  lot_number: 'lot_number',
-  quantity_good: 'quantity_good',
-  quantity_scrap: 'quantity_scrap',
-  unit_cost: 'unit_cost',
-  posted_at: 'posted_at',
-  created_at: 'created_at'
-};
-
-exports.Prisma.Order_raw_materialsScalarFieldEnum = {
-  id: 'id',
-  order_id: 'order_id',
-  component_code: 'component_code',
-  description: 'description',
-  quantity_used: 'quantity_used',
-  unit: 'unit',
-  unit_cost: 'unit_cost',
-  warehouse: 'warehouse',
-  batch_number: 'batch_number',
-  consumed_at: 'consumed_at',
-  created_at: 'created_at'
+exports.Prisma.T_auditoriaEstoqueScalarFieldEnum = {
+  ID: 'ID',
+  data: 'data',
+  usuario: 'usuario',
+  cdemp: 'cdemp',
+  cditem: 'cditem',
+  qtde: 'qtde',
+  tipo: 'tipo',
+  saldo_ant: 'saldo_ant',
+  saldo_atual: 'saldo_atual',
+  origem: 'origem'
 };
 
 exports.Prisma.SortOrder = {
@@ -5598,12 +5628,13 @@ exports.Prisma.ModelName = {
   t_versao: 't_versao',
   t_zona: 't_zona',
   usuponto: 'usuponto',
-  bom_headers: 'bom_headers',
-  bom_items: 'bom_items',
   production_orders: 'production_orders',
   production_order_status: 'production_order_status',
   order_finished_goods: 'order_finished_goods',
-  order_raw_materials: 'order_raw_materials'
+  order_raw_materials: 'order_raw_materials',
+  bom_headers: 'bom_headers',
+  bom_items: 'bom_items',
+  t_auditoriaEstoque: 't_auditoriaEstoque'
 };
 
 /**
