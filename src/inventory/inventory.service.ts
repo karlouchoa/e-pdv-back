@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+﻿import { BadRequestException, Injectable } from '@nestjs/common';
 import type { Prisma as PrismaTypes } from '../../prisma/generated/client_tenant';
 import type { TenantClient } from '../lib/prisma-clients';
 import { TenantDbService } from '../tenant-db/tenant-db.service';
@@ -39,6 +39,12 @@ export class InventoryService {
 
   private normalizeType(type?: string | null): 'E' | 'S' {
     return type?.trim().toUpperCase() === 'S' ? 'S' : 'E';
+  }
+
+  private isGuid(value: string) {
+    return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(
+      value,
+    );
   }
 
   private parseDateRange(from?: string, to?: string) {
@@ -345,46 +351,104 @@ export class InventoryService {
 
   async createMovement(tenant: string, dto: CreateMovementDto) {
     const prisma = await this.prisma(tenant);
-  
-    // 1️⃣ Data do movimento
+
+    // validacao de campos obrigatorios (payload)
+    const userCode = dto.codusu?.trim() || dto.user?.trim();
+    const missingFields: string[] = [];
+    if (!dto.warehouse?.trim()) missingFields.push('cdemp (warehouse)');
+    if (!dto.itemId?.trim()) missingFields.push('cditem (itemId)');
+    if (dto.customerOrSupplier === undefined || dto.customerOrSupplier === null)
+      missingFields.push('clifor (customerOrSupplier)');
+    if (!dto.date) missingFields.push('data (date)');
+    if (dto.quantity === undefined || dto.quantity === null)
+      missingFields.push('qtde (quantity)');
+    if (!dto.type) missingFields.push('st (type)');
+    if (!userCode) missingFields.push('codusu (user)');
+
+    if (missingFields.length) {
+      throw new BadRequestException(`Campos obrigatorios ausentes no payload: ${missingFields.join(', ')}.`);
+    }
+
+    // 1ï¸âƒ£ Data do movimento
     const movementDate = dto.date ? new Date(dto.date) : new Date();
     if (isNaN(movementDate.getTime())) {
-      throw new BadRequestException('Data do lançamento inválida.');
+      throw new BadRequestException('Data do lanÃ§amento invÃ¡lida.');
     }
   
-    // 2️⃣ Normalização e cálculos básicos
+    // 2ï¸âƒ£ NormalizaÃ§Ã£o e cÃ¡lculos bÃ¡sicos
     const type = this.normalizeType(dto.type);
     const quantity = Math.abs(dto.quantity);
     const signedQty = this.applySignedQuantity(type, quantity);
     const unitPrice = dto.unitPrice ?? null;
-    const totalValue = this.computeTotalValue(quantity, unitPrice);
+    const totalValue =
+      dto.totalValue != null
+        ? dto.totalValue
+        : this.computeTotalValue(quantity, unitPrice);
+    const cost = dto.cost ?? null;
   
-    // 3️⃣ Buscar item pelo GUID --------- (CORRETO)
+    // 3ï¸âƒ£ Buscar item pelo GUID --------- (CORRETO)
     const item = await prisma.t_itens.findFirst({
-      where: { ID: dto.itemId }, // 👈 campo real do Prisma é ID, não id
+      where: { ID: dto.itemId }, // ðŸ‘ˆ campo real do Prisma Ã© ID, nÃ£o id
     });
   
     if (!item) {
-      throw new BadRequestException(`Item '${dto.itemId}' não encontrado.`);
+      throw new BadRequestException(`Item '${dto.itemId}' nÃ£o encontrado.`);
     }
   
     const cditem = item.cditem;   // ok (int)
-    const empitem = item.cdemp;   // ok (int) empresa do item
-  
-    // 4️⃣ Buscar empresa selecionada via GUID --------- (CORRETO)
-    const empresa = await prisma.t_emp.findFirst({
-      where: { ID: dto.warehouse }, // 👈 novamente campo real é ID
-    });
-  
+    const empitem = 1;            // sempre 1 conforme regra solicitada
+    const empfor = 1;             // sempre 1 conforme regra
+
+    // 4 - Buscar empresa selecionada (aceita GUID do ID ou cdemp numerico)
+    const warehouseInput = dto.warehouse?.trim();
+    let empresa;
+    let warehouseLabel = warehouseInput ?? '';
+
+    if (warehouseInput) {
+      let whereCompany:
+        | { ID: string }
+        | { cdemp: number }
+        | null = null;
+
+      if (this.isGuid(warehouseInput)) {
+        whereCompany = { ID: warehouseInput };
+      } else {
+        const cdempParsed = Number(warehouseInput);
+        if (!Number.isNaN(cdempParsed)) {
+          whereCompany = { cdemp: cdempParsed };
+        }
+      }
+
+      if (!whereCompany) {
+        throw new BadRequestException(
+          'Warehouse invalido. Envie GUID (ID) ou cdemp numerico.',
+        );
+      }
+
+      empresa = await prisma.t_emp.findFirst({
+        where: { ...whereCompany, NOT: { isdeleted: true } },
+      });
+    } else {
+      const defaultCdemp = await this.getCompanyId(tenant, prisma);
+      warehouseLabel = defaultCdemp.toString();
+      empresa = await prisma.t_emp.findFirst({
+        where: { cdemp: defaultCdemp, NOT: { isdeleted: true } },
+      });
+    }
+
+    console.log('Empresa selecionada:', empresa);
+
     if (!empresa) {
       throw new BadRequestException(
-        `Empresa/Almoxarifado '${dto.warehouse}' não encontrada.`,
+        `Empresa/Almoxarifado '${warehouseLabel}' nao encontrada.`,
       );
     }
-  
+
     const cdemp = empresa.cdemp; // empresa selecionada
-  
-    // 5️⃣ Saldo anterior
+    const empmov = empresa.cdemp;
+    const empven = empresa.cdemp;
+    
+    // 5ï¸âƒ£ Saldo anterior
     const previousBalance = await this.getStartingBalance(
       prisma,
       cdemp,
@@ -394,24 +458,30 @@ export class InventoryService {
   
     const currentBalance = previousBalance + signedQty;
   
-    // 6️⃣ Criar movimento
+    // 6ï¸âƒ£ Criar movimento
     const created = await prisma.t_movest.create({
       data: {
         cdemp,              // empresa onde o movimento acontece
-        cditem,             // código numérico do item
+        cditem,             // cÃ³digo numÃ©rico do item
         data: movementDate,
         st: type,
         qtde: quantity,
         preco: unitPrice,
         valor: totalValue,
+        custo: cost,
         numdoc: dto.document?.number ?? null,
         datadoc: dto.document?.date ? new Date(dto.document.date) : null,
         especie: dto.document?.type ?? null,
-        clifor: dto.customerOrSupplier ?? null,
-        empitem,            // empresa do item (código numérico)
+        clifor: dto.customerOrSupplier,
+        codusu: userCode,
+        empitem,            // empresa do item (codigo numerico) - sempre 1
+        empfor,             // sempre 1
+        empmov,             // empresa do movimento (codigo numerico)
+        empven,
         saldoant: previousBalance,
         sldantemp: currentBalance,
         obs: dto.notes ?? null,
+        obsit: dto.notes ?? null,
         datalan: movementDate,
         isdeleted: false,
         createdat: new Date(),
@@ -419,7 +489,7 @@ export class InventoryService {
       },
     });
   
-    // 7️⃣ Retorno padrão
+    // 7ï¸âƒ£ Retorno padrÃ£o
     return {
       id: created.nrlan,
       itemId: cditem,
@@ -436,3 +506,4 @@ export class InventoryService {
  
   
 }
+

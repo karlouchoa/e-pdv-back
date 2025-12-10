@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { TenantDbService } from '../tenant-db/tenant-db.service';
@@ -11,6 +11,48 @@ export class AuthService {
     private readonly tenantDbService: TenantDbService,
     private readonly jwtService: JwtService,
   ) {}
+
+  async listUserCompanies(tenant: string, userCode: string) {
+    const cdusu = userCode?.trim();
+    if (!cdusu) {
+      throw new BadRequestException('Usuario nao encontrado no token.');
+    }
+
+    const prisma = await this.tenantDbService.getTenantClient(tenant);
+
+    const links = await prisma.t_usere.findMany({
+      where: {
+        codusu: cdusu,
+        NOT: { isdeleted: true },
+      },
+      select: { codemp: true },
+      distinct: ['codemp'],
+    });
+
+    const companyIds = links
+      .map((link) => link.codemp)
+      .filter((id): id is number => typeof id === 'number');
+
+    if (!companyIds.length) {
+      return [];
+    }
+
+    return prisma.t_emp.findMany({
+      where: {
+        cdemp: { in: companyIds },
+        NOT: { isdeleted: true },
+      },
+      select: {
+        cdemp: true,
+        deemp: true,
+        apelido: true,
+        fantemp: true,
+        cnpjemp: true,
+        ativaemp: true,
+      },
+      orderBy: { deemp: 'asc' },
+    });
+  }
 
   async login(login: string, senha: string) {
     const identifier = login?.trim();

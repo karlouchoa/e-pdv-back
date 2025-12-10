@@ -5,7 +5,7 @@ generator client {
 
 datasource db {
   provider = "sqlserver"
-  url      = env("DATABASE_ACESSOS")
+  // Connection URL moved to prisma.config.ts
 }
 
 model t_acessos {

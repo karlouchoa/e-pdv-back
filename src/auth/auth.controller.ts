@@ -37,4 +37,22 @@ export class AuthController {
   me(@Req() request: Request & { user?: JwtPayload }) {
     return request.user;
   }
+
+  @Get('companies_user')
+  @UseGuards(JwtAuthGuard)
+  async listCompaniesForUser(
+    @Req() request: Request & { user?: JwtPayload },
+  ) {
+    const tenant = request.user?.tenant;
+    if (!tenant) {
+      throw new BadRequestException('Tenant nao encontrado no token.');
+    }
+
+    const userCode = request.user?.sub;
+    if (!userCode) {
+      throw new BadRequestException('Usuario nao encontrado no token.');
+    }
+
+    return this.authService.listUserCompanies(tenant, userCode);
+  }
 }

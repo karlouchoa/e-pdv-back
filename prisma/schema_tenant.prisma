@@ -5,7 +5,7 @@ generator client {
 
 datasource db {
   provider = "sqlserver"
-  url      = env("DATABASE_MODELO")
+  // Connection URL moved to prisma.config.ts
 }
 
 /// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
@@ -7246,9 +7246,11 @@ model production_orders {
   Overhead             Decimal?                  @db.Decimal(18, 4)
   totalCost            Decimal?                  @db.Decimal(18, 4)
   unitCost             Decimal?                  @db.Decimal(18, 4)
+  bom_header_id        String?                   @db.UniqueIdentifier
   finished_goods       order_finished_goods[]
   raw_materials        order_raw_materials[]
   statuses             production_order_status[]
+  bom_headers          bom_headers?              @relation(fields: [bom_header_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_ProductionOrders_BOMHeader")
 }
 
 model production_order_status {
@@ -7296,20 +7298,21 @@ model order_raw_materials {
 }
 
 model bom_headers {
-  id              String      @id(map: "PK_bom_headers") @default(dbgenerated("newid()"), map: "DF_bom_headers_id") @db.UniqueIdentifier
-  tenant_id       String      @db.NVarChar(80)
-  product_code    String      @db.NVarChar(80)
-  version         String      @db.NVarChar(20)
-  lot_size        Decimal     @db.Decimal(18, 4)
-  validity_days   Int
-  margin_target   Decimal     @db.Decimal(9, 4)
-  total_cost      Decimal     @db.Decimal(18, 4)
-  unit_cost       Decimal     @db.Decimal(18, 4)
-  margin_achieved Decimal     @db.Decimal(9, 4)
-  notes           String?     @db.NVarChar(Max)
-  created_at      DateTime    @default(dbgenerated("sysutcdatetime()"), map: "DF_bom_headers_created")
-  updated_at      DateTime    @default(dbgenerated("sysutcdatetime()"), map: "DF_bom_headers_updated")
-  bom_items       bom_items[]
+  id                String              @id(map: "PK_bom_headers") @default(dbgenerated("newid()"), map: "DF_bom_headers_id") @db.UniqueIdentifier
+  tenant_id         String              @db.NVarChar(80)
+  product_code      String              @db.NVarChar(80)
+  version           String              @db.NVarChar(20)
+  lot_size          Decimal             @db.Decimal(18, 4)
+  validity_days     Int
+  margin_target     Decimal             @db.Decimal(9, 4)
+  total_cost        Decimal             @db.Decimal(18, 4)
+  unit_cost         Decimal             @db.Decimal(18, 4)
+  margin_achieved   Decimal             @db.Decimal(9, 4)
+  notes             String?             @db.NVarChar(Max)
+  created_at        DateTime            @default(dbgenerated("sysutcdatetime()"), map: "DF_bom_headers_created")
+  updated_at        DateTime            @default(dbgenerated("sysutcdatetime()"), map: "DF_bom_headers_updated")
+  bom_items         bom_items[]
+  production_orders production_orders[]
 
   @@unique([tenant_id, product_code, version], map: "UX_bom_headers")
 }

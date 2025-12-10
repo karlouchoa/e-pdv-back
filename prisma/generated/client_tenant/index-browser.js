@@ -5334,7 +5334,8 @@ exports.Prisma.Production_ordersScalarFieldEnum = {
   taxes: 'taxes',
   Overhead: 'Overhead',
   totalCost: 'totalCost',
-  unitCost: 'unitCost'
+  unitCost: 'unitCost',
+  bom_header_id: 'bom_header_id'
 };
 
 exports.Prisma.Production_order_statusScalarFieldEnum = {

@@ -10,7 +10,7 @@ export class RegisterOrderStatusDto {
   @IsOptional()
   @IsDateString()
   event_time?: string;
-
+  
   @IsString()
   @MaxLength(120)
   responsible!: string;
@@ -18,4 +18,8 @@ export class RegisterOrderStatusDto {
   @IsOptional()
   @IsString()
   remarks?: string;
+
+  @IsOptional()
+  @IsDateString()
+  status_user?: string;
 }

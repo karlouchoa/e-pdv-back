@@ -5,6 +5,7 @@ import {
   Delete,
   Get,
   Param,
+  ParseIntPipe,
   ParseUUIDPipe,
   Patch,
   Post,
@@ -24,6 +25,8 @@ import { RecordRawMaterialDto } from './dto/record-raw-material.dto';
 import { FindProductionOrdersQueryDto } from './dto/find-production-orders.dto';
 import { CreateBomDto } from './dto/create-bom.dto';
 import { UpdateBomDto } from './dto/update-bom.dto';
+import { IssueRawMaterialsDto } from './dto/issue-raw-materials.dto';
+import { CompleteProductionOrderDto } from './dto/complete-production-order.dto';
 
 interface TenantRequest extends Request {
   user?: { tenant?: string };
@@ -112,9 +115,13 @@ export class ProductionController {
 
   @Post('orders')
   createOrder(
+    
     @Req() req: TenantRequest,
     @Body() dto: CreateProductionOrderDto,
+
+    
   ) {
+    console.log("DTO recebido pelo backend:", dto);
     return this.productionService.createOrder(this.getTenant(req), dto);
   }
 
@@ -129,9 +136,9 @@ export class ProductionController {
   @Get('orders/:id')
   getOrder(
     @Req() req: TenantRequest,
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('id', new ParseIntPipe()) op: number,
   ) {
-    return this.productionService.getOrder(this.getTenant(req), id);
+    return this.productionService.getOrder(this.getTenant(req), op);
   }
 
   @Patch('orders/:id')
@@ -150,6 +157,32 @@ export class ProductionController {
     @Body() dto: RegisterOrderStatusDto,
   ) {
     return this.productionService.addStatus(this.getTenant(req), id, dto);
+  }
+
+  @Post('orders/:id/issue-raw-materials')
+  issueRawMaterials(
+    @Req() req: TenantRequest,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: IssueRawMaterialsDto,
+  ) {
+    return this.productionService.issueRawMaterials(
+      this.getTenant(req),
+      id,
+      dto,
+    );
+  }
+
+  @Post('orders/:id/complete')
+  completeOrder(
+    @Req() req: TenantRequest,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: CompleteProductionOrderDto,
+  ) {
+    return this.productionService.completeOrder(
+      this.getTenant(req),
+      id,
+      dto,
+    );
   }
 
   @Get('orders/:id/status')

@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
@@ -51,4 +51,6 @@ export class CreateBomDto {
   @ValidateNested({ each: true })
   @Type(() => BomItemDto)
   items!: BomItemDto[];
+
+  
 }

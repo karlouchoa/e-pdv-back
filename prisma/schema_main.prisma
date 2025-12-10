@@ -1,11 +1,10 @@
-generator client {
+generator client_main {
   provider = "prisma-client-js"
   output   = "./generated/client_main"
 }
 
-datasource db {
+datasource db_main {
   provider = "sqlserver"
-  url      = env("DATABASE_ACESSOS")
 }
 
 model t_acessos {

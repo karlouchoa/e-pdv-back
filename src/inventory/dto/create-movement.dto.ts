@@ -31,8 +31,8 @@ class MovementDocumentDto {
 }
 
 export class CreateMovementDto {
-  @IsOptional()
   @IsString()
+  @IsNotEmpty()
   itemId!: string;
 
   @IsNotEmpty()
@@ -55,20 +55,40 @@ export class CreateMovementDto {
   document?: MovementDocumentDto;
 
   @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ allowNaN: false, allowInfinity: false, maxDecimalPlaces: 4 })
+  totalValue?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ allowNaN: false, allowInfinity: false, maxDecimalPlaces: 4 })
+  cost?: number;
+
+  @IsOptional()
   @IsString()
   @MaxLength(100)
   notes?: string;
 
-  @IsOptional()
   @IsString()
-  warehouse?: string;
+  @IsNotEmpty()
+  warehouse!: string;
 
-  @IsOptional()
   @Type(() => Number)
   @IsInt()
-  customerOrSupplier?: number;
+  @IsNotEmpty()
+  customerOrSupplier!: number;
+
+  @IsDateString()
+  @IsNotEmpty()
+  date!: string;
 
   @IsOptional()
-  @IsDateString()
-  date?: string;
+  @IsString()
+  @MaxLength(10)
+  codusu?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  user?: string;
 }

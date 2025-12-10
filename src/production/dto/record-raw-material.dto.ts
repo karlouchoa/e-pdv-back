@@ -37,7 +37,22 @@ export class RecordRawMaterialDto {
   @IsNumber({ allowNaN: false, allowInfinity: false })
   unit_cost?: number;
 
-  @Transform(({ value, obj }) => value ?? obj.warehouse)
+  @Transform(({ value, obj }) => value ?? obj.unit_price ?? obj.price ?? obj.preco ?? obj.unitCost ?? obj.unit_cost)
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ allowNaN: false, allowInfinity: false })
+  unit_price?: number;
+
+  @Transform(({ value, obj }) => value ?? obj.value ?? obj.totalValue ?? obj.total_value ?? obj.valor)
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ allowNaN: false, allowInfinity: false })
+  value?: number;
+
+  @Transform(({ value, obj }) => {
+    const w = value ?? obj.warehouse ?? (obj as any)?.wharehouse;
+    return w == null ? undefined : String(w).trim();
+  })
   @IsOptional()
   @IsString()
   @MaxLength(80)
@@ -53,4 +68,5 @@ export class RecordRawMaterialDto {
   @IsOptional()
   @IsDateString()
   consumed_at?: string;
+
 }
