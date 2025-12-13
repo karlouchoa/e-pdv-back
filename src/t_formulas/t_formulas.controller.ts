@@ -39,7 +39,7 @@ export class TFormulasController {
         ? { cditem: this.parseCditem(cditem) }
         : undefined;
 
-        console.log('Query params:', req.query); 
+        // console.log('Query params:', req.query); 
 
       
 
@@ -58,7 +58,7 @@ export class TFormulasController {
   @UseGuards(AuthGuard('jwt'))
   @Get(':id')
   findOne(@Req() req: TenantRequest, @Param('id') id: string) {
-    console.log(req) 
+    // console.log(req) 
     return this.tFormulasService.findOne(req.user.tenant, +id);
   }
 

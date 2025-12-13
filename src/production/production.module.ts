@@ -4,6 +4,7 @@ import { ProductionService } from './production.service';
 import { TenantDbService } from '../tenant-db/tenant-db.service';
 import { BomPdfService } from './bom-pdf.service';
 import { InventoryService } from '../inventory/inventory.service';
+import { TFormulasService } from '../t_formulas/t_formulas.service';
 
 @Module({
   controllers: [ProductionController],
@@ -12,6 +13,7 @@ import { InventoryService } from '../inventory/inventory.service';
     TenantDbService,
     BomPdfService,
     InventoryService,
+    TFormulasService,
   ],
 })
 export class ProductionModule {}

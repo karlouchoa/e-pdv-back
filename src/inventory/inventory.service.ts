@@ -249,6 +249,8 @@ export class InventoryService {
 
     const movements = await prisma.t_movest.findMany({
       where,
+      // Limita a resposta a 50 registros
+      take: 50,
       orderBy: [{ data: 'desc' }, { nrlan: 'desc' }],
     });
 
@@ -436,7 +438,7 @@ export class InventoryService {
       });
     }
 
-    console.log('Empresa selecionada:', empresa);
+    // console.log('Empresa selecionada:', empresa);
 
     if (!empresa) {
       throw new BadRequestException(
@@ -506,4 +508,3 @@ export class InventoryService {
  
   
 }
-

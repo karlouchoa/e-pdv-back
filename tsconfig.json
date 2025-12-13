@@ -2,6 +2,7 @@
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "moduleResolution": "nodenext",
+    "module": "NodeNext",
     "resolvePackageJsonExports": true,
     "isolatedModules": true,
     "declaration": true,

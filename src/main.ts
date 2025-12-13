@@ -40,7 +40,7 @@ async function bootstrap() {
   // =========================================================
   else {
     app.enableCors({
-      origin: (origin: string | undefined, callback: (err: Error | null, allowed?: boolean) => void) => {
+      origin: (origin: string | undefined, callback:any) => {
         
         if (!origin) {
           return callback(null, true);
@@ -48,12 +48,12 @@ async function bootstrap() {
 
         // 2. Permite domínios fixos na lista
         if (allowedFixedOrigins.includes(origin)) {
-          return callback(null, true);
+          return callback(null, origin);
         }
 
         // 3. Permite subdomínios via Regex
         if (subdomainRegex.test(origin)) {
-          return callback(null, true);
+          return callback(null, origin);
         }
 
         // 4. Bloqueia todas as outras origens
@@ -62,18 +62,17 @@ async function bootstrap() {
       },
     
       credentials: true,
-    
-      methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
-    
       allowedHeaders: [
         'Origin',
         'Content-Type',
         'Accept',
         'Authorization',
+        'x-warehouse',
         'x-tenant',
         'X-Tenant',
         'X-Requested-With'
       ],
+      methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
     
     });
     

@@ -26,16 +26,19 @@ import { RecordRawMaterialDto } from './dto/record-raw-material.dto';
 import { FindProductionOrdersQueryDto } from './dto/find-production-orders.dto';
 import { IssueRawMaterialsDto } from './dto/issue-raw-materials.dto';
 import { CompleteProductionOrderDto } from './dto/complete-production-order.dto';
+import { TFormulasService } from '../t_formulas/t_formulas.service';
 
 @Injectable()
 export class ProductionService {
   private readonly defaultOrderStatus = 'PENDENTE';
   private readonly systemStatusResponsible = 'SISTEMA';
+  private readonly formulaCompanyCache = new Map<string, number>();
 
   constructor(
     private readonly tenantDb: TenantDbService,
     private readonly bomPdfService: BomPdfService,
     private readonly inventoryService: InventoryService,
+    private readonly tFormulasService: TFormulasService,
   ) {}
 
   private readonly orderScalarSelect: TenantPrismaTypes.production_ordersSelect = {
@@ -123,6 +126,7 @@ export class ProductionService {
     return db.bom_headers.findMany({
       where: { tenant_id: tenant },
       include: { bom_items: { orderBy: { line_number: 'asc' } } },
+      take: 50,
       orderBy: [{ created_at: 'desc' }],
     });
   }
@@ -143,56 +147,61 @@ export class ProductionService {
     };
   }
 
-   async getLatestProductFormula(tenant: string, productCode: string) {
-    // 1. Conecta ao banco de dados do tenant
+  async getLatestProductFormula(tenant: string, productCode: string) {
     const db = await this.prisma(tenant);
 
-    // 2. Busca o ID da BOM mais recente para o produto específico.
     const latestBomHeader = await db.bom_headers.findFirst({
-        where: {
-            tenant_id: tenant,
-            product_code: productCode,
-        },
-        // Ordena pelo campo 'created_at' para garantir que pegamos a BOM mais recente
-        orderBy: {
-            created_at: 'desc',
-        },
-        select: {
-            id: true, // Apenas precisamos do ID aqui
-        },
+      where: {
+        tenant_id: tenant,
+        product_code: productCode,
+      },
+      orderBy: {
+        created_at: 'desc',
+      },
+      select: {
+        id: true,
+      },
     });
 
-    if (!latestBomHeader) {
-        throw new NotFoundException(
-            `Nenhuma fórmula/BOM encontrada para o produto '${productCode}'.`
-        );
-    }
-    
-    // O ID mais recente encontrado é:
-    const latestBomId = latestBomHeader.id;
+    if (latestBomHeader) {
+      const latestBomId = latestBomHeader.id;
 
-
-    // 3. Usa o ID encontrado para buscar a BOM completa (cabeçalho + itens)
-    // Reutilizando a lógica existente em `getBom`
-    const bomDetails = await db.bom_headers.findUnique({
+      const bomDetails = await db.bom_headers.findUnique({
         where: {
-            id: latestBomId, // Usa o ID da BOM mais recente
+          id: latestBomId,
         },
         include: {
-          bom_items: { 
-                orderBy: { 
-                    line_number: 'asc' 
-                } 
+          bom_items: {
+            orderBy: {
+              line_number: 'asc',
             },
+          },
         },
-    });
+      });
 
-    // Esta verificação é redundante se o passo 2 funcionou, mas é uma boa prática
-    if (!bomDetails) {
-        throw new NotFoundException(`BOM '${latestBomId}' não encontrada após a busca inicial.`);
+      if (bomDetails) {
+        return bomDetails;
+      }
     }
 
-    return bomDetails;
+    // Caso nao haja BOM, busca na tabela legada T_FORMULAS usando cditem.
+    const cditem = Number(productCode);
+
+    if (!Number.isFinite(cditem)) {
+      throw new NotFoundException(
+        `Nenhuma formula/BOM encontrada para o produto '${productCode}'.`,
+      );
+    }
+
+    const legacyFormulas = await this.tFormulasService.findAll(tenant, {
+      cditem,
+    });
+
+    return {
+      source: 't_formulas',
+      cditem,
+      formulas: legacyFormulas,
+    };
   }
   
   async getBomPdf(tenant: string, id: string) {
@@ -231,17 +240,84 @@ export class ProductionService {
     const unitCost = dto.lotSize > 0 ? Number(totalCost / dto.lotSize) : 0;
   
     return db.$transaction(async (tx) => {
-      // 1️⃣ Pegar versões existentes
-      const existing = await tx.bom_headers.findMany({
-        where: {
-          tenant_id: tenant,
-          product_code: dto.productCode,
-        },
-        select: { version: true },
-      });
-  
+      // 1️⃣ Pegar versões existentes e a última BOM para comparar
+      const [existingVersions, latestBom] = await Promise.all([
+        tx.bom_headers.findMany({
+          where: {
+            tenant_id: tenant,
+            product_code: dto.productCode,
+          },
+          select: { version: true },
+        }),
+        tx.bom_headers.findFirst({
+          where: {
+            tenant_id: tenant,
+            product_code: dto.productCode,
+          },
+          include: {
+            bom_items: { orderBy: { line_number: 'asc' } },
+          },
+          orderBy: [{ created_at: 'desc' }],
+        }),
+      ]);
+
+      const normalizeItems = (
+        items: Array<{
+          component_code: string;
+          quantity: number;
+          unit_cost: number;
+        }>,
+      ) =>
+        [...items]
+          .map((i) => ({
+            component_code: i.component_code,
+            quantity: Number(i.quantity),
+            unit_cost: Number(i.unit_cost),
+          }))
+          .sort((a, b) => a.component_code.localeCompare(b.component_code));
+
+      const incomingItems = normalizeItems(
+        dto.items.map((i) => ({
+          component_code: i.componentCode,
+          quantity: i.quantity,
+          unit_cost: i.unitCost,
+        })),
+      );
+
+      const latestItems = latestBom
+        ? normalizeItems(
+            latestBom.bom_items.map((i) => ({
+              component_code: i.component_code,
+              quantity: Number(i.quantity),
+              unit_cost: Number(i.unit_cost),
+            })),
+          )
+        : null;
+
+      const itemsChanged =
+        !latestItems ||
+        latestItems.length !== incomingItems.length ||
+        latestItems.some((item, idx) => {
+          const other = incomingItems[idx];
+          return (
+            item.component_code !== other.component_code ||
+            item.quantity !== other.quantity ||
+            item.unit_cost !== other.unit_cost
+          );
+        });
+
+      if (!itemsChanged && latestBom) {
+        return {
+          id: latestBom.id,
+          version: latestBom.version,
+          message: 'BOM mantida (itens inalterados).',
+        };
+      }
+
       // 2️⃣ Calcular a próxima versão
-      const nextVersion = this.getNextVersion(existing.map(v => v.version));
+      const nextVersion = this.getNextVersion(
+        existingVersions.map((v) => v.version),
+      );
   
       // 3️⃣ Criar novo header
       const header = await tx.bom_headers.create({
@@ -274,7 +350,7 @@ export class ProductionService {
       return {
         id: header.id,
         version: nextVersion,
-        message: "BOM criado com auto-versionamento simples.",
+        message: "BOM criada (nova versão após alteração de itens).",
       };
     });
   }
@@ -398,6 +474,126 @@ export class ProductionService {
     return { id };
   }
 
+  private async getFormulaCompanyId(
+      tenant: string,
+      prisma: Omit<TenantClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$extends'>,
+    ): Promise<number> {
+    const cached = this.formulaCompanyCache.get(tenant);
+    if (cached) return cached;
+
+    const firstFormula = await prisma.t_formulas.findFirst({
+      select: { cdemp: true },
+      orderBy: { autocod: 'asc' },
+    });
+
+    const cdemp = firstFormula?.cdemp ?? 1;
+    this.formulaCompanyCache.set(tenant, cdemp);
+    return cdemp;
+  }
+
+  private async ensureLegacyFormula(
+      tenant: string,
+      prisma: Omit<TenantClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$extends'>,
+      productCode: string,
+      rawMaterials: Array<{
+        component_code: string;
+        description: string | null;
+        quantity_used: number;
+        unit: string;
+      }>,
+    ) {
+    const cditem = Number(productCode);
+    if (!Number.isFinite(cditem)) {
+      return;
+    }
+
+    const cdemp = await this.getFormulaCompanyId(tenant, prisma);
+
+    const exists = await prisma.t_formulas.findFirst({
+      where: { cdemp, cditem },
+    });
+
+    if (exists) return;
+
+    const data = rawMaterials
+      .map((item) => {
+        const matprima = Number(item.component_code);
+        if (!Number.isFinite(matprima)) return null;
+
+        return {
+          cdemp,
+          cditem,
+          empitem: cdemp,
+          undven: item.unit ?? '',
+          matprima,
+          qtdemp: item.quantity_used,
+          undmp: item.unit ?? '',
+          empitemmp: cdemp,
+          deitem_iv: item.description ?? null,
+        } as TenantPrismaTypes.t_formulasCreateManyInput;
+      })
+      .filter((i): i is TenantPrismaTypes.t_formulasCreateManyInput => Boolean(i));
+
+    if (!data.length) return;
+
+    await prisma.t_formulas.createMany({ data });
+  }
+
+  private async ensureBomFromOrder(
+    tenant: string,
+    prisma: Omit<TenantClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$extends'>,
+    productCode: string,
+    rawMaterials: Array<{
+      component_code: string;
+      description: string | null;
+      quantity_used: number;
+      unit_cost?: number;
+    }>,
+    lotSize: number,
+    totalCost: number,
+    unitCost: number,
+    notes?: string | null,
+  ) {
+    const existing = await prisma.bom_headers.findFirst({
+      where: { tenant_id: tenant, product_code: productCode },
+      select: { id: true },
+    });
+
+    if (existing) {
+      return existing.id;
+    }
+
+    const header = await prisma.bom_headers.create({
+      data: {
+        tenant_id: tenant,
+        product_code: productCode,
+        version: '1.0',
+        lot_size: lotSize,
+        validity_days: 0,
+        margin_target: 0,
+        margin_achieved: 0,
+        total_cost: totalCost,
+        unit_cost: unitCost,
+        notes: notes ?? null,
+      },
+    });
+
+    if (rawMaterials.length) {
+      const items = rawMaterials.map((item, index) => ({
+        bom_id: header.id,
+        line_number: index + 1,
+        component_code: item.component_code,
+        description: item.description,
+        quantity: Number(item.quantity_used),
+        unit_cost: Number(item.unit_cost ?? 0),
+      }));
+
+      await prisma.bom_items.createMany({ data: items });
+    }
+
+    return header.id;
+  }
+
   //
   // --------------------------------------------------------------------------
   //  PRODUCTION ORDERS
@@ -422,14 +618,15 @@ export class ProductionService {
   
     const taxes = dto.post_sale_tax ?? 0;
   
-    const totalCost = ingredients + labor + packaging + taxes;
+    //const totalCost = ingredients + labor + packaging + taxes;
+    const totalCost = ingredients + labor + packaging;
   
     const unitCost =
       dto.quantity_planned > 0
         ? totalCost / dto.quantity_planned
         : 0;
 
-    console.log(JSON.stringify(dto.raw_materials, null, 2));
+    // console.log(JSON.stringify(dto.raw_materials, null, 2));
     
     const rawMaterialsToInsert = dto.raw_materials.map((item) => ({
       component_code: item.component_code,
@@ -440,55 +637,90 @@ export class ProductionService {
       warehouse: item.warehouse ?? null,
     }));
   
-    const created = await db.production_orders.create({
-      data: {
-        external_code: externalCode,
-        product_code: dto.product_code,
-        quantity_planned: dto.quantity_planned,
-        unit: dto.unit,
-        start_date: new Date(dto.start_date),
-        due_date: new Date(dto.due_date),
-        notes: dto.notes ?? null,
-        lote: dto.lote ?? null,
-        validate: dto.validate ? new Date(dto.validate) : null,
-        custom_validate_date: dto.custom_validate_date
-          ? new Date(dto.custom_validate_date)
-          : null,
-        bom_header_id: dto.bom_id ?? undefined,
+    const { order: created } = await db.$transaction(async (tx) => {
+      const order = await tx.production_orders.create({
+        data: {
+          external_code: externalCode,
+          product_code: dto.product_code,
+          quantity_planned: dto.quantity_planned,
+          unit: dto.unit,
+          start_date: new Date(dto.start_date),
+          due_date: new Date(dto.due_date),
+          notes: dto.notes ?? null,
+          lote: dto.lote ?? null,
+          validate: dto.validate ? new Date(dto.validate) : null,
+          custom_validate_date: dto.custom_validate_date
+            ? new Date(dto.custom_validate_date)
+            : null,
+          bom_header_id: dto.bom_id ?? undefined,
 
-        boxes_qty: dto.boxes_qty ?? 0,
-        box_cost: dto.box_cost ?? 0,
-        labor_per_unit: dto.labor_per_unit ?? 0,
-        sale_price: dto.sale_price ?? null,
-        markup: dto.markup ?? 0,
-        post_sale_tax: dto.post_sale_tax ?? 0,
-        author_user: dto.author_user ?? "Desconhecido",
-  
-        // ---- calculados automaticamente ----
-        ingredients,
-        labor,
-        packaging,
-        taxes,
-        totalCost,
-        unitCost,
-  
-        raw_materials: {
-          create: rawMaterialsToInsert,
-        },
+          boxes_qty: dto.boxes_qty ?? 0,
+          box_cost: dto.box_cost ?? 0,
+          labor_per_unit: dto.labor_per_unit ?? 0,
+          sale_price: dto.sale_price ?? null,
+          markup: dto.markup ?? 0,
+          post_sale_tax: dto.post_sale_tax ?? 0,
+          author_user: dto.author_user ?? "Desconhecido",
+    
+          // ---- calculados automaticamente ----
+          ingredients,
+          labor,
+          packaging,
+          taxes,
+          totalCost,
+          unitCost,
+    
+          raw_materials: {
+            create: rawMaterialsToInsert,
+          },
 
-        statuses: {
-          create: {
-            status: this.defaultOrderStatus,
-            responsible: this.systemStatusResponsible,
-            status_user: dto.author_user ?? "Desconhecido",
+          statuses: {
+            create: {
+              status: this.defaultOrderStatus,
+              responsible: this.systemStatusResponsible,
+              status_user: dto.author_user ?? "Desconhecido",
+            },
           },
         },
-      },
-  
-      select: this.buildOrderSelect({
-        rawMaterials: true,
-        statuses: true,
-      }),
+    
+        select: this.buildOrderSelect({
+          rawMaterials: true,
+          statuses: true,
+        }),
+      });
+
+      await this.ensureLegacyFormula(
+        tenant,
+        tx,
+        order.product_code,
+        rawMaterialsToInsert,
+      );
+
+      const bomId = await this.ensureBomFromOrder(
+        tenant,
+        tx,
+        order.product_code,
+        rawMaterialsToInsert,
+        dto.quantity_planned,
+        totalCost,
+        unitCost,
+        dto.notes ?? null,
+      );
+
+      if (!order.bom_header_id && bomId) {
+        const updatedOrder = await tx.production_orders.update({
+          where: { id: order.id },
+          data: { bom_header_id: bomId },
+          select: this.buildOrderSelect({
+            rawMaterials: true,
+            statuses: true,
+          }),
+        });
+
+        return { order: updatedOrder };
+      }
+
+      return { order };
     });
 
     const latestStatus = created.statuses?.[0]?.status ?? null;
@@ -512,6 +744,8 @@ export class ProductionService {
   ) {
     const db = await this.prisma(tenant);
 
+    console.log('Finding orders with query:', query); 
+    
     const orders = await db.production_orders.findMany({
       where: {
         ...(query.external_code && {
@@ -521,6 +755,7 @@ export class ProductionService {
           product_code: query.product_code,
         }),
       },
+      take: 50,
       orderBy: { created_at: 'desc' },
       select: this.buildOrderSelect({ rawMaterials: true, statuses: true }),
     });
@@ -546,18 +781,16 @@ export class ProductionService {
     return enriched;
   }
 
-  async getOrder(tenant: string, op: number | string) {
+  async getOrder(tenant: string, idOrOp: string) {
     const db = await this.prisma(tenant);
 
-    console.log('Getting order for OP:', op);
+     console.log('Getting order for ID/OP:', idOrOp);
 
-    const opNumber = Number(op);
-    if (!Number.isFinite(opNumber)) {
-      throw new BadRequestException('OP inválida, informe um número.');
-    }
+    const asNumber = Number(idOrOp);
+    const byOp = Number.isFinite(asNumber);
 
     const order = await db.production_orders.findFirst({
-      where: { OP: opNumber },
+      where: byOp ? { OP: asNumber } : { id: idOrOp },
       select: this.buildOrderSelect({
         statuses: true,
         finishedGoods: true,
@@ -566,7 +799,9 @@ export class ProductionService {
     });
 
     if (!order)
-      throw new NotFoundException(`Ordem OP '${op}' não encontrada.`);
+      throw new NotFoundException(
+        `Ordem '${idOrOp}' não encontrada (${byOp ? 'OP' : 'UUID'}).`,
+      );
 
     const latestStatus = order.statuses?.[0]?.status ?? null;
     const productName = await this.getProductDescription(

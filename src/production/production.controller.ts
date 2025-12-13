@@ -121,7 +121,7 @@ export class ProductionController {
 
     
   ) {
-    console.log("DTO recebido pelo backend:", dto);
+    // console.log("DTO recebido pelo backend:", dto);
     return this.productionService.createOrder(this.getTenant(req), dto);
   }
 
@@ -130,15 +130,17 @@ export class ProductionController {
     @Req() req: TenantRequest,
     @Query() query: FindProductionOrdersQueryDto,
   ) {
+    console.log('Query recebida pelo backend - GetOrders:', query);
     return this.productionService.findOrders(this.getTenant(req), query);
   }
 
   @Get('orders/:id')
   getOrder(
     @Req() req: TenantRequest,
-    @Param('id', new ParseIntPipe()) op: number,
+    @Param('id') idOrOp: string,
   ) {
-    return this.productionService.getOrder(this.getTenant(req), op);
+    console.log('OP/ID recebida pelo backend - GetOrder/:ID:', idOrOp);
+    return this.productionService.getOrder(this.getTenant(req), idOrOp);
   }
 
   @Patch('orders/:id')

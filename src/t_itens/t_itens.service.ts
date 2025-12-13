@@ -56,6 +56,23 @@ export class TItensService {
     return cditem;
   }
 
+  private toOptionalNumber(value: unknown): number | null {
+    if (value === null || value === undefined) {
+      return null;
+    }
+
+    const numeric =
+      typeof value === 'object' && (value as any)?.valueOf
+        ? Number((value as any).valueOf())
+        : Number(value);
+
+    if (Number.isNaN(numeric)) {
+      return null;
+    }
+
+    return numeric;
+  }
+
   private buildWhere(
     cdemp: number,
     cditem: number,
@@ -66,6 +83,39 @@ export class TItensService {
         cditem,
       },
     };
+  }
+
+  private async attachSaldo(
+    prisma: TenantClient,
+    cdemp: number,
+    items: Array<{ cditem?: number | null } & Record<string, unknown>>,
+  ) {
+    const ids = items
+      .map((item) => item.cditem)
+      .filter((id): id is number => typeof id === 'number');
+
+    if (!ids.length) {
+      return items.map((item) => ({ ...item, saldo: null }));
+    }
+
+    const balances = await prisma.t_saldoit.groupBy({
+      by: ['cditem'],
+      where: {
+        cdemp,
+        cditem: { in: ids },
+      },
+      _sum: { saldo: true },
+    });
+
+    const balanceMap = new Map<number, number | null>();
+    for (const entry of balances) {
+      balanceMap.set(entry.cditem, this.toOptionalNumber(entry._sum.saldo));
+    }
+
+    return items.map((item) => ({
+      ...item,
+      saldo: balanceMap.get(item.cditem ?? -1) ?? null,
+    }));
   }
 
   async create(tenant: string, dto: CreateTItemDto) {
@@ -127,14 +177,114 @@ export class TItensService {
     const prisma = await this.getPrisma(tenant);
     const cdemp = await this.getCompanyId(tenant, prisma);
 
-    return prisma.t_itens.findMany({
-      where: {
-        cdemp,
-        ...this.buildFilters(filters),
-      },
-      orderBy: { cditem: 'asc' },
+    const getParam = (key: string) => {
+      const value = filters?.[key];
+      return Array.isArray(value) ? value[value.length - 1] : value;
+    };
+
+    const page = Math.max(1, Number(getParam('page')) || 1);
+    const pageSizeInput = Number(getParam('pageSize'));
+    const pageSize =
+      Number.isFinite(pageSizeInput) && pageSizeInput > 0
+        ? Math.min(pageSizeInput, 100)
+        : 10;
+
+    const descricaoPrefix = getParam('descricaoPrefix');
+    const cdgruitParam = getParam('cdgruit');
+    const matprimaParam = getParam('matprima');
+    const saldoParam = getParam('saldo');
+    const filtersWhere = this.buildFilters(filters);
+
+    const where: PrismaTypes.t_itensWhereInput = {
+      cdemp,
+      ...filtersWhere,
+    };
+
+    if (descricaoPrefix && descricaoPrefix.trim()) {
+      where.deitem = {
+        startsWith: descricaoPrefix.trim(),
+      };
+    }
+
+    const cdgruit = Number(cdgruitParam);
+    if (Number.isFinite(cdgruit)) {
+      where.cdgruit = cdgruit;
+    }
+
+    const matprima = matprimaParam?.toString().trim().toUpperCase();
+    if (matprima === 'S' || matprima === 'N') {
+      where.matprima = matprima;
+    }
+
+    const skip = (page - 1) * pageSize;
+    const saldoFilter = saldoParam
+      ? saldoParam.toString().trim().toUpperCase()
+      : null;
+    const requiresSaldoFilter = saldoFilter === 'COM' || saldoFilter === 'SEM';
+
+    if (!requiresSaldoFilter) {
+      const [items, total] = await Promise.all([
+        prisma.t_itens.findMany({
+          where,
+          orderBy: [{ cditem: 'asc' }],
+          skip,
+          take: pageSize,
+        }),
+        prisma.t_itens.count({ where }),
+      ]);
+
+      const itemsWithSaldo = await this.attachSaldo(prisma, cdemp, items);
+      return { data: itemsWithSaldo, total, count: total, records: total };
+    }
+
+    // Quando filtra por saldo, precisamos calcular antes de paginar
+    const allItems = await prisma.t_itens.findMany({
+      where,
+      orderBy: [{ cditem: 'asc' }],
     });
+
+    const itemsWithSaldo = await this.attachSaldo(prisma, cdemp, allItems);
+    const filteredBySaldo = itemsWithSaldo.filter((item) => {
+      const saldoValue = this.toOptionalNumber(item.saldo) ?? 0;
+      if (saldoFilter === 'COM') return saldoValue > 0;
+      if (saldoFilter === 'SEM') return saldoValue <= 0;
+      return true;
+    });
+
+    const total = filteredBySaldo.length;
+    const paginated = filteredBySaldo.slice(skip, skip + pageSize);
+
+    return { data: paginated, total, count: total, records: total };
   }
+
+  async searchByDescription(tenant: string, description?: string) {
+    const term = description?.trim();
+    if (!term) {
+      throw new BadRequestException('Parametro "description" obrigatorio.');
+    }
+    console.log('[searchByDescription] term:', term);
+
+    const prisma = await this.getPrisma(tenant);
+    const cdemp = await this.getCompanyId(tenant, prisma);
+
+    const isNumeric = /^\d+$/.test(term);
+
+    const results = await prisma.t_itens.findMany({
+      where: isNumeric
+        ? {
+            cdemp,
+            cditem: Number(term),
+          }
+        : {
+            cdemp,
+            deitem: { startsWith: term },
+          },
+      orderBy: { deitem: 'asc' },
+    });
+
+    return this.attachSaldo(prisma, cdemp, results);
+  }
+  
 
   async findOne(tenant: string, id: string) {
     const prisma = await this.getPrisma(tenant);
@@ -179,9 +329,10 @@ export class TItensService {
       cest: dto.cest,
       codcst: dto.cst,
       barcodeit: dto.barcode,
-  
+
       diasent: dto.leadTimeDays,
-  
+      qtembitem: dto.qtembitem,
+
       itprodsn: dto.itprodsn,
       matprima: dto.matprima,
   

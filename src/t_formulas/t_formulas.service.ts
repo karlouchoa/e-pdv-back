@@ -100,10 +100,9 @@ export class TFormulasService {
 
     const enrichedFormulas = await this.includeMateriaPrima(prisma, formulas);
 
-    console.log(
-      '[PRISMA] formulas retornadas:',
-      JSON.stringify(enrichedFormulas, null, 2),
-    );
+    // console.log('[PRISMA] formulas retornadas:',
+    //   JSON.stringify(enrichedFormulas, null, 2),
+    // );
 
     if (filters?.cditem !== undefined && enrichedFormulas.length === 0) {
       throw new NotFoundException(

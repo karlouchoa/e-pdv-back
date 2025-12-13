@@ -127,7 +127,6 @@ exports.Prisma.T_acessosScalarFieldEnum = {
   login: 'login',
   senha: 'senha',
   nome: 'nome',
-  empresa: 'empresa',
   funcao: 'funcao',
   banco: 'banco',
   adm: 'adm',
@@ -137,8 +136,26 @@ exports.Prisma.T_acessosScalarFieldEnum = {
   cnpj: 'cnpj',
   ddd: 'ddd',
   whatsapp: 'whatsapp',
-  logoUrl: 'logoUrl',
-  createdAt: 'createdAt'
+  createdAt: 'createdAt',
+  Empresa: 'Empresa',
+  logoUrl: 'logoUrl'
+};
+
+exports.Prisma.T_bancoScalarFieldEnum = {
+  id: 'id',
+  banco: 'banco',
+  hscode: 'hscode',
+  data: 'data'
+};
+
+exports.Prisma.T_logScalarFieldEnum = {
+  reglog: 'reglog',
+  data: 'data',
+  login: 'login',
+  usuario: 'usuario',
+  empresa: 'empresa',
+  loja: 'loja',
+  motivo: 'motivo'
 };
 
 exports.Prisma.SortOrder = {
@@ -153,7 +170,9 @@ exports.Prisma.NullsOrder = {
 
 
 exports.Prisma.ModelName = {
-  t_acessos: 't_acessos'
+  t_acessos: 't_acessos',
+  t_banco: 't_banco',
+  t_log: 't_log'
 };
 
 /**

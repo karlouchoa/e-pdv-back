@@ -60,6 +60,15 @@ export class TItensController {
     return this.tItensService.findAll(req.user.tenant, query);
   }
 
+  @UseGuards(AuthGuard('jwt'))
+  @Get('search')
+  searchByDescription(
+    @Req() req: TenantRequest,
+    @Query('descricao') descricao?: string,
+  ) {
+    return this.tItensService.searchByDescription(req.user.tenant, descricao);
+  }
+
   /** 🔹 FIND ONE (UUID) */
   @UseGuards(AuthGuard('jwt'))
   @Get(':id')

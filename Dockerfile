@@ -14,7 +14,7 @@
     
     # Gera Prisma Clients
     RUN npx prisma generate --schema=prisma/schema_main.prisma
-    RUN npx prisma generate --schema=prisma/schema_tenant.prisma
+    RUN npx prisma generate --schema=prisma/schema_tenant.prisma    
     
     # Copia resto do fonte
     COPY . .
