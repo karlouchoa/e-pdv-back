@@ -23,6 +23,12 @@ export class TItensService {
 
   constructor(private readonly tenantDbService: TenantDbService) {}
 
+  private isGuid(value: string) {
+    return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(
+      value,
+    );
+  }
+
   private async getPrisma(tenant: string): Promise<TenantClient> {
     return this.tenantDbService.getTenantClient(tenant);
   }
@@ -42,6 +48,68 @@ export class TItensService {
     const cdemp = firstItem?.cdemp ?? this.defaultCompanyId;
     this.companyCache.set(tenant, cdemp);
     return cdemp;
+  }
+
+  private async resolveCompanyId(
+    tenant: string,
+    prisma: TenantClient,
+    cdempParam?: unknown,
+  ): Promise<number> {
+    const parsed = this.toOptionalNumber(cdempParam);
+    if (parsed !== null) {
+      return parsed;
+    }
+
+    const candidate =
+      typeof cdempParam === 'string' ? cdempParam.trim() : undefined;
+
+    if (candidate) {
+      let company: { cdemp: number } | null = null;
+
+      if (this.isGuid(candidate)) {
+        company = await prisma.t_emp.findFirst({
+          where: { ID: candidate },
+          select: { cdemp: true },
+        });
+      }
+
+      if (!company) {
+        company = await prisma.t_emp.findFirst({
+          where: {
+            OR: [
+              { numemp: candidate },
+              { apelido: candidate },
+              { deemp: candidate },
+            ],
+          },
+          select: { cdemp: true },
+        });
+      }
+
+      if (company?.cdemp !== undefined && company.cdemp !== null) {
+        return company.cdemp;
+      }
+    }
+
+    // fallback: usa o primeiro cdemp que tem saldo lançado
+    const saldoCompany = await prisma.t_saldoit.findFirst({
+      select: { cdemp: true },
+      orderBy: { cdemp: 'asc' },
+    });
+    if (saldoCompany?.cdemp !== undefined && saldoCompany.cdemp !== null) {
+      return saldoCompany.cdemp;
+    }
+
+    // fallback adicional: primeiro cdemp em t_emp
+    const anyCompany = await prisma.t_emp.findFirst({
+      select: { cdemp: true },
+      orderBy: { cdemp: 'asc' },
+    });
+    if (anyCompany?.cdemp !== undefined && anyCompany.cdemp !== null) {
+      return anyCompany.cdemp;
+    }
+
+    return this.getCompanyId(tenant, prisma);
   }
 
   /** -------------------------
@@ -118,6 +186,28 @@ export class TItensService {
     }));
   }
 
+  private async fetchBalances(
+    prisma: TenantClient,
+    cdemp: number,
+    cditems?: number[],
+  ) {
+    const where: PrismaTypes.t_saldoitWhereInput = {
+      cdemp,
+      ...(cditems?.length ? { cditem: { in: cditems } } : {}),
+    };
+
+    const balances = await prisma.t_saldoit.groupBy({
+      by: ['cditem'],
+      where,
+      _sum: { saldo: true },
+    });
+
+    return balances.map((entry) => ({
+      cditem: entry.cditem,
+      saldo: this.toOptionalNumber(entry._sum.saldo) ?? 0,
+    }));
+  }
+
   async create(tenant: string, dto: CreateTItemDto) {
     const prisma = await this.getPrisma(tenant);
     const cdemp = await this.getCompanyId(tenant, prisma);
@@ -175,7 +265,6 @@ export class TItensService {
     filters?: Record<string, string | string[]>,
   ) {
     const prisma = await this.getPrisma(tenant);
-    const cdemp = await this.getCompanyId(tenant, prisma);
 
     const getParam = (key: string) => {
       const value = filters?.[key];
@@ -189,11 +278,40 @@ export class TItensService {
         ? Math.min(pageSizeInput, 100)
         : 10;
 
+    const cdempParam = getParam('cdemp');
+    const cdemp = await this.resolveCompanyId(tenant, prisma, cdempParam);
+
     const descricaoPrefix = getParam('descricaoPrefix');
     const cdgruitParam = getParam('cdgruit');
     const matprimaParam = getParam('matprima');
     const saldoParam = getParam('saldo');
+    const includeSaldoParam = getParam('includeSaldo');
+    const wantSaldo =
+      (typeof includeSaldoParam === 'string'
+        ? includeSaldoParam.toLowerCase() === 'true'
+        : Boolean(includeSaldoParam)) || !!saldoParam;
     const filtersWhere = this.buildFilters(filters);
+
+    console.log(
+      '[t_itens] findAll input',
+      JSON.stringify(
+        {
+          tenant,
+          cdempParam,
+          cdempResolved: cdemp,
+          page,
+          pageSize,
+          descricaoPrefix,
+          cdgruit: cdgruitParam,
+          matprima: matprimaParam,
+          saldo: saldoParam,
+          includeSaldo: wantSaldo,
+          extraFilters: filtersWhere,
+        },
+        null,
+        2,
+      ),
+    );
 
     const where: PrismaTypes.t_itensWhereInput = {
       cdemp,
@@ -222,7 +340,27 @@ export class TItensService {
       : null;
     const requiresSaldoFilter = saldoFilter === 'COM' || saldoFilter === 'SEM';
 
-    if (!requiresSaldoFilter) {
+    let balanceItems: Array<{ cditem: number; saldo: number }> = [];
+
+    if (wantSaldo) {
+      balanceItems = await this.fetchBalances(prisma, cdemp);
+
+      if (requiresSaldoFilter) {
+        balanceItems = balanceItems.filter((b) =>
+          saldoFilter === 'COM' ? b.saldo > 0 : b.saldo <= 0,
+        );
+      }
+
+      const balanceCditems = balanceItems.map((b) => b.cditem);
+
+      if (balanceCditems.length) {
+        where.cditem = { in: balanceCditems };
+        // não filtramos por cdemp em t_itens; usamos cdemp apenas no saldo
+        delete where.cdemp;
+      }
+    }
+
+    if (!requiresSaldoFilter && !wantSaldo) {
       const [items, total] = await Promise.all([
         prisma.t_itens.findMany({
           where,
@@ -234,7 +372,23 @@ export class TItensService {
       ]);
 
       const itemsWithSaldo = await this.attachSaldo(prisma, cdemp, items);
-      return { data: itemsWithSaldo, total, count: total, records: total };
+      const response = { data: itemsWithSaldo, total, count: total, records: total };
+      console.log(
+        '[t_itens] findAll response (sem filtro de saldo)',
+        JSON.stringify(
+          {
+            cdemp,
+            page,
+            pageSize,
+            total,
+            sample: response.data.slice(0, 3),
+            where,
+          },
+          null,
+          2,
+        ),
+      );
+      return response;
     }
 
     // Quando filtra por saldo, precisamos calcular antes de paginar
@@ -244,6 +398,10 @@ export class TItensService {
     });
 
     const itemsWithSaldo = await this.attachSaldo(prisma, cdemp, allItems);
+    const sampleWithSaldo = itemsWithSaldo
+      .slice(0, 5)
+      .map((item) => ({ cditem: item.cditem, saldo: item.saldo }));
+
     const filteredBySaldo = itemsWithSaldo.filter((item) => {
       const saldoValue = this.toOptionalNumber(item.saldo) ?? 0;
       if (saldoFilter === 'COM') return saldoValue > 0;
@@ -254,7 +412,27 @@ export class TItensService {
     const total = filteredBySaldo.length;
     const paginated = filteredBySaldo.slice(skip, skip + pageSize);
 
-    return { data: paginated, total, count: total, records: total };
+    const response = { data: paginated, total, count: total, records: total };
+    console.log(
+      '[t_itens] findAll response (com filtro de saldo)',
+      JSON.stringify(
+        {
+          cdemp,
+          saldoFilter,
+          page,
+          pageSize,
+          total,
+          fetchedItems: itemsWithSaldo.length,
+          filteredItems: filteredBySaldo.length,
+          sampleWithSaldo,
+          sample: response.data.slice(0, 3),
+          where,
+        },
+        null,
+        2,
+      ),
+    );
+    return response;
   }
 
   async searchByDescription(tenant: string, description?: string) {
@@ -324,6 +502,8 @@ export class TItensService {
   
       preco: dto.salePrice,
       custo: dto.costPrice,
+      valcmp: dto.valcmp,
+      margem: dto.margem,
   
       codncm: dto.ncm,
       cest: dto.cest,

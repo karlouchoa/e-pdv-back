@@ -20,7 +20,10 @@ import { UpdateBomDto } from './dto/update-bom.dto';
 import { CreateProductionOrderDto } from './dto/create-production-order.dto';
 import { UpdateProductionOrderDto } from './dto/update-production-order.dto';
 
-import { RegisterOrderStatusDto } from './dto/register-order-status.dto';
+import {
+  RegisterOrderStatusDto,
+  type OrderStatus,
+} from './dto/register-order-status.dto';
 import { RecordFinishedGoodDto } from './dto/record-finished-good.dto';
 import { RecordRawMaterialDto } from './dto/record-raw-material.dto';
 import { FindProductionOrdersQueryDto } from './dto/find-production-orders.dto';
@@ -232,16 +235,45 @@ export class ProductionService {
     const db = await this.prisma(tenant);
 
     // 💥 Garante que version enviado pelo frontend será ignorado
-    const totalCost = dto.items.reduce(
-      (acc, item) => acc + Number(item.quantity) * Number(item.unitCost),
-      0
+    const computedItems = dto.items.map((item) => {
+
+      const quantity_base = item.quantity_base ?? 0;
+      const fator = item.fator ?? 100;
+    
+      const quantity = quantity_base * fator;
+    
+      return {
+        componentCode: item.componentCode,
+        description: item.description ?? null,
+        quantity,
+        unitCost: item.unitCost,
+        quantity_base,
+        fator,
+      };
+    });
+    
+
+    const totalCost = computedItems.reduce(
+      (acc, item) => acc + item.quantity * item.unitCost,
+      0,
     );
-  
+
     const unitCost = dto.lotSize > 0 ? Number(totalCost / dto.lotSize) : 0;
   
+    const normalizedVersion = (() => {
+      const raw = dto.version?.trim();
+      if (!raw) {
+        return raw;
+      }
+      if (!raw.includes('.') && Number.isFinite(Number(raw))) {
+        return `${raw}.0`;
+      }
+      return raw;
+    })();
+
     return db.$transaction(async (tx) => {
-      // 1️⃣ Pegar versões existentes e a última BOM para comparar
-      const [existingVersions, latestBom] = await Promise.all([
+      // 1 - Pegar versoes existentes e a BOM da versao enviada para comparar
+      const [existingVersions, bomByVersion] = await Promise.all([
         tx.bom_headers.findMany({
           where: {
             tenant_id: tenant,
@@ -253,6 +285,7 @@ export class ProductionService {
           where: {
             tenant_id: tenant,
             product_code: dto.productCode,
+            version: normalizedVersion,
           },
           include: {
             bom_items: { orderBy: { line_number: 'asc' } },
@@ -261,56 +294,119 @@ export class ProductionService {
         }),
       ]);
 
+      const normalizeQuantity = (value: number) => {
+        const numeric = Number(value);
+        if (!Number.isFinite(numeric)) {
+          return numeric;
+        }
+        return Number(numeric.toFixed(7));
+      };
+
       const normalizeItems = (
         items: Array<{
           component_code: string;
           quantity: number;
-          unit_cost: number;
         }>,
       ) =>
         [...items]
           .map((i) => ({
-            component_code: i.component_code,
-            quantity: Number(i.quantity),
-            unit_cost: Number(i.unit_cost),
+            component_code: i.component_code?.trim() ?? '',
+            quantity: normalizeQuantity(i.quantity),
           }))
-          .sort((a, b) => a.component_code.localeCompare(b.component_code));
+          .sort(
+            (a, b) =>
+              a.component_code.localeCompare(b.component_code) ||
+              a.quantity - b.quantity,
+          );
 
       const incomingItems = normalizeItems(
-        dto.items.map((i) => ({
-          component_code: i.componentCode,
+        computedItems.map((i) => ({
+          component_code: i.componentCode?.trim() ?? '',
           quantity: i.quantity,
-          unit_cost: i.unitCost,
         })),
       );
 
-      const latestItems = latestBom
+      const latestItems = bomByVersion
         ? normalizeItems(
-            latestBom.bom_items.map((i) => ({
+            bomByVersion.bom_items.map((i) => ({
               component_code: i.component_code,
-              quantity: Number(i.quantity),
-              unit_cost: Number(i.unit_cost),
+              quantity: i.quantity as unknown as number,
             })),
           )
         : null;
 
-      const itemsChanged =
+      const quantityDiffers = (a: number, b: number) => {
+        if (!Number.isFinite(a) || !Number.isFinite(b)) {
+          return a !== b;
+        }
+        return Math.abs(a - b) > 0.0000001;
+      };
+
+      const compositionChanged =
         !latestItems ||
         latestItems.length !== incomingItems.length ||
-        latestItems.some((item, idx) => {
-          const other = incomingItems[idx];
-          return (
-            item.component_code !== other.component_code ||
-            item.quantity !== other.quantity ||
-            item.unit_cost !== other.unit_cost
-          );
+        latestItems.some(
+          (item, idx) =>
+            item.component_code !== incomingItems[idx].component_code,
+        );
+
+      const quantityChanged =
+        !latestItems ||
+        latestItems.some(
+          (item, idx) =>
+            quantityDiffers(item.quantity, incomingItems[idx].quantity),
+        );
+
+      if (!compositionChanged && !quantityChanged && bomByVersion) {
+        const now = new Date();
+
+        await tx.bom_headers.update({
+          where: { id: bomByVersion.id },
+          data: {
+            lot_size: dto.lotSize,
+            validity_days: dto.validityDays,
+            margin_target: dto.marginTarget,
+            margin_achieved: dto.marginAchieved,
+            total_cost: totalCost,
+            unit_cost: unitCost,
+            notes: dto.notes ?? bomByVersion.notes ?? null,
+            updated_at: now,
+          },
         });
 
-      if (!itemsChanged && latestBom) {
+        const existingItemByCode = new Map(
+          bomByVersion.bom_items.map((item) => [item.component_code, item.id]),
+        );
+
+        await Promise.all(
+          computedItems.map((item, index) => {
+            const itemId = existingItemByCode.get(item.componentCode);
+            if (!itemId) {
+              throw new BadRequestException(
+                'Itens da BOM inconsistentes para atualizacao.',
+              );
+            }
+
+            return tx.bom_items.update({
+              where: { id: itemId },
+              data: {
+                line_number: index + 1,
+                component_code: item.componentCode,
+                description: item.description ?? null,
+                quantity: item.quantity,
+                unit_cost: item.unitCost,
+                quantity_base: item.quantity_base,
+                fator: item.fator,
+                updated_at: now,
+              },
+            });
+          }),
+        );
+
         return {
-          id: latestBom.id,
-          version: latestBom.version,
-          message: 'BOM mantida (itens inalterados).',
+          id: bomByVersion.id,
+          version: bomByVersion.version,
+          message: 'BOM atualizada (itens e quantidades inalterados).',
         };
       }
 
@@ -336,13 +432,15 @@ export class ProductionService {
       });
   
       // 4️⃣ Criar itens
-      const items = dto.items.map((item, index) => ({
+      const items = computedItems.map((item, index) => ({
         bom_id: header.id,
         line_number: index + 1,
         component_code: item.componentCode,
         description: item.description,
-        quantity: Number(item.quantity),
-        unit_cost: Number(item.unitCost),
+        quantity: item.quantity,
+        unit_cost: item.unitCost,
+        quantity_base: item.quantity_base,
+        fator: item.fator,
       }));
   
       await tx.bom_items.createMany({ data: items });
@@ -399,12 +497,38 @@ export class ProductionService {
     if (!existing)
       throw new NotFoundException(`BOM '${id}' não encontrado.`);
 
-    const items = dto.items
-      ? dto.items.map(i => ({
-          quantity: Number(i.quantity),
-          unitCost: Number(i.unitCost),
+    const mappedItems = dto.items?.map((item, index) => {
+      const rawquantity_base =
+        item.quantity_base != null ? Number(item.quantity_base) : null;
+      const fator = item.fator != null ? Number(item.fator) : null;
+      const quantity_base =
+        rawquantity_base != null
+          ? rawquantity_base
+          : fator != null
+            ? Number(item.quantity_base)
+            : null;
+      const quantity =
+        quantity_base != null && fator != null
+          ? quantity_base * fator
+          : Number(item.quantity_base);
+
+      return {
+        line_number: index + 1,
+        component_code: item.componentCode,
+        description: item.description || null,
+        quantity,
+        unit_cost: Number(item.unitCost),
+        quantity_base: quantity_base,
+        fator,
+      };
+    });
+
+    const items = mappedItems
+      ? mappedItems.map((i) => ({
+          quantity: i.quantity,
+          unitCost: i.unit_cost,
         }))
-      : existing.bom_items.map(i => ({
+      : existing.bom_items.map((i) => ({
           quantity: Number(i.quantity),
           unitCost: Number(i.unit_cost),
         }));
@@ -437,17 +561,13 @@ export class ProductionService {
         },
       });
 
-      if (dto.items) {
+      if (mappedItems) {
         await tx.bom_items.deleteMany({ where: { bom_id: id } });
 
         await tx.bom_items.createMany({
-          data: dto.items.map((i, idx) => ({
+          data: mappedItems.map((item) => ({
             bom_id: id,
-            line_number: idx + 1,
-            component_code: i.componentCode,
-            description: i.description || null,
-            quantity: i.quantity,
-            unit_cost: i.unitCost,
+            ...item,
           })),
         });
       }
@@ -781,6 +901,58 @@ export class ProductionService {
     return enriched;
   }
 
+  private async findOrdersByCurrentStatus(
+    tenant: string,
+    status: OrderStatus,
+  ) {
+    const db = await this.prisma(tenant);
+
+    const orders = await db.production_orders.findMany({
+      where: {
+        statuses: {
+          some: { status },
+        },
+      },
+      take: 50,
+      orderBy: { created_at: 'desc' },
+      select: this.buildOrderSelect({ statuses: true }),
+    });
+
+    const enriched = await Promise.all(
+      orders.map(async (order) => {
+        const latestStatus = order.statuses?.[0]?.status ?? null;
+        if (latestStatus !== status) {
+          return null;
+        }
+
+        const productName = await this.getProductDescription(
+          tenant,
+          order.product_code,
+        );
+
+        return {
+          ...order,
+          productName,
+          current_status: latestStatus,
+          status: latestStatus ?? (order as any).status,
+          statusHistory: order.statuses ?? [],
+        };
+      }),
+    );
+
+    return enriched.filter(
+      (order): order is NonNullable<(typeof enriched)[number]> => Boolean(order),
+    );
+  }
+
+  async findOrdersInSeparation(tenant: string) {
+    return this.findOrdersByCurrentStatus(tenant, 'PENDENTE');
+  }
+
+  async findOrdersInProduction(tenant: string) {
+    return this.findOrdersByCurrentStatus(tenant, 'PRODUCAO');
+  }
+
   async getOrder(tenant: string, idOrOp: string) {
     const db = await this.prisma(tenant);
 
@@ -966,11 +1138,11 @@ export class ProductionService {
     });
 
     if (!order)
-      throw new NotFoundException(`Ordem '${id}' nÇœo encontrada.`);
+      throw new NotFoundException(`Ordem '${id}' não encontrada.`);
 
     if (!dto.raw_materials?.length) {
       throw new BadRequestException(
-        'Informe ao menos uma matÇ½ria-prima para baixa.',
+        'Informe ao menos uma matéria-prima para baixa.',
       );
     }
 
@@ -1002,7 +1174,7 @@ export class ProductionService {
 
       if (!warehouse) {
         throw new BadRequestException(
-          `Warehouse nÇœo informado para a matÇ½ria-prima na posiÇõÇœ ${
+          `Warehouse não informado para a matéria-prima na posição ${
             index + 1
           }.`,
         );
@@ -1011,14 +1183,14 @@ export class ProductionService {
       const quantity = Number(material.quantity_used);
       if (!Number.isFinite(quantity) || quantity <= 0) {
         throw new BadRequestException(
-          `Quantidade invÇ­lida para a matÇ½ria-prima '${material.component_code}'.`,
+          `Quantidade invá­lida para a matéria-prima '${material.component_code}'.`,
         );
       }
 
       const componentCode = material.component_code?.trim();
       if (!componentCode) {
         throw new BadRequestException(
-          'CÇodigo da matÇ½ria-prima nÇœo informado.',
+          'Código da matéria-prima não informado.',
         );
       }
 

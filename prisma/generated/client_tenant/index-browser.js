@@ -5369,7 +5369,9 @@ exports.Prisma.Order_raw_materialsScalarFieldEnum = {
   unit_cost: 'unit_cost',
   warehouse: 'warehouse',
   batch_number: 'batch_number',
-  consumed_at: 'consumed_at'
+  consumed_at: 'consumed_at',
+  quantity_base: 'quantity_base',
+  fator: 'fator'
 };
 
 exports.Prisma.Bom_headersScalarFieldEnum = {
@@ -5397,7 +5399,9 @@ exports.Prisma.Bom_itemsScalarFieldEnum = {
   quantity: 'quantity',
   unit_cost: 'unit_cost',
   created_at: 'created_at',
-  updated_at: 'updated_at'
+  updated_at: 'updated_at',
+  quantity_base: 'quantity_base',
+  fator: 'fator'
 };
 
 exports.Prisma.T_auditoriaEstoqueScalarFieldEnum = {

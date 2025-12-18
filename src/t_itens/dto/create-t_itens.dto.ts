@@ -33,12 +33,22 @@ export class CreateTItemDto {
   @IsOptional()
   @Transform(({ value }) => Number(value))
   @IsNumber()
+  valcmp?: number;
+
+  @IsOptional()
+  @Transform(({ value }) => Number(value))
+  @IsNumber()
   qtembitem?: number;
 
   @IsOptional()
   @Transform(({ value }) => Number(value))
   @IsNumber()
   costPrice?: number;
+
+  @IsOptional()
+  @Transform(({ value }) => Number(value))
+  @IsNumber()
+  margem?: number;
 
   @IsOptional()
   @Transform(({ value }) => Number(value))

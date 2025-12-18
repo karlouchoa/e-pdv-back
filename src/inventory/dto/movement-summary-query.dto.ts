@@ -12,4 +12,9 @@ export class MovementSummaryQueryDto {
   @Type(() => Number)
   @IsInt()
   itemId?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  cdemp?: number;
 }

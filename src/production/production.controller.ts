@@ -1,4 +1,4 @@
-import {
+﻿import {
   BadRequestException,
   Body,
   Controller,
@@ -53,7 +53,7 @@ export class ProductionController {
     @Param('productCode') productCode: string,
   ) {
     const tenant = this.getTenant(req);
-    // Chama a nova função do service para buscar a BOM mais recente
+    // Chama a nova funÃ§Ã£o do service para buscar a BOM mais recente
     return this.productionService.getLatestProductFormula(tenant, productCode);
   }
 
@@ -68,11 +68,18 @@ export class ProductionController {
   }
 
   @Get('bom/:id')
-  getBom(
+  async getBom(
     @Req() req: TenantRequest,
     @Param('id', new ParseUUIDPipe()) id: string,
   ) {
-    return this.productionService.getBom(this.getTenant(req), id);
+    const bom = await this.productionService.getBom(this.getTenant(req), id);
+    console.log(
+      'BOM response:',
+      JSON.stringify(bom, (_, value) =>
+        typeof value === 'bigint' ? value.toString() : value,
+      ),
+    );
+    return bom;
   }
 
   @Get('bom/:id/pdf')
@@ -132,6 +139,20 @@ export class ProductionController {
   ) {
     console.log('Query recebida pelo backend - GetOrders:', query);
     return this.productionService.findOrders(this.getTenant(req), query);
+  }
+
+  @Get('orders/separacao')
+  findOrdersInSeparation(@Req() req: TenantRequest) {
+    return this.productionService.findOrdersInSeparation(
+      this.getTenant(req),
+    );
+  }
+
+  @Get('orders/producao')
+  findOrdersInProduction(@Req() req: TenantRequest) {
+    return this.productionService.findOrdersInProduction(
+      this.getTenant(req),
+    );
   }
 
   @Get('orders/:id')
@@ -237,3 +258,5 @@ export class ProductionController {
     return this.productionService.getRawMaterials(this.getTenant(req), id);
   }
 }
+
+

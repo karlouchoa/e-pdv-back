@@ -47,6 +47,17 @@ export class InventoryService {
     );
   }
 
+  private normalizeEndDateString(value?: string) {
+    if (!value) return value;
+
+    const trimmed = value.trim();
+    if (!trimmed) return undefined;
+
+    // Se a string já tiver hora, não acrescenta.
+    const hasTime = /[T\s]\d{1,2}:\d{2}/.test(trimmed);
+    return hasTime ? trimmed : `${trimmed} 23:59:59`;
+  }
+
   private parseDateRange(from?: string, to?: string) {
     let start: Date | undefined;
     let end: Date | undefined;
@@ -173,8 +184,13 @@ export class InventoryService {
     query: KardexQueryDto,
   ) {
     const prisma = await this.prisma(tenant);
-    const cdemp = await this.getCompanyId(tenant, prisma);
-    const { start, end } = this.parseDateRange(query.from, query.to);
+    const cdemp =
+      this.toOptionalNumber(query.cdemp) ??
+      (await this.getCompanyId(tenant, prisma));
+    const { start, end } = this.parseDateRange(
+      query.from,
+      this.normalizeEndDateString(query.to),
+    );
 
     const startingBalance = await this.getStartingBalance(
       prisma,
@@ -231,15 +247,21 @@ export class InventoryService {
 
   async listMovements(tenant: string, filters: MovementFiltersDto) {
     const prisma = await this.prisma(tenant);
-    const cdemp = await this.getCompanyId(tenant, prisma);
     const type = this.normalizeType(filters.type);
-    const { start, end } = this.parseDateRange(filters.from, filters.to);
+    const { start, end } = this.parseDateRange(
+      filters.from,
+      this.normalizeEndDateString(filters.to),
+    );
+    const itemCode = this.toOptionalNumber(filters.itemId);
+    const cdemp =
+      this.toOptionalNumber(filters.cdemp) ??
+      (await this.getCompanyId(tenant, prisma));
 
     const where: PrismaTypes.t_movestWhereInput = {
       cdemp: { equals: cdemp },
       st: { equals: type },
       isdeleted: { equals: false },
-      ...(filters.itemId ? { cditem: { equals: filters.itemId } } : {}),
+      ...(itemCode !== null ? { cditem: { equals: itemCode } } : {}),
     };
 
     const dateFilter = this.buildDateFilter(start, end);
@@ -254,16 +276,54 @@ export class InventoryService {
       orderBy: [{ data: 'desc' }, { nrlan: 'desc' }],
     });
 
+    const itemIds = Array.from(
+      new Set(
+        movements
+          .map((movement) => this.toOptionalNumber(movement.cditem))
+          .filter((cditem): cditem is number => cditem !== null),
+      ),
+    );
+
+    const items = itemIds.length
+      ? await prisma.t_itens.findMany({
+          where: { cdemp, cditem: { in: itemIds } },
+          select: { cditem: true, deitem: true },
+        })
+      : [];
+
+    const itemDescriptions = new Map(
+      items.map((item) => [item.cditem, item.deitem ?? null]),
+    );
+
+    const missingItemIds = itemIds.filter((id) => !itemDescriptions.has(id));
+    if (missingItemIds.length) {
+      const fallbackItems = await prisma.t_itens.findMany({
+        where: { cditem: { in: missingItemIds } },
+        select: { cditem: true, deitem: true },
+      });
+      for (const item of fallbackItems) {
+        if (!itemDescriptions.has(item.cditem)) {
+          itemDescriptions.set(item.cditem, item.deitem ?? null);
+        }
+      }
+    }
+
     return movements.map((movement) => {
       const quantity = this.toNumber(movement.qtde);
       const unitPrice = this.toOptionalNumber(movement.preco);
       const totalValue =
         this.toOptionalNumber(movement.valor) ??
         this.computeTotalValue(quantity, unitPrice);
+      const cditemValue = this.toOptionalNumber(movement.cditem);
+      const description =
+        cditemValue !== null ? itemDescriptions.get(cditemValue) ?? null : null;
 
       return {
         nrlan: movement.nrlan,
         itemId: movement.cditem ?? null,
+        itemCode: cditemValue !== null ? cditemValue.toString() : null,
+        itemDescription: description,
+        itemLabel: description,
         date: movement.data ?? movement.datadoc ?? null,
         type,
         quantity,
@@ -288,8 +348,32 @@ export class InventoryService {
 
   async getSummary(tenant: string, query: MovementSummaryQueryDto) {
     const prisma = await this.prisma(tenant);
-    const cdemp = await this.getCompanyId(tenant, prisma);
-    const { start, end } = this.parseDateRange(query.from, query.to);
+    const { start, end } = this.parseDateRange(
+      query.from,
+      this.normalizeEndDateString(query.to),
+    );
+    const itemCode = this.toOptionalNumber(query.itemId);
+    const cdemp =
+      this.toOptionalNumber(query.cdemp) ??
+      (await this.getCompanyId(tenant, prisma));
+    let itemDescription: string | null = null;
+
+    if (itemCode !== null) {
+      const item = await prisma.t_itens.findFirst({
+        where: { cdemp, cditem: itemCode },
+        select: { deitem: true },
+      });
+
+      if (item?.deitem) {
+        itemDescription = item.deitem;
+      } else {
+        const fallback = await prisma.t_itens.findFirst({
+          where: { cditem: itemCode },
+          select: { deitem: true },
+        });
+        itemDescription = fallback?.deitem ?? null;
+      }
+    }
 
     if (!start || !end) {
       throw new BadRequestException('Parametros "from" e "to" sao obrigatorios.');
@@ -298,7 +382,7 @@ export class InventoryService {
     const where: PrismaTypes.t_movestWhereInput = {
       cdemp: { equals: cdemp },
       isdeleted: { equals: false },
-      ...(query.itemId ? { cditem: { equals: query.itemId } } : {}),
+      ...(itemCode !== null ? { cditem: { equals: itemCode } } : {}),
     };
 
     const dateFilter = this.buildDateFilter(start, end);
@@ -330,12 +414,14 @@ export class InventoryService {
 
     const netQuantity = entriesQty - exitsQty;
     const startingBalance =
-      query.itemId !== undefined && query.itemId !== null
-        ? await this.getStartingBalance(prisma, cdemp, query.itemId, start)
+      itemCode !== null
+        ? await this.getStartingBalance(prisma, cdemp, itemCode, start)
         : 0;
 
     return {
-      itemId: query.itemId ?? null,
+      itemId: itemCode ?? null,
+      itemDescription,
+      itemLabel: itemDescription,
       from: query.from,
       to: query.to,
       entries: {
@@ -386,7 +472,7 @@ export class InventoryService {
       dto.totalValue != null
         ? dto.totalValue
         : this.computeTotalValue(quantity, unitPrice);
-    const cost = dto.cost ?? null;
+    const cost = dto.cost ?? dto.unitPrice ?? null;
   
     // 3ï¸âƒ£ Buscar item pelo GUID --------- (CORRETO)
     const item = await prisma.t_itens.findFirst({

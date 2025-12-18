@@ -15,6 +15,11 @@ export class MovementFiltersDto {
   @IsOptional()
   @Type(() => Number)
   @IsInt()
+  cdemp?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
   itemId?: number;
 
   @IsOptional()

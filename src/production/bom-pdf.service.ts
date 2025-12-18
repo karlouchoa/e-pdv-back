@@ -344,11 +344,11 @@ export class BomPdfService {
     return doc.page.width - doc.page.margins.left - doc.page.margins.right;
   }
 
-  private formatCurrency(value: Prisma.Decimal | number) {
+  private formatCurrency(value: Prisma.Decimal | number | null | undefined) {
     return this.currencyFormatter.format(this.toNumber(value));
   }
 
-  private formatDecimal(value: Prisma.Decimal | number) {
+  private formatDecimal(value: Prisma.Decimal | number | null | undefined) {
     return this.decimalFormatter.format(this.toNumber(value));
   }
 
@@ -356,11 +356,13 @@ export class BomPdfService {
     return this.dateFormatter.format(value);
   }
 
-  private toNumber(value: Prisma.Decimal | number) {
+  private toNumber(value: Prisma.Decimal | number | null | undefined) {
+    if (value == null) {
+      return 0;
+    }
     return typeof value === 'number' ? value : Number(value);
   }
 }
-
 
 
 

@@ -40,16 +40,36 @@ export class InventoryController {
     @Req() req: TenantRequest,
     @Query() query: MovementSummaryQueryDto,
   ) {
+    console.log('Getting summary with query:', query);
     return this.inventoryService.getSummary(this.getTenant(req), query);
   }
 
+  // @Get('movements')
+  // listMovements(
+  //   @Req() req: TenantRequest,
+  //   @Query() query: MovementFiltersDto,
+  // ) {
+  //   console.log('Listing movements with query:', query);
+  //   return this.inventoryService.listMovements(this.getTenant(req), query);
+  // }
+
   @Get('movements')
-  listMovements(
+  async listMovements(
     @Req() req: TenantRequest,
     @Query() query: MovementFiltersDto,
   ) {
-    return this.inventoryService.listMovements(this.getTenant(req), query);
+    // console.log('Listing movements with query:', query);
+
+    const result = await this.inventoryService.listMovements(
+      this.getTenant(req),
+      query,
+    );
+
+    // console.log('Listing movements response:', JSON.stringify(result, null, 2));
+
+    return result;
   }
+
 
   @Get('movements/:itemId')
   getKardex(
@@ -57,6 +77,7 @@ export class InventoryController {
     @Param('itemId', ParseIntPipe) itemId: number,
     @Query() query: KardexQueryDto,
   ) {
+    // console.log(`Getting kardex for itemId ${itemId} with query:`, query);
     return this.inventoryService.getKardex(this.getTenant(req), itemId, query);
   }
 

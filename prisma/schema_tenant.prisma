@@ -7245,7 +7245,7 @@ model production_orders {
   taxes                Decimal?                  @db.Decimal(18, 4)
   Overhead             Decimal?                  @db.Decimal(18, 4)
   totalCost            Decimal?                  @db.Decimal(18, 4)
-  unitCost             Decimal?                  @db.Decimal(18, 4)
+  unitCost             Decimal?                  @db.Decimal(18, 7)
   bom_header_id        String?                   @db.UniqueIdentifier
   finished_goods       order_finished_goods[]
   raw_materials        order_raw_materials[]
@@ -7285,12 +7285,14 @@ model order_raw_materials {
   order_id       String            @db.UniqueIdentifier
   component_code String            @db.NVarChar(80)
   description    String?           @db.NVarChar(200)
-  quantity_used  Decimal           @db.Decimal(18, 4)
+  quantity_used  Decimal?          @db.Decimal(18, 7)
   unit           String            @db.NVarChar(10)
   unit_cost      Decimal?          @db.Decimal(18, 4)
   warehouse      String?           @db.NVarChar(80)
   batch_number   String?           @db.NVarChar(80)
   consumed_at    DateTime          @default(dbgenerated("sysutcdatetime()"), map: "DF_raw_materials_consumed")
+  quantity_base  Decimal?          @db.Decimal(18, 7)
+  fator          Decimal?          @db.Decimal(18, 7)
   order          production_orders @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_order_raw_materials_order")
 
   @@index([order_id], map: "IX_order_raw_materials_order")
@@ -7323,10 +7325,12 @@ model bom_items {
   line_number    Int
   component_code String      @db.NVarChar(80)
   description    String?     @db.NVarChar(200)
-  quantity       Decimal     @db.Decimal(18, 4)
-  unit_cost      Decimal     @db.Decimal(18, 4)
+  quantity       Decimal?    @db.Decimal(18, 7)
+  unit_cost      Decimal?    @db.Decimal(18, 7)
   created_at     DateTime    @default(dbgenerated("sysutcdatetime()"), map: "DF_bom_items_created")
   updated_at     DateTime?   @default(now(), map: "DF__bom_items__updat__0B087586") @db.DateTime
+  quantity_base  Decimal?    @db.Decimal(18, 7)
+  fator          Decimal?    @db.Decimal(18, 7)
   bom_headers    bom_headers @relation(fields: [bom_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_bom_items_header")
 
   @@index([bom_id, line_number], map: "IX_bom_items_bom")
