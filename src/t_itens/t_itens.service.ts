@@ -279,7 +279,8 @@ export class TItensService {
         : 10;
 
     const cdempParam = getParam('cdemp');
-    const cdemp = await this.resolveCompanyId(tenant, prisma, cdempParam);
+    const saldoCdemp = await this.resolveCompanyId(tenant, prisma, cdempParam);
+    const itemsCdemp = this.defaultCompanyId; // sempre 1 para t_itens
 
     const descricaoPrefix = getParam('descricaoPrefix');
     const cdgruitParam = getParam('cdgruit');
@@ -298,7 +299,8 @@ export class TItensService {
         {
           tenant,
           cdempParam,
-          cdempResolved: cdemp,
+          cdempResolved: itemsCdemp,
+          cdempSaldo: saldoCdemp,
           page,
           pageSize,
           descricaoPrefix,
@@ -314,7 +316,7 @@ export class TItensService {
     );
 
     const where: PrismaTypes.t_itensWhereInput = {
-      cdemp,
+      cdemp: itemsCdemp,
       ...filtersWhere,
     };
 
@@ -340,27 +342,7 @@ export class TItensService {
       : null;
     const requiresSaldoFilter = saldoFilter === 'COM' || saldoFilter === 'SEM';
 
-    let balanceItems: Array<{ cditem: number; saldo: number }> = [];
-
-    if (wantSaldo) {
-      balanceItems = await this.fetchBalances(prisma, cdemp);
-
-      if (requiresSaldoFilter) {
-        balanceItems = balanceItems.filter((b) =>
-          saldoFilter === 'COM' ? b.saldo > 0 : b.saldo <= 0,
-        );
-      }
-
-      const balanceCditems = balanceItems.map((b) => b.cditem);
-
-      if (balanceCditems.length) {
-        where.cditem = { in: balanceCditems };
-        // não filtramos por cdemp em t_itens; usamos cdemp apenas no saldo
-        delete where.cdemp;
-      }
-    }
-
-    if (!requiresSaldoFilter && !wantSaldo) {
+    if (!requiresSaldoFilter) {
       const [items, total] = await Promise.all([
         prisma.t_itens.findMany({
           where,
@@ -371,18 +353,20 @@ export class TItensService {
         prisma.t_itens.count({ where }),
       ]);
 
-      const itemsWithSaldo = await this.attachSaldo(prisma, cdemp, items);
+      const itemsWithSaldo = await this.attachSaldo(prisma, saldoCdemp, items);
       const response = { data: itemsWithSaldo, total, count: total, records: total };
       console.log(
         '[t_itens] findAll response (sem filtro de saldo)',
         JSON.stringify(
           {
-            cdemp,
+            cdemp: itemsCdemp,
+            cdempSaldo: saldoCdemp,
             page,
             pageSize,
             total,
             sample: response.data.slice(0, 3),
             where,
+            wantSaldo,
           },
           null,
           2,
@@ -391,42 +375,85 @@ export class TItensService {
       return response;
     }
 
-    // Quando filtra por saldo, precisamos calcular antes de paginar
-    const allItems = await prisma.t_itens.findMany({
-      where,
-      orderBy: [{ cditem: 'asc' }],
-    });
+    const balances = await this.fetchBalances(prisma, saldoCdemp);
+    const filteredBalances = balances.filter((b) =>
+      saldoFilter === 'COM' ? b.saldo > 0 : b.saldo <= 0,
+    );
 
-    const itemsWithSaldo = await this.attachSaldo(prisma, cdemp, allItems);
-    const sampleWithSaldo = itemsWithSaldo
-      .slice(0, 5)
-      .map((item) => ({ cditem: item.cditem, saldo: item.saldo }));
+    if (!filteredBalances.length) {
+      const emptyResponse = { data: [], total: 0, count: 0, records: 0 };
+      console.log(
+        '[t_itens] findAll response (com filtro de saldo vazio)',
+        JSON.stringify(
+          {
+            cdemp: itemsCdemp,
+            cdempSaldo: saldoCdemp,
+            saldoFilter,
+            page,
+            pageSize,
+            total: 0,
+            where,
+          },
+          null,
+          2,
+        ),
+      );
+      return emptyResponse;
+    }
 
-    const filteredBySaldo = itemsWithSaldo.filter((item) => {
-      const saldoValue = this.toOptionalNumber(item.saldo) ?? 0;
-      if (saldoFilter === 'COM') return saldoValue > 0;
-      if (saldoFilter === 'SEM') return saldoValue <= 0;
-      return true;
-    });
+    const saldoMap = new Map<number, number | null>();
+    for (const entry of filteredBalances) {
+      saldoMap.set(entry.cditem, this.toOptionalNumber(entry.saldo) ?? 0);
+    }
 
-    const total = filteredBySaldo.length;
-    const paginated = filteredBySaldo.slice(skip, skip + pageSize);
+    const cditemsToFetch = [...saldoMap.keys()];
+    const chunkSize = 1500; // abaixo do limite de 2100 parametros do SQL Server
+    type Item = PrismaTypes.t_itensGetPayload<PrismaTypes.t_itensFindManyArgs>;
+    const filteredItems: Item[] = [];
+
+    for (let i = 0; i < cditemsToFetch.length; i += chunkSize) {
+      const chunkCditems = cditemsToFetch.slice(i, i + chunkSize);
+      const chunkWhere: PrismaTypes.t_itensWhereInput = {
+        ...where,
+        cditem: { in: chunkCditems },
+      };
+
+      const chunkItems = await prisma.t_itens.findMany({
+        where: chunkWhere,
+        orderBy: [{ cditem: 'asc' }],
+      });
+
+      filteredItems.push(...chunkItems);
+    }
+
+    filteredItems.sort((a, b) => (a.cditem ?? 0) - (b.cditem ?? 0));
+
+    const itemsWithSaldo = filteredItems.map((item) => ({
+      ...item,
+      saldo: saldoMap.get(item.cditem ?? -1) ?? null,
+    }));
+
+    const total = itemsWithSaldo.length;
+    const paginated = itemsWithSaldo.slice(skip, skip + pageSize);
 
     const response = { data: paginated, total, count: total, records: total };
     console.log(
       '[t_itens] findAll response (com filtro de saldo)',
       JSON.stringify(
         {
-          cdemp,
+          cdemp: itemsCdemp,
+          cdempSaldo: saldoCdemp,
           saldoFilter,
           page,
           pageSize,
           total,
-          fetchedItems: itemsWithSaldo.length,
-          filteredItems: filteredBySaldo.length,
-          sampleWithSaldo,
-          sample: response.data.slice(0, 3),
-          where,
+          fetchedItems: filteredItems.length,
+          filteredItems: itemsWithSaldo.length,
+          sample: response.data.slice(0, 3).map((item) => ({
+            cditem: item.cditem,
+            saldo: item.saldo,
+          })),
+          where: { ...where, cditemCount: cditemsToFetch.length },
         },
         null,
         2,

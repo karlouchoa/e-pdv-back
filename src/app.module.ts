@@ -8,6 +8,7 @@ import { TenantTablesModule } from './tenant-tables/tenant-tables.module';
 import { ProductionModule } from './production/production.module';
 import { InventoryModule } from './inventory/inventory.module';
 import { LoggerMiddleware } from './logger.middleware';
+import { CardapioModule } from './cardapio/cardapio.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { LoggerMiddleware } from './logger.middleware';
     TenantTablesModule,
     ProductionModule,
     InventoryModule,
+    CardapioModule,
   ],
   controllers: [AppController],
   providers: [AppService],

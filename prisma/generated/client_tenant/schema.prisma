@@ -3002,6 +3002,7 @@ model t_gritens {
   isdeleted             Boolean   @default(false, map: "DF_t_gritens_isdeleted")
   createdat             DateTime? @db.DateTime
   updatedat             DateTime? @db.DateTime
+  itens                 t_itens[]
 
   @@index([degru], map: "IX_t_gritens")
 }
@@ -3445,6 +3446,7 @@ model t_itens {
   createdat        DateTime?     @db.DateTime
   updatedat        DateTime?     @db.DateTime
   T_CCLASSTRIB     T_CCLASSTRIB? @relation(fields: [CCLASSTRIB_ID], references: [ID], onDelete: NoAction, onUpdate: NoAction, map: "FK_T_ITENS_T_CCLASSTRIB")
+  categoria        t_gritens?    @relation(fields: [cdgruit], references: [cdgru])
 
   @@id([cdemp, cditem], map: "PK_t_itens")
   @@index([deitem], map: "idx_deitem")

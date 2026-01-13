@@ -19,10 +19,13 @@ async function bootstrap() {
   const allowedFixedOrigins = [
     'https://goldpdv.com.br',
     'https://www.goldpdv.com.br',
+    'https://e-pdv.com',
+    'https://www.e-pdv.com',
     // Se houverem outros domínios de tenants fixos
   ];
 
-  const subdomainRegex = /^https:\/\/([a-z0-9-]+\.)?goldpdv\.com\.br$/i;
+  const subdomainRegex =
+    /^https:\/\/([a-z0-9-]+\.)?(goldpdv\.com\.br|e-pdv\.com)$/i;
   const isDev = process.env.NODE_ENV !== 'production';
 
   // =========================================================
