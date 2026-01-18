@@ -4,6 +4,7 @@ import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { TItensModule } from './t_itens/t_itens.module';
 import { TFormulasModule } from './t_formulas/t_formulas.module';
+import { TGritensModule } from './t_gritens/t_gritens.module';
 import { TenantTablesModule } from './tenant-tables/tenant-tables.module';
 import { ProductionModule } from './production/production.module';
 import { InventoryModule } from './inventory/inventory.module';
@@ -15,6 +16,7 @@ import { CardapioModule } from './cardapio/cardapio.module';
     AuthModule,
     TItensModule,
     TFormulasModule,
+    TGritensModule,
     TenantTablesModule,
     ProductionModule,
     InventoryModule,

@@ -141,6 +141,18 @@ export class TItensService {
     return numeric;
   }
 
+  private isTruthy(value: unknown): boolean {
+    if (value === null || value === undefined) return false;
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'number') return value !== 0;
+    if (typeof value !== 'string') return Boolean(value);
+
+    const normalized = value.trim().toLowerCase();
+    return ['1', 'true', 'yes', 'y', 'sim', 's', 'all', 'todos'].includes(
+      normalized,
+    );
+  }
+
   private buildWhere(
     cdemp: number,
     cditem: number,
@@ -271,10 +283,20 @@ export class TItensService {
       return Array.isArray(value) ? value[value.length - 1] : value;
     };
 
-    const page = Math.max(1, Number(getParam('page')) || 1);
-    const pageSizeInput = Number(getParam('pageSize'));
-    const pageSize =
-      Number.isFinite(pageSizeInput) && pageSizeInput > 0
+    const pageInput = Number(getParam('page'));
+    const page =
+      Number.isFinite(pageInput) && pageInput > 0 ? Math.floor(pageInput) : 1;
+    const pageSizeRaw = getParam('pageSize');
+    const pageSizeInput = Number(pageSizeRaw);
+    const allParam = getParam('all');
+    const wantsAll =
+      this.isTruthy(allParam) ||
+      (typeof pageSizeRaw === 'string' &&
+        pageSizeRaw.trim().toLowerCase() === 'all') ||
+      pageSizeInput === 0;
+    const pageSize = wantsAll
+      ? null
+      : Number.isFinite(pageSizeInput) && pageSizeInput > 0
         ? Math.min(pageSizeInput, 100)
         : 10;
 
@@ -303,6 +325,7 @@ export class TItensService {
           cdempSaldo: saldoCdemp,
           page,
           pageSize,
+          wantsAll,
           descricaoPrefix,
           cdgruit: cdgruitParam,
           matprima: matprimaParam,
@@ -318,6 +341,14 @@ export class TItensService {
     const where: PrismaTypes.t_itensWhereInput = {
       cdemp: itemsCdemp,
       ...filtersWhere,
+    };
+    const includeCategoria = {
+      categoria: {
+        select: {
+          cdgru: true,
+          degru: true,
+        },
+      },
     };
 
     if (descricaoPrefix && descricaoPrefix.trim()) {
@@ -336,20 +367,26 @@ export class TItensService {
       where.matprima = matprima;
     }
 
-    const skip = (page - 1) * pageSize;
+    const skip = wantsAll || pageSize === null ? 0 : (page - 1) * pageSize;
     const saldoFilter = saldoParam
       ? saldoParam.toString().trim().toUpperCase()
       : null;
     const requiresSaldoFilter = saldoFilter === 'COM' || saldoFilter === 'SEM';
 
     if (!requiresSaldoFilter) {
+      const findManyArgs: PrismaTypes.t_itensFindManyArgs = {
+        where,
+        orderBy: [{ cditem: 'asc' }],
+        include: includeCategoria,
+      };
+
+      if (!wantsAll && pageSize !== null) {
+        findManyArgs.skip = skip;
+        findManyArgs.take = pageSize;
+      }
+
       const [items, total] = await Promise.all([
-        prisma.t_itens.findMany({
-          where,
-          orderBy: [{ cditem: 'asc' }],
-          skip,
-          take: pageSize,
-        }),
+        prisma.t_itens.findMany(findManyArgs),
         prisma.t_itens.count({ where }),
       ]);
 
@@ -363,6 +400,7 @@ export class TItensService {
             cdempSaldo: saldoCdemp,
             page,
             pageSize,
+            wantsAll,
             total,
             sample: response.data.slice(0, 3),
             where,
@@ -421,6 +459,7 @@ export class TItensService {
       const chunkItems = await prisma.t_itens.findMany({
         where: chunkWhere,
         orderBy: [{ cditem: 'asc' }],
+        include: includeCategoria,
       });
 
       filteredItems.push(...chunkItems);
@@ -434,7 +473,10 @@ export class TItensService {
     }));
 
     const total = itemsWithSaldo.length;
-    const paginated = itemsWithSaldo.slice(skip, skip + pageSize);
+    const paginated =
+      wantsAll || pageSize === null
+        ? itemsWithSaldo
+        : itemsWithSaldo.slice(skip, skip + pageSize);
 
     const response = { data: paginated, total, count: total, records: total };
     console.log(
@@ -446,6 +488,7 @@ export class TItensService {
           saldoFilter,
           page,
           pageSize,
+          wantsAll,
           total,
           fetchedItems: filteredItems.length,
           filteredItems: itemsWithSaldo.length,
