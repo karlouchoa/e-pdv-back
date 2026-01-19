@@ -29,9 +29,22 @@ export class AuthService {
       distinct: ['codemp'],
     });
 
-    const companyIds = links
+    let companyIds = links
       .map((link) => link.codemp)
       .filter((id): id is number => typeof id === 'number');
+
+    if (!companyIds.length) {
+      const rawLinks = await prisma.$queryRaw<{ codemp: number }[]>`
+        SELECT DISTINCT codemp
+        FROM t_usere
+        WHERE ISNULL(isdeleted, 0) = 0
+          AND UPPER(LTRIM(RTRIM(codusu))) = UPPER(LTRIM(RTRIM(${cdusu})))
+      `;
+
+      companyIds = rawLinks
+        .map((link) => link.codemp)
+        .filter((id): id is number => typeof id === 'number');
+    }
 
     if (!companyIds.length) {
       return [];
@@ -40,7 +53,7 @@ export class AuthService {
     return prisma.t_emp.findMany({
       where: {
         cdemp: { in: companyIds },
-        NOT: { isdeleted: true },
+        OR: [{ isdeleted: false }, { isdeleted: null }],
       },
       select: {
         cdemp: true,

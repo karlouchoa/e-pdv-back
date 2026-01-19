@@ -26,6 +26,10 @@ export class CreateTItemDto {
   category?: string;
 
   @IsOptional()
+  @IsString()
+  marca?: string;
+
+  @IsOptional()
   @Transform(({ value }) => Number(value))
   @IsNumber()
   salePrice?: number;

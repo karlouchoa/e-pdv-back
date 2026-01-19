@@ -473,21 +473,8 @@ export class InventoryService {
         ? dto.totalValue
         : this.computeTotalValue(quantity, unitPrice);
     const cost = dto.cost ?? dto.unitPrice ?? null;
-  
-    // 3ï¸âƒ£ Buscar item pelo GUID --------- (CORRETO)
-    const item = await prisma.t_itens.findFirst({
-      where: { ID: dto.itemId }, // ðŸ‘ˆ campo real do Prisma Ã© ID, nÃ£o id
-    });
-  
-    if (!item) {
-      throw new BadRequestException(`Item '${dto.itemId}' nÃ£o encontrado.`);
-    }
-  
-    const cditem = item.cditem;   // ok (int)
-    const empitem = 1;            // sempre 1 conforme regra solicitada
-    const empfor = 1;             // sempre 1 conforme regra
 
-    // 4 - Buscar empresa selecionada (aceita GUID do ID ou cdemp numerico)
+    // 3 - Buscar empresa selecionada (aceita GUID do ID ou cdemp numerico)
     const warehouseInput = dto.warehouse?.trim();
     let empresa;
     let warehouseLabel = warehouseInput ?? '';
@@ -535,6 +522,21 @@ export class InventoryService {
     const cdemp = empresa.cdemp; // empresa selecionada
     const empmov = empresa.cdemp;
     const empven = empresa.cdemp;
+
+    // 4 - Buscar item pelo GUID dentro do almoxarifado selecionado
+    const item = await prisma.t_itens.findFirst({
+      where: { ID: dto.itemId, cdemp },
+    });
+
+    if (!item) {
+      throw new BadRequestException(
+        `Item '${dto.itemId}' nao encontrado no almoxarifado '${warehouseLabel}'.`,
+      );
+    }
+
+    const cditem = item.cditem;   // ok (int)
+    const empitem = cdemp;        // almoxarifado do item
+    const empfor = cdemp;         // empresa de referencia
     
     // 5ï¸âƒ£ Saldo anterior
     const previousBalance = await this.getStartingBalance(
@@ -562,8 +564,8 @@ export class InventoryService {
         especie: dto.document?.type ?? null,
         clifor: dto.customerOrSupplier,
         codusu: userCode,
-        empitem,            // empresa do item (codigo numerico) - sempre 1
-        empfor,             // sempre 1
+        empitem,            // almoxarifado informado
+        empfor,             // empresa de referencia
         empmov,             // empresa do movimento (codigo numerico)
         empven,
         saldoant: previousBalance,

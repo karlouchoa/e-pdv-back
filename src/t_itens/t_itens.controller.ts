@@ -79,7 +79,11 @@ export class TItensController {
   /** 🔹 DELETE (UUID) */
   @UseGuards(AuthGuard('jwt'))
   @Delete(':id')
-  remove(@Req() req: TenantRequest, @Param('id') id: string) {
-    return this.tItensService.remove(req.user.tenant, id);
+  remove(
+    @Req() req: TenantRequest,
+    @Param('id') id: string,
+    @Body('cdemp') cdemp: number,
+  ) {
+    return this.tItensService.remove(req.user.tenant, id, cdemp);
   }
 }

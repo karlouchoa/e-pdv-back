@@ -13,6 +13,7 @@ import { NotFoundException } from '@nestjs/common';
 export class TItensService {
   private readonly defaultCompanyId = 1;
   private readonly companyCache = new Map<string, number>();
+  private readonly matrizCompanyCache = new Map<string, number>();
   private readonly reservedFilters = new Set(['cdemp']);
   private readonly scalarFieldMap = new Map(
     Object.values(Prisma.T_itensScalarFieldEnum).map((field) => [
@@ -47,6 +48,24 @@ export class TItensService {
 
     const cdemp = firstItem?.cdemp ?? this.defaultCompanyId;
     this.companyCache.set(tenant, cdemp);
+    return cdemp;
+  }
+
+  private async getMatrizCompanyId(
+    tenant: string,
+    prisma: TenantClient,
+  ): Promise<number> {
+    const cached = this.matrizCompanyCache.get(tenant);
+    if (cached) return cached;
+
+    const matriz = await prisma.t_emp.findFirst({
+      where: { matriz: 'S' },
+      select: { cdemp: true },
+      orderBy: { cdemp: 'asc' },
+    });
+
+    const cdemp = matriz?.cdemp ?? this.defaultCompanyId;
+    this.matrizCompanyCache.set(tenant, cdemp);
     return cdemp;
   }
 
@@ -109,7 +128,7 @@ export class TItensService {
       return anyCompany.cdemp;
     }
 
-    return this.getCompanyId(tenant, prisma);
+    return this.getMatrizCompanyId(tenant, prisma);
   }
 
   /** -------------------------
@@ -141,6 +160,27 @@ export class TItensService {
     return numeric;
   }
 
+  private ensureCdemp<T extends Record<string, unknown>>(
+    item: T,
+    fallbackCdemp: number | null,
+  ): T & { cdemp: number | null } {
+    const current = this.toOptionalNumber(
+      (item as { cdemp?: unknown }).cdemp,
+    );
+    if (current !== null) {
+      return { ...item, cdemp: current };
+    }
+
+    return { ...item, cdemp: fallbackCdemp };
+  }
+
+  private ensureCdempList<T extends Record<string, unknown>>(
+    items: T[],
+    fallbackCdemp: number | null,
+  ) {
+    return items.map((item) => this.ensureCdemp(item, fallbackCdemp));
+  }
+
   private isTruthy(value: unknown): boolean {
     if (value === null || value === undefined) return false;
     if (typeof value === 'boolean') return value;
@@ -165,11 +205,11 @@ export class TItensService {
     };
   }
 
-  private async attachSaldo(
+  private async attachSaldo<T extends { cditem?: number | null }>(
     prisma: TenantClient,
     cdemp: number,
-    items: Array<{ cditem?: number | null } & Record<string, unknown>>,
-  ) {
+    items: T[],
+  ): Promise<Array<T & { saldo: number | null }>> {
     const ids = items
       .map((item) => item.cditem)
       .filter((id): id is number => typeof id === 'number');
@@ -222,7 +262,7 @@ export class TItensService {
 
   async create(tenant: string, dto: CreateTItemDto) {
     const prisma = await this.getPrisma(tenant);
-    const cdemp = await this.getCompanyId(tenant, prisma);
+    const cdemp = await this.getMatrizCompanyId(tenant, prisma);
   
     const data = {
       cdemp,
@@ -269,7 +309,8 @@ export class TItensService {
       updatedat: new Date(),
     };
   
-    return prisma.t_itens.create({ data });
+    const created = await prisma.t_itens.create({ data });
+    return this.ensureCdemp(created, cdemp);
   }
   
   async findAll(
@@ -302,7 +343,7 @@ export class TItensService {
 
     const cdempParam = getParam('cdemp');
     const saldoCdemp = await this.resolveCompanyId(tenant, prisma, cdempParam);
-    const itemsCdemp = this.defaultCompanyId; // sempre 1 para t_itens
+    const itemsCdemp = await this.getMatrizCompanyId(tenant, prisma);
 
     const descricaoPrefix = getParam('descricaoPrefix');
     const cdgruitParam = getParam('cdgruit');
@@ -385,13 +426,14 @@ export class TItensService {
         findManyArgs.take = pageSize;
       }
 
-      const [items, total] = await Promise.all([
-        prisma.t_itens.findMany(findManyArgs),
-        prisma.t_itens.count({ where }),
-      ]);
+    const [items, total] = await Promise.all([
+      prisma.t_itens.findMany(findManyArgs),
+      prisma.t_itens.count({ where }),
+    ]);
 
       const itemsWithSaldo = await this.attachSaldo(prisma, saldoCdemp, items);
-      const response = { data: itemsWithSaldo, total, count: total, records: total };
+      const ensuredItems = this.ensureCdempList(itemsWithSaldo, itemsCdemp);
+      const response = { data: ensuredItems, total, count: total, records: total };
       console.log(
         '[t_itens] findAll response (sem filtro de saldo)',
         JSON.stringify(
@@ -471,12 +513,13 @@ export class TItensService {
       ...item,
       saldo: saldoMap.get(item.cditem ?? -1) ?? null,
     }));
+    const ensuredItems = this.ensureCdempList(itemsWithSaldo, itemsCdemp);
 
-    const total = itemsWithSaldo.length;
+    const total = ensuredItems.length;
     const paginated =
       wantsAll || pageSize === null
-        ? itemsWithSaldo
-        : itemsWithSaldo.slice(skip, skip + pageSize);
+        ? ensuredItems
+        : ensuredItems.slice(skip, skip + pageSize);
 
     const response = { data: paginated, total, count: total, records: total };
     console.log(
@@ -513,7 +556,7 @@ export class TItensService {
     console.log('[searchByDescription] term:', term);
 
     const prisma = await this.getPrisma(tenant);
-    const cdemp = await this.getCompanyId(tenant, prisma);
+    const cdemp = await this.getMatrizCompanyId(tenant, prisma);
 
     const isNumeric = /^\d+$/.test(term);
 
@@ -530,24 +573,26 @@ export class TItensService {
       orderBy: { deitem: 'asc' },
     });
 
-    return this.attachSaldo(prisma, cdemp, results);
+    const itemsWithSaldo = await this.attachSaldo(prisma, cdemp, results);
+    return this.ensureCdempList(itemsWithSaldo, cdemp);
   }
   
 
   async findOne(tenant: string, id: string) {
     const prisma = await this.getPrisma(tenant);
-    const cdemp = await this.getCompanyId(tenant, prisma);
+    const cdemp = await this.getMatrizCompanyId(tenant, prisma);
     const cditem = this.parseCditem(id);
 
-    return prisma.t_itens.findUnique({
+    const item = await prisma.t_itens.findUnique({
       where: this.buildWhere(cdemp, cditem),
     });
+    return item ? this.ensureCdemp(item, cdemp) : item;
   }
 
 
   async update(tenant: string, uuid: string, dto: UpdateTItemDto) {
     const prisma = await this.getPrisma(tenant);
-    const cdemp = await this.getCompanyId(tenant, prisma);
+    const cdemp = await this.getMatrizCompanyId(tenant, prisma);
   
     // 1️⃣ Buscar o item pelo UUID
     const existing = await prisma.t_itens.findFirst({
@@ -568,6 +613,7 @@ export class TItensService {
       deitem: dto.name,
       defat: dto.description,
       undven: dto.unit,
+      mrcitem: dto.marca,
       cdgruit: dto.category ? Number(dto.category) : undefined,
   
       preco: dto.salePrice,
@@ -598,7 +644,7 @@ export class TItensService {
     );
   
     // 3️⃣ UPDATE via PK composta (cdemp + cditem)
-    return prisma.t_itens.update({
+    const updated = await prisma.t_itens.update({
       where: {
         cdemp_cditem: {
           cdemp,
@@ -607,18 +653,62 @@ export class TItensService {
       },
       data,
     });
+    return this.ensureCdemp(updated, cdemp);
   }
   
   
-  async remove(tenant: string, id: string) {
+  async remove(tenant: string, id: string, cdempInput: unknown) {
     const prisma = await this.getPrisma(tenant);
-    const cdemp = await this.getCompanyId(tenant, prisma);
-    const cditem = this.parseCditem(id);
+    const cdemp = this.toOptionalNumber(cdempInput);
+    if (cdemp === null) {
+      throw new BadRequestException('O campo cdemp deve ser numerico.');
+    }
 
-    return prisma.t_itens.delete({
-      where: this.buildWhere(cdemp, cditem),
+    const existing = await prisma.t_itens.findFirst({
+      where: {
+        cdemp,
+        ID: id,
+      },
+      select: { cditem: true },
     });
+
+    if (!existing) {
+      throw new NotFoundException('Item nao encontrado para este tenant.');
+    }
+
+    const hasMovements = await prisma.t_movest.findFirst({
+      where: {
+        cdemp,
+        cditem: existing.cditem,
+      },
+      select: { nrlan: true },
+    });
+
+    if (hasMovements) {
+      throw new BadRequestException(
+        'Item possui movimentacoes em estoque e nao pode ser excluido.',
+      );
+    }
+
+    const updated = await prisma.t_itens.update({
+      where: {
+        cdemp_cditem: {
+          cdemp,
+          cditem: existing.cditem,
+        },
+      },
+      data: {
+        isdeleted: true,
+        ativosn: 'N',
+        ativoprod: 'N',
+        updatedat: new Date(),
+      },
+    });
+    return this.ensureCdemp(updated, cdemp);
   }
+
+
+  
 
   /** -------------------------
    *     FILTROS E TRATAMENTO
