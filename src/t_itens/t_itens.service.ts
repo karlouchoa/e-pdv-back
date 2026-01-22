@@ -205,6 +205,205 @@ export class TItensService {
     };
   }
 
+  private resolveImageUrls(item: {
+    locfotitem?: string | null;
+    t_imgitens?: Array<{ URL?: string | null }>;
+  }) {
+    const imageUrls = (item.t_imgitens ?? [])
+      .map((image) => (image.URL ?? '').trim())
+      .filter((url) => url.length > 0);
+
+    if (!imageUrls.length) {
+      const fallback = item.locfotitem?.trim();
+      if (fallback) {
+        imageUrls.push(fallback);
+      }
+    }
+
+    return imageUrls;
+  }
+
+  private withImageUrls<T extends { locfotitem?: string | null }>(
+    item: T & { t_imgitens?: Array<{ URL?: string | null }> },
+  ) {
+    const imageUrls = this.resolveImageUrls(item);
+    const primaryImage = imageUrls[0] ?? item.locfotitem ?? null;
+    return {
+      ...item,
+      locfotitem: primaryImage,
+      imageUrls,
+    };
+  }
+
+  private withImageUrlsList<T extends { locfotitem?: string | null }>(
+    items: Array<T & { t_imgitens?: Array<{ URL?: string | null }> }>,
+  ) {
+    return items.map((item) => this.withImageUrls(item));
+  }
+
+  private async attachCategorias<T extends { cdgruit?: unknown }>(
+    prisma: TenantClient,
+    items: T[],
+  ): Promise<Array<T & { categoria: { cdgru: number; degru: string | null } | null }>> {
+    const categoryIds = [
+      ...new Set(
+        items
+          .map((item) => this.toOptionalNumber(item.cdgruit))
+          .filter((id): id is number => id !== null),
+      ),
+    ];
+
+    if (!categoryIds.length) {
+      return items.map((item) => ({ ...item, categoria: null }));
+    }
+
+    const categories = await prisma.t_gritens.findMany({
+      where: { cdgru: { in: categoryIds } },
+      select: { cdgru: true, degru: true },
+    });
+
+    const categoryMap = new Map(
+      categories.map((category) => [category.cdgru, category]),
+    );
+
+    return items.map((item) => {
+      const cdgruit = this.toOptionalNumber(item.cdgruit);
+      return {
+        ...item,
+        categoria: cdgruit !== null ? categoryMap.get(cdgruit) ?? null : null,
+      };
+    });
+  }
+
+  private normalizeImageInputs(
+    images?: Array<
+      { id?: string | null; url?: string | null; URL?: string | null } | string
+    >,
+  ) {
+    if (!Array.isArray(images)) return [];
+    return images
+      .map((image) => {
+        if (typeof image === 'string') {
+          return { url: image.trim() || undefined };
+        }
+        const url = image.url ?? image.URL;
+        return {
+          id: image.id?.trim() || undefined,
+          url: url?.trim() || undefined,
+        };
+      })
+      .filter((image) => image.id || image.url);
+  }
+
+  private resolvePrimaryImageUrl(images: Array<{ url?: string }>) {
+    const candidate = images.find((image) => image.url)?.url;
+    return candidate?.trim() || null;
+  }
+
+  private async syncItemImages(
+    prisma: TenantClient,
+    itemId: string,
+    images: Array<{ id?: string; url?: string }>,
+  ) {
+    if (!images.length) return;
+
+    const ids = images
+      .map((image) => image.id)
+      .filter((id): id is string => Boolean(id));
+    const existingById = new Map<string, { ID: string; URL: string | null }>();
+    const urlCandidates = Array.from(
+      new Set(
+        images
+          .map((image) => image.url?.trim())
+          .filter((url): url is string => Boolean(url)),
+      ),
+    );
+    const existingByUrl = new Map<string, { ID: string; URL: string | null }>();
+
+    if (ids.length) {
+      const existing = await prisma.t_imgitens.findMany({
+        where: {
+          ID_ITEM: itemId,
+          ID: { in: ids },
+        },
+        select: {
+          ID: true,
+          URL: true,
+        },
+      });
+
+      for (const record of existing) {
+        existingById.set(record.ID, record);
+      }
+    }
+
+    if (urlCandidates.length) {
+      const existing = await prisma.t_imgitens.findMany({
+        where: {
+          ID_ITEM: itemId,
+          URL: { in: urlCandidates },
+        },
+        select: {
+          ID: true,
+          URL: true,
+        },
+      });
+
+      for (const record of existing) {
+        if (record.URL) {
+          existingByUrl.set(record.URL.trim(), record);
+        }
+      }
+    }
+
+    const operations: PrismaTypes.PrismaPromise<unknown>[] = [];
+    const now = new Date();
+
+    for (const image of images) {
+      const url = image.url?.trim();
+
+      if (image.id) {
+        const existing = existingById.get(image.id);
+        if (!existing || !url) {
+          continue;
+        }
+        const currentUrl = (existing.URL ?? '').trim();
+        if (currentUrl === url) {
+          continue;
+        }
+        operations.push(
+          prisma.t_imgitens.update({
+            where: { ID: existing.ID },
+            data: {
+              URL: url,
+              UPDATEDAT: now,
+            },
+          }),
+        );
+        continue;
+      }
+
+      if (url) {
+        if (existingByUrl.has(url)) {
+          continue;
+        }
+        operations.push(
+          prisma.t_imgitens.create({
+            data: {
+              ID_ITEM: itemId,
+              URL: url,
+              UPDATEDAT: now,
+            },
+          }),
+        );
+      }
+    }
+
+    if (!operations.length) return;
+
+    await prisma.$transaction(operations);
+  }
+
   private async attachSaldo<T extends { cditem?: number | null }>(
     prisma: TenantClient,
     cdemp: number,
@@ -263,6 +462,8 @@ export class TItensService {
   async create(tenant: string, dto: CreateTItemDto) {
     const prisma = await this.getPrisma(tenant);
     const cdemp = await this.getMatrizCompanyId(tenant, prisma);
+    const imageInputs = this.normalizeImageInputs(dto.images);
+    const primaryImageUrl = this.resolvePrimaryImageUrl(imageInputs);
   
     const data = {
       cdemp,
@@ -287,7 +488,10 @@ export class TItensService {
       matprima: dto.matprima ?? "N",
   
       obsitem: dto.notes ?? null,
-      locfotitem: dto.imagePath ?? null,
+      locfotitem:
+        dto.imagePath !== undefined
+          ? dto.imagePath
+          : primaryImageUrl ?? null,
   
       // defaults obrigatórios
       ativosn: "S",
@@ -310,6 +514,9 @@ export class TItensService {
     };
   
     const created = await prisma.t_itens.create({ data });
+    if (imageInputs.length && created.ID) {
+      await this.syncItemImages(prisma, created.ID, imageInputs);
+    }
     return this.ensureCdemp(created, cdemp);
   }
   
@@ -383,11 +590,13 @@ export class TItensService {
       cdemp: itemsCdemp,
       ...filtersWhere,
     };
-    const includeCategoria = {
-      categoria: {
+    const includeCategoria: PrismaTypes.t_itensInclude = {
+      t_imgitens: {
         select: {
-          cdgru: true,
-          degru: true,
+          URL: true,
+        },
+        orderBy: {
+          AUTOCOD: 'asc',
         },
       },
     };
@@ -433,7 +642,17 @@ export class TItensService {
 
       const itemsWithSaldo = await this.attachSaldo(prisma, saldoCdemp, items);
       const ensuredItems = this.ensureCdempList(itemsWithSaldo, itemsCdemp);
-      const response = { data: ensuredItems, total, count: total, records: total };
+      const itemsWithCategorias = await this.attachCategorias(
+        prisma,
+        ensuredItems,
+      );
+      const itemsWithImages = this.withImageUrlsList(itemsWithCategorias);
+      const response = {
+        data: itemsWithImages,
+        total,
+        count: total,
+        records: total,
+      };
       console.log(
         '[t_itens] findAll response (sem filtro de saldo)',
         JSON.stringify(
@@ -520,8 +739,15 @@ export class TItensService {
       wantsAll || pageSize === null
         ? ensuredItems
         : ensuredItems.slice(skip, skip + pageSize);
+    const itemsWithCategorias = await this.attachCategorias(prisma, paginated);
+    const itemsWithImages = this.withImageUrlsList(itemsWithCategorias);
 
-    const response = { data: paginated, total, count: total, records: total };
+    const response = {
+      data: itemsWithImages,
+      total,
+      count: total,
+      records: total,
+    };
     console.log(
       '[t_itens] findAll response (com filtro de saldo)',
       JSON.stringify(
@@ -571,10 +797,25 @@ export class TItensService {
             deitem: { startsWith: term },
           },
       orderBy: { deitem: 'asc' },
+      include: {
+        t_imgitens: {
+          select: {
+            URL: true,
+          },
+          orderBy: {
+            AUTOCOD: 'asc',
+          },
+        },
+      },
     });
 
     const itemsWithSaldo = await this.attachSaldo(prisma, cdemp, results);
-    return this.ensureCdempList(itemsWithSaldo, cdemp);
+    const ensuredItems = this.ensureCdempList(itemsWithSaldo, cdemp);
+    const itemsWithCategorias = await this.attachCategorias(
+      prisma,
+      ensuredItems,
+    );
+    return this.withImageUrlsList(itemsWithCategorias);
   }
   
 
@@ -585,14 +826,29 @@ export class TItensService {
 
     const item = await prisma.t_itens.findUnique({
       where: this.buildWhere(cdemp, cditem),
+      include: {
+        t_imgitens: {
+          select: {
+            URL: true,
+          },
+          orderBy: {
+            AUTOCOD: 'asc',
+          },
+        },
+      },
     });
-    return item ? this.ensureCdemp(item, cdemp) : item;
+    if (!item) return item;
+    const ensured = this.ensureCdemp(item, cdemp);
+    const [withCategoria] = await this.attachCategorias(prisma, [ensured]);
+    return this.withImageUrls(withCategoria);
   }
 
 
   async update(tenant: string, uuid: string, dto: UpdateTItemDto) {
     const prisma = await this.getPrisma(tenant);
     const cdemp = await this.getMatrizCompanyId(tenant, prisma);
+    const imageInputs = this.normalizeImageInputs(dto.images);
+    const primaryImageUrl = this.resolvePrimaryImageUrl(imageInputs);
   
     // 1️⃣ Buscar o item pelo UUID
     const existing = await prisma.t_itens.findFirst({
@@ -633,10 +889,15 @@ export class TItensService {
       matprima: dto.matprima,
   
       obsitem: dto.notes,
-      locfotitem: dto.imagePath,
   
       updatedat: new Date(),
     };
+
+    if (dto.imagePath !== undefined) {
+      data.locfotitem = dto.imagePath;
+    } else if (primaryImageUrl) {
+      data.locfotitem = primaryImageUrl;
+    }
   
     // Remove undefined
     Object.keys(data).forEach(
@@ -653,6 +914,9 @@ export class TItensService {
       },
       data,
     });
+    if (imageInputs.length) {
+      await this.syncItemImages(prisma, uuid, imageInputs);
+    }
     return this.ensureCdemp(updated, cdemp);
   }
   

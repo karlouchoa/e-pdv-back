@@ -1,12 +1,24 @@
-import { Transform } from "class-transformer";
+import { Transform, Type } from "class-transformer";
 import {
+  IsArray,
   IsString,
   IsOptional,
   IsNumber,
   IsBoolean,
   IsIn,
   IsNotEmpty,
+  ValidateNested,
 } from "class-validator";
+
+export class ItemImageDto {
+  @IsOptional()
+  @IsString()
+  id?: string;
+
+  @IsOptional()
+  @IsString()
+  url?: string;
+}
 
 export class CreateTItemDto {
   @IsString()
@@ -90,6 +102,12 @@ export class CreateTItemDto {
   @IsOptional()
   @IsString()
   imagePath?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ItemImageDto)
+  images?: ItemImageDto[];
 
   @IsOptional()
   @IsIn(["S", "N"])

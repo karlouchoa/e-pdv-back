@@ -1007,7 +1007,11 @@ exports.Prisma.T_cliScalarFieldEnum = {
   EntidadeGov: 'EntidadeGov',
   TPEntGov: 'TPEntGov',
   TPOpGov: 'TPOpGov',
-  PercRedIBS: 'PercRedIBS'
+  PercRedIBS: 'PercRedIBS',
+  orgao_do_governo: 'orgao_do_governo',
+  suframa_ativa: 'suframa_ativa',
+  tipo_op_gov: 'tipo_op_gov',
+  perc_red_gov: 'perc_red_gov'
 };
 
 exports.Prisma.T_CodClassTribScalarFieldEnum = {
@@ -1656,7 +1660,9 @@ exports.Prisma.T_empScalarFieldEnum = {
   isdeleted: 'isdeleted',
   createdat: 'createdat',
   updatedat: 'updatedat',
-  ID: 'ID'
+  ID: 'ID',
+  cadastro_suframa: 'cadastro_suframa',
+  suframa_ativa: 'suframa_ativa'
 };
 
 exports.Prisma.T_encargocalculoScalarFieldEnum = {
@@ -2052,7 +2058,8 @@ exports.Prisma.T_formulasScalarFieldEnum = {
   deitem_iv: 'deitem_iv',
   cdemp: 'cdemp',
   CreatedAt: 'CreatedAt',
-  UpdatedAt: 'UpdatedAt'
+  UpdatedAt: 'UpdatedAt',
+  ID_ITEM: 'ID_ITEM'
 };
 
 exports.Prisma.T_fpgtoScalarFieldEnum = {
@@ -2069,7 +2076,9 @@ exports.Prisma.T_fpgtoScalarFieldEnum = {
   dtaltfpg: 'dtaltfpg',
   cdfpgext: 'cdfpgext',
   CreatedAt: 'CreatedAt',
-  UpdatedAt: 'UpdatedAt'
+  UpdatedAt: 'UpdatedAt',
+  ID: 'ID',
+  OnLineSN: 'OnLineSN'
 };
 
 exports.Prisma.T_fpgto2ScalarFieldEnum = {
@@ -2460,7 +2469,14 @@ exports.Prisma.T_itensScalarFieldEnum = {
   ID: 'ID',
   isdeleted: 'isdeleted',
   createdat: 'createdat',
-  updatedat: 'updatedat'
+  updatedat: 'updatedat',
+  categoria_ncm: 'categoria_ncm',
+  cst_ibs_cbs_padrao: 'cst_ibs_cbs_padrao',
+  industrializado_zfm: 'industrializado_zfm',
+  fiscal_validado: 'fiscal_validado',
+  fiscal_validado_em: 'fiscal_validado_em',
+  fiscal_origem: 'fiscal_origem',
+  ComboSN: 'ComboSN'
 };
 
 exports.Prisma.T_itensavariaScalarFieldEnum = {
@@ -2593,7 +2609,21 @@ exports.Prisma.T_itnfsScalarFieldEnum = {
   VlFreteItNFs: 'VlFreteItNFs',
   rest_icmsItNFs: 'rest_icmsItNFs',
   CreatedAt: 'CreatedAt',
-  UpdatedAt: 'UpdatedAt'
+  UpdatedAt: 'UpdatedAt',
+  uf_origem: 'uf_origem',
+  uf_destino: 'uf_destino',
+  regime_emitente: 'regime_emitente',
+  tipo_destinatario: 'tipo_destinatario',
+  cclass_trib: 'cclass_trib',
+  cst_ibs_cbs: 'cst_ibs_cbs',
+  aliq_ibs: 'aliq_ibs',
+  aliq_cbs: 'aliq_cbs',
+  vIBS: 'vIBS',
+  vCBS: 'vCBS',
+  ano_emissao: 'ano_emissao',
+  fundamento_json: 'fundamento_json',
+  hash_regra_fiscal: 'hash_regra_fiscal',
+  gerado_por: 'gerado_por'
 };
 
 exports.Prisma.T_itnfsvScalarFieldEnum = {
@@ -2966,7 +2996,8 @@ exports.Prisma.T_itsvenScalarFieldEnum = {
   ID: 'ID',
   isdeleted: 'isdeleted',
   createdat: 'createdat',
-  updatedat: 'updatedat'
+  updatedat: 'updatedat',
+  ID_VENDA: 'ID_VENDA'
 };
 
 exports.Prisma.T_itsven_tmpScalarFieldEnum = {
@@ -3740,7 +3771,10 @@ exports.Prisma.T_nfsScalarFieldEnum = {
   coderro: 'coderro',
   impsn: 'impsn',
   CreatedAt: 'CreatedAt',
-  UpdatedAt: 'UpdatedAt'
+  UpdatedAt: 'UpdatedAt',
+  bcIbsCbs: 'bcIbsCbs',
+  vlTotIbs: 'vlTotIbs',
+  vlTotCbs: 'vlTotCbs'
 };
 
 exports.Prisma.T_nfsvScalarFieldEnum = {
@@ -4300,7 +4334,8 @@ exports.Prisma.T_pgcaixaScalarFieldEnum = {
   codrec: 'codrec',
   totaltaxa: 'totaltaxa',
   CreatedAt: 'CreatedAt',
-  UpdatedAt: 'UpdatedAt'
+  UpdatedAt: 'UpdatedAt',
+  valorant: 'valorant'
 };
 
 exports.Prisma.T_placonScalarFieldEnum = {
@@ -4916,7 +4951,9 @@ exports.Prisma.T_tpgtoScalarFieldEnum = {
   TEF: 'TEF',
   PIX: 'PIX',
   CreatedAt: 'CreatedAt',
-  UpdatedAt: 'UpdatedAt'
+  UpdatedAt: 'UpdatedAt',
+  ID: 'ID',
+  OnLineSN: 'OnLineSN'
 };
 
 exports.Prisma.T_tpgtoitpromoScalarFieldEnum = {
@@ -5127,7 +5164,10 @@ exports.Prisma.T_vendasScalarFieldEnum = {
   ID: 'ID',
   isdeleted: 'isdeleted',
   createdat: 'createdat',
-  updatedat: 'updatedat'
+  updatedat: 'updatedat',
+  ID_CLIENTE: 'ID_CLIENTE',
+  ID_FPGTO: 'ID_FPGTO',
+  ID_TPGTO: 'ID_TPGTO'
 };
 
 exports.Prisma.T_vendas_tmpScalarFieldEnum = {
@@ -5417,6 +5457,35 @@ exports.Prisma.T_auditoriaEstoqueScalarFieldEnum = {
   origem: 'origem'
 };
 
+exports.Prisma.Regras_Transicao_ReformaScalarFieldEnum = {
+  ID: 'ID',
+  Ano: 'Ano',
+  cClassTrib: 'cClassTrib',
+  Descricao: 'Descricao',
+  Aliq_IBS: 'Aliq_IBS',
+  Aliq_CBS: 'Aliq_CBS',
+  Aliq_Total_Estimada: 'Aliq_Total_Estimada'
+};
+
+exports.Prisma.T_imgitensScalarFieldEnum = {
+  AUTOCOD: 'AUTOCOD',
+  ID: 'ID',
+  ID_ITEM: 'ID_ITEM',
+  URL: 'URL',
+  CREATEDAT: 'CREATEDAT',
+  UPDATEDAT: 'UPDATEDAT'
+};
+
+exports.Prisma.T_ItensComboScalarFieldEnum = {
+  AUTOCOD: 'AUTOCOD',
+  ID: 'ID',
+  ID_ITEM: 'ID_ITEM',
+  CDGRU: 'CDGRU',
+  QTDE: 'QTDE',
+  CREATEDAT: 'CREATEDAT',
+  UPDATEDAT: 'UPDATEDAT'
+};
+
 exports.Prisma.SortOrder = {
   asc: 'asc',
   desc: 'desc'
@@ -5639,7 +5708,10 @@ exports.Prisma.ModelName = {
   order_raw_materials: 'order_raw_materials',
   bom_headers: 'bom_headers',
   bom_items: 'bom_items',
-  t_auditoriaEstoque: 't_auditoriaEstoque'
+  t_auditoriaEstoque: 't_auditoriaEstoque',
+  Regras_Transicao_Reforma: 'Regras_Transicao_Reforma',
+  t_imgitens: 't_imgitens',
+  T_ItensCombo: 'T_ItensCombo'
 };
 
 /**

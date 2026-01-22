@@ -49,14 +49,109 @@ export class CardapioController {
         defat: true,
         preco: true,
         locfotitem: true,
-        cdgruit: true, // included cdgruit from t_itens
-        categoria: {   // include the related categoria (t_gritens)
+        itprodsn: true,
+        ComboSN: true,
+        t_imgitens: {
           select: {
-            degru: true, // select degru from t_gritens
+            URL: true,
           },
-        },  
+          orderBy: {
+            AUTOCOD: 'asc',
+          },
+        },
+        t_formulas: {
+          select: {
+            autocod: true,
+            cditem: true,
+            empitem: true,
+            undven: true,
+            matprima: true,
+            qtdemp: true,
+            undmp: true,
+            empitemmp: true,
+            deitem_iv: true,
+            ID_ITEM: true,
+          },
+          orderBy: {
+            autocod: 'asc',
+          },
+        },
+        T_ItensCombo: {
+          select: {
+            ID: true,
+            ID_ITEM: true,
+            CDGRU: true,
+            QTDE: true,
+          },
+        },
+        cdgruit: true, // included cdgruit from t_itens
         // adicione os campos que deseja expor no cardápio
       },
+    });
+
+    const categoryIds = [
+      ...new Set(
+        items
+          .map((item) => item.cdgruit)
+          .filter((id): id is number => typeof id === 'number'),
+      ),
+    ];
+
+    const comboGroupIds = [
+      ...new Set(
+        items
+          .filter((item) => item.ComboSN === 'S')
+          .flatMap((item) => item.T_ItensCombo ?? [])
+          .map((combo) => combo.CDGRU)
+          .filter((id): id is number => typeof id === 'number'),
+      ),
+    ];
+
+    const groupIds = [...new Set([...categoryIds, ...comboGroupIds])];
+
+    const groups = groupIds.length
+      ? await prisma.t_gritens.findMany({
+          where: { cdgru: { in: groupIds } },
+          select: { cdgru: true, degru: true },
+        })
+      : [];
+    const groupMap = new Map(groups.map((group) => [group.cdgru, group]));
+
+    const itemsWithImages = items.map((item) => {
+      const imageUrls = (item.t_imgitens ?? [])
+        .map((image) => (image.URL ?? '').trim())
+        .filter((url) => url.length > 0);
+      if (!imageUrls.length) {
+        const fallback = item.locfotitem?.trim();
+        if (fallback) {
+          imageUrls.push(fallback);
+        }
+      }
+      const primaryImage = imageUrls[0] ?? item.locfotitem ?? null;
+      const categoria =
+        typeof item.cdgruit === 'number'
+          ? groupMap.get(item.cdgruit) ?? null
+          : null;
+      const formulas = item.itprodsn === 'S' ? item.t_formulas ?? [] : undefined;
+      const combos =
+        item.ComboSN === 'S'
+          ? (item.T_ItensCombo ?? []).map((combo) => ({
+              ...combo,
+              grupo:
+                typeof combo.CDGRU === 'number'
+                  ? groupMap.get(combo.CDGRU) ?? null
+                  : null,
+            }))
+          : undefined;
+      const { t_imgitens, t_formulas, T_ItensCombo, ...rest } = item;
+      return {
+        ...rest,
+        locfotitem: primaryImage,
+        imageUrls,
+        categoria,
+        t_formulas: formulas,
+        T_ItensCombo: combos,
+      };
     });
 
     return {
@@ -64,7 +159,7 @@ export class CardapioController {
       pageSize,
       total,
       totalPages: Math.ceil(total / pageSize),
-      items,
+      items: itemsWithImages,
     };
   }
 }

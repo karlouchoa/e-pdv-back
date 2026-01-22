@@ -1285,7 +1285,12 @@ model t_cli {
   TPEntGov                   String?      @db.VarChar(10)
   TPOpGov                    String?      @db.VarChar(12)
   PercRedIBS                 Decimal?     @db.Decimal(9, 2)
+  orgao_do_governo           String?      @db.VarChar(16)
+  suframa_ativa              String?      @db.Char(1)
+  tipo_op_gov                String?      @db.VarChar(15)
+  perc_red_gov               Decimal?     @db.Decimal(9, 2)
   t_equipcli                 t_equipcli[]
+  t_vendas                   t_vendas[]
 }
 
 /// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
@@ -2175,6 +2180,8 @@ model t_emp {
   createdat              DateTime? @default(now(), map: "DF__t_emp__createdat__1D713E84") @db.DateTime
   updatedat              DateTime? @default(now(), map: "DF__t_emp__updatedat__1E6562BD") @db.DateTime
   ID                     String?   @default(dbgenerated("newid()"), map: "DF__t_emp__ID__79DDE984") @db.UniqueIdentifier
+  cadastro_suframa       String?   @db.VarChar(20)
+  suframa_ativa          String?   @db.Char(1)
 }
 
 model t_encargocalculo {
@@ -2734,6 +2741,10 @@ model t_formulas {
   cdemp     Int?
   CreatedAt DateTime @default(now(), map: "DF__t_formula__Creat__2B554987") @db.DateTime
   UpdatedAt DateTime @default(now(), map: "DF__t_formula__Updat__2C496DC0") @db.DateTime
+  ID_ITEM   String?  @default(dbgenerated("newid()"), map: "DF_T_FORMULAS_ID_ITEM") @db.UniqueIdentifier
+  t_itens   t_itens? @relation(fields: [ID_ITEM], references: [ID], onDelete: NoAction, onUpdate: NoAction, map: "FK_T_FORMULAS_T_ITENS_ID_ITEM")
+
+  @@index([cdemp, ID_ITEM], map: "IX_T_FORMULAS_CDEMP_ID_ITEM")
 }
 
 model t_fpgto {
@@ -2751,6 +2762,8 @@ model t_fpgto {
   cdfpgext  Int?
   CreatedAt DateTime  @default(now(), map: "DF__t_fpgto__Created__2D3D91F9") @db.DateTime
   UpdatedAt DateTime  @default(now(), map: "DF__t_fpgto__Updated__2E31B632") @db.DateTime
+  ID        String?   @default(dbgenerated("newid()"), map: "DF_T_FPGTO_ID") @db.UniqueIdentifier
+  OnLineSN  String?   @db.Char(1)
 
   @@index([defpg], map: "IX_t_fpgto")
 }
@@ -3002,7 +3015,6 @@ model t_gritens {
   isdeleted             Boolean   @default(false, map: "DF_t_gritens_isdeleted")
   createdat             DateTime? @db.DateTime
   updatedat             DateTime? @db.DateTime
-  itens                 t_itens[]
 
   @@index([degru], map: "IX_t_gritens")
 }
@@ -3307,146 +3319,156 @@ model t_itcli {
 }
 
 model t_itens {
-  cdemp            Int
-  cditem           Int           @default(autoincrement())
-  cdfor            Int?
-  oldcod           Int?
-  deitem           String?       @db.VarChar(60)
-  defat            String?       @db.VarChar(250)
-  undven           String?       @db.Char(3)
-  mrcitem          String?       @db.VarChar(20)
-  qtembitem        Decimal?      @default(0, map: "DF_t_itens_qtembitem") @db.Decimal(18, 4)
-  cdgruit          Int?
-  pesobr           Decimal?      @default(0, map: "DF_t_itens_pesoitem") @db.Decimal(18, 4)
-  pesolq           Decimal?      @default(0, map: "DF_t_itens_pesolq") @db.Decimal(18, 4)
-  medcmp           String?       @db.VarChar(3)
-  eminitem         Decimal?      @default(0, map: "DF_t_itens_eminitem") @db.Decimal(18, 4)
-  emaxitem         Decimal?      @default(0, map: "DF_t_itens_emaxitem") @db.Decimal(18, 4)
-  percipi          Decimal?      @default(0, map: "DF_t_itens_percipi") @db.Decimal(18, 4)
-  redbase_c        String?       @db.VarChar(1)
-  valcmp           Decimal?      @default(0, map: "DF_t_itens_valcmp") @db.Decimal(18, 6)
-  precomin         Decimal?      @default(0, map: "DF_t_itens_Precomin") @db.Decimal(18, 2)
-  preco            Decimal?      @default(0, map: "DF_t_itens_preco1it") @db.Decimal(18, 2)
-  precoatac        Decimal?      @db.Decimal(18, 2)
-  percom           Decimal?      @default(0, map: "DF_t_itens_percom") @db.Decimal(9, 2)
-  ultcmp           DateTime?     @db.DateTime
-  sldatual         Decimal?      @default(0, map: "DF_t_itens_sldatual") @db.Decimal(18, 4)
-  barcodeit        String?       @db.VarChar(18)
-  datacadit        DateTime?     @default(now(), map: "DF_t_itens_datacadit") @db.DateTime
-  locfotitem       String?       @db.VarChar(200)
-  usucadit         String?       @db.VarChar(10)
-  negativo         String?       @default("S", map: "DF_t_itens_negativo") @db.VarChar(1)
-  ativosn          String?       @default("S", map: "DF_t_itens_ativosn") @db.VarChar(1)
-  codcst           String?       @db.VarChar(3)
-  aceitadesc       String?       @default("S", map: "DF_t_itens_aceitadesc") @db.VarChar(1)
-  custo            Decimal?      @db.Decimal(18, 4)
-  clasfis          String?       @db.VarChar(8)
-  codncm           String?       @db.VarChar(14)
-  margem           Decimal?      @db.Decimal(9, 2)
-  margematac       Decimal?      @db.Decimal(9, 2)
-  diasent          Int?
-  resticms         Decimal?      @db.Decimal(2, 0)
-  saldoultent      Decimal?      @db.Decimal(18, 4)
-  dataultent       DateTime?     @db.DateTime
-  pedcomplsn       String?       @db.VarChar(1)
-  ativoprod        String?       @db.Char(1)
-  enderecoit       String?       @db.VarChar(30)
-  obsitem          String?       @db.VarChar(70)
-  prvcheg          DateTime?     @db.DateTime
-  qtdeprvche       Decimal?      @db.Decimal(9, 2)
-  liberadocomsenha String?       @default("N", map: "DF_t_itens_liberadoComSenha") @db.VarChar(1)
-  empit            Int?
-  subgru           Int?
-  familiait        Int?
-  cod_do_fab       String?       @db.VarChar(20)
-  per_agrega       Decimal?      @db.Decimal(9, 2)
-  acres_t          Decimal?      @db.Decimal(9, 2)
-  cusant_v         Decimal?      @db.Decimal(9, 2)
-  cusliq_t         Decimal?      @db.Decimal(9, 2)
-  custo_t          Decimal?      @db.Decimal(9, 2)
-  custofix_p       Decimal?      @db.Decimal(9, 2)
-  frete_p          Decimal?      @db.Decimal(9, 2)
-  icmsent_p        Decimal?      @db.Decimal(9, 2)
-  notifica_p       Decimal?      @db.Decimal(9, 2)
-  percipipa_p      Decimal?      @db.Decimal(9, 2)
-  percminpa_p      Decimal?      @db.Decimal(9, 2)
-  piscof_p         Decimal?      @db.Decimal(9, 2)
-  prodprom         String?       @db.Char(1)
-  subtrib_p        Decimal?      @db.Decimal(9, 2)
-  vlrant_v         Decimal?      @db.Decimal(9, 2)
-  vlrminpa_v       Decimal?      @db.Decimal(9, 2)
-  vlrpara_v        Decimal?      @db.Decimal(9, 2)
-  vlrpromo_loc     Decimal?      @db.Decimal(9, 2)
-  vlrpromo_par     Decimal?      @db.Decimal(9, 2)
-  dtalteracao      DateTime?     @db.DateTime
-  lucroreal        Decimal?      @db.Decimal(9, 2)
-  custlq           Decimal?      @db.Decimal(9, 2)
-  custlqfr         Decimal?      @db.Decimal(9, 2)
-  oldcusto         Decimal?      @db.Decimal(9, 2)
-  oldvalcmp        Decimal?      @db.Decimal(9, 2)
-  valcmpmd         Decimal?      @db.Decimal(9, 2)
-  customd          Decimal?      @db.Decimal(9, 2)
-  custlqmd         Decimal?      @db.Decimal(9, 2)
-  custlqfrmd       Decimal?      @db.Decimal(9, 2)
-  suframa          Decimal?      @db.Decimal(9, 4)
-  custoper         Decimal?      @db.Decimal(9, 4)
-  tribfed          Decimal?      @db.Decimal(9, 4)
-  oldpreco         Decimal?      @db.Decimal(9, 2)
-  hostname         String?       @db.VarChar(20)
-  empfor           Int?
-  vlrpromo_rr      Decimal?      @db.Decimal(9, 2)
-  icms_fora        Decimal?      @db.Decimal(9, 2)
-  icms_dentro      Decimal?      @db.Decimal(9, 2)
-  inipromo         DateTime?     @db.DateTime
-  finpromo         DateTime?     @db.DateTime
-  codpromo         Int?
-  fresai           Decimal?      @db.Decimal(9, 2)
-  preco3           Decimal?      @db.Decimal(9, 2)
-  itprodsn         String?       @db.Char(1)
-  dispven          String?       @db.Char(1)
-  matprima         String?       @db.Char(1)
-  margvar          Decimal?      @db.Decimal(9, 2)
-  precovar         Decimal?      @db.Decimal(9, 2)
-  desc_com         Decimal?      @db.Decimal(9, 2)
-  qtdepallet       Decimal?      @db.Decimal(18, 2)
-  valormaoobra     Decimal?      @default(0, map: "DF__t_itens__valorMa__61F08603") @db.Decimal(9, 2)
-  fixaform         String?       @default("N", map: "DF__t_itens__FixaFor__62E4AA3C") @db.Char(1)
-  recprcform       String?       @db.Char(1)
-  difestmax        String?       @db.Char(1)
-  pcomprcmin       Decimal?      @db.Decimal(9, 2)
-  servicosn        String?       @db.Char(1)
-  cest             String?       @db.VarChar(7)
-  emitnf           String?       @db.Char(1)
-  cnae             String?       @db.VarChar(15)
-  locfotit2        String?       @db.VarChar(60)
-  locfotit3        String?       @db.VarChar(60)
-  locfotit4        String?       @db.VarChar(60)
-  aditform         String?       @db.Char(1)
-  foto1            Bytes?        @db.Image
-  vendmultemb      String?       @db.Char(1)
-  userrestit       String?       @db.VarChar(15)
-  cditemext        Int?
-  userrest         String?       @db.VarChar(15)
-  idsession        Int?
-  cdfpgit          Int?
-  naobaixarmp      String?       @db.Char(1)
-  naovembalanca    String?       @db.Char(1)
-  posvendatipo     String?       @db.VarChar(40)
-  posvendadias     Int?
-  valcmpmax        Decimal?      @db.Decimal(18, 4)
-  abrelote         String?       @db.Char(1)
-  partsped         Int?
-  abrircomp        String?       @db.Char(1)
-  grupocomp        Int?
-  maxcomp          Int?
-  CCLASSTRIB       String?       @db.VarChar(6)
-  CCLASSTRIB_ID    Int?
-  ID               String?       @default(dbgenerated("newid()"), map: "DF__t_itens__ID__1F5986F6") @db.UniqueIdentifier
-  isdeleted        Boolean       @default(false, map: "DF_t_itens_isdeleted")
-  createdat        DateTime?     @db.DateTime
-  updatedat        DateTime?     @db.DateTime
-  T_CCLASSTRIB     T_CCLASSTRIB? @relation(fields: [CCLASSTRIB_ID], references: [ID], onDelete: NoAction, onUpdate: NoAction, map: "FK_T_ITENS_T_CCLASSTRIB")
-  categoria        t_gritens?    @relation(fields: [cdgruit], references: [cdgru])
+  cdemp               Int
+  cditem              Int            @default(autoincrement())
+  cdfor               Int?
+  oldcod              Int?
+  deitem              String?        @db.VarChar(60)
+  defat               String?        @db.VarChar(250)
+  undven              String?        @db.Char(3)
+  mrcitem             String?        @db.VarChar(20)
+  qtembitem           Decimal?       @default(0, map: "DF_t_itens_qtembitem") @db.Decimal(18, 4)
+  cdgruit             Int?
+  pesobr              Decimal?       @default(0, map: "DF_t_itens_pesoitem") @db.Decimal(18, 4)
+  pesolq              Decimal?       @default(0, map: "DF_t_itens_pesolq") @db.Decimal(18, 4)
+  medcmp              String?        @db.VarChar(3)
+  eminitem            Decimal?       @default(0, map: "DF_t_itens_eminitem") @db.Decimal(18, 4)
+  emaxitem            Decimal?       @default(0, map: "DF_t_itens_emaxitem") @db.Decimal(18, 4)
+  percipi             Decimal?       @default(0, map: "DF_t_itens_percipi") @db.Decimal(18, 4)
+  redbase_c           String?        @db.VarChar(1)
+  valcmp              Decimal?       @default(0, map: "DF_t_itens_valcmp") @db.Decimal(18, 6)
+  precomin            Decimal?       @default(0, map: "DF_t_itens_Precomin") @db.Decimal(18, 2)
+  preco               Decimal?       @default(0, map: "DF_t_itens_preco1it") @db.Decimal(18, 2)
+  precoatac           Decimal?       @db.Decimal(18, 2)
+  percom              Decimal?       @default(0, map: "DF_t_itens_percom") @db.Decimal(9, 2)
+  ultcmp              DateTime?      @db.DateTime
+  sldatual            Decimal?       @default(0, map: "DF_t_itens_sldatual") @db.Decimal(18, 4)
+  barcodeit           String?        @db.VarChar(18)
+  datacadit           DateTime?      @default(now(), map: "DF_t_itens_datacadit") @db.DateTime
+  locfotitem          String?        @db.VarChar(200)
+  usucadit            String?        @db.VarChar(10)
+  negativo            String?        @default("S", map: "DF_t_itens_negativo") @db.VarChar(1)
+  ativosn             String?        @default("S", map: "DF_t_itens_ativosn") @db.VarChar(1)
+  codcst              String?        @db.VarChar(3)
+  aceitadesc          String?        @default("S", map: "DF_t_itens_aceitadesc") @db.VarChar(1)
+  custo               Decimal?       @db.Decimal(18, 4)
+  clasfis             String?        @db.VarChar(8)
+  codncm              String?        @db.VarChar(14)
+  margem              Decimal?       @db.Decimal(9, 2)
+  margematac          Decimal?       @db.Decimal(9, 2)
+  diasent             Int?
+  resticms            Decimal?       @db.Decimal(2, 0)
+  saldoultent         Decimal?       @db.Decimal(18, 4)
+  dataultent          DateTime?      @db.DateTime
+  pedcomplsn          String?        @db.VarChar(1)
+  ativoprod           String?        @db.Char(1)
+  enderecoit          String?        @db.VarChar(30)
+  obsitem             String?        @db.VarChar(70)
+  prvcheg             DateTime?      @db.DateTime
+  qtdeprvche          Decimal?       @db.Decimal(9, 2)
+  liberadocomsenha    String?        @default("N", map: "DF_t_itens_liberadoComSenha") @db.VarChar(1)
+  empit               Int?
+  subgru              Int?
+  familiait           Int?
+  cod_do_fab          String?        @db.VarChar(20)
+  per_agrega          Decimal?       @db.Decimal(9, 2)
+  acres_t             Decimal?       @db.Decimal(9, 2)
+  cusant_v            Decimal?       @db.Decimal(9, 2)
+  cusliq_t            Decimal?       @db.Decimal(9, 2)
+  custo_t             Decimal?       @db.Decimal(9, 2)
+  custofix_p          Decimal?       @db.Decimal(9, 2)
+  frete_p             Decimal?       @db.Decimal(9, 2)
+  icmsent_p           Decimal?       @db.Decimal(9, 2)
+  notifica_p          Decimal?       @db.Decimal(9, 2)
+  percipipa_p         Decimal?       @db.Decimal(9, 2)
+  percminpa_p         Decimal?       @db.Decimal(9, 2)
+  piscof_p            Decimal?       @db.Decimal(9, 2)
+  prodprom            String?        @db.Char(1)
+  subtrib_p           Decimal?       @db.Decimal(9, 2)
+  vlrant_v            Decimal?       @db.Decimal(9, 2)
+  vlrminpa_v          Decimal?       @db.Decimal(9, 2)
+  vlrpara_v           Decimal?       @db.Decimal(9, 2)
+  vlrpromo_loc        Decimal?       @db.Decimal(9, 2)
+  vlrpromo_par        Decimal?       @db.Decimal(9, 2)
+  dtalteracao         DateTime?      @db.DateTime
+  lucroreal           Decimal?       @db.Decimal(9, 2)
+  custlq              Decimal?       @db.Decimal(9, 2)
+  custlqfr            Decimal?       @db.Decimal(9, 2)
+  oldcusto            Decimal?       @db.Decimal(9, 2)
+  oldvalcmp           Decimal?       @db.Decimal(9, 2)
+  valcmpmd            Decimal?       @db.Decimal(9, 2)
+  customd             Decimal?       @db.Decimal(9, 2)
+  custlqmd            Decimal?       @db.Decimal(9, 2)
+  custlqfrmd          Decimal?       @db.Decimal(9, 2)
+  suframa             Decimal?       @db.Decimal(9, 4)
+  custoper            Decimal?       @db.Decimal(9, 4)
+  tribfed             Decimal?       @db.Decimal(9, 4)
+  oldpreco            Decimal?       @db.Decimal(9, 2)
+  hostname            String?        @db.VarChar(20)
+  empfor              Int?
+  vlrpromo_rr         Decimal?       @db.Decimal(9, 2)
+  icms_fora           Decimal?       @db.Decimal(9, 2)
+  icms_dentro         Decimal?       @db.Decimal(9, 2)
+  inipromo            DateTime?      @db.DateTime
+  finpromo            DateTime?      @db.DateTime
+  codpromo            Int?
+  fresai              Decimal?       @db.Decimal(9, 2)
+  preco3              Decimal?       @db.Decimal(9, 2)
+  itprodsn            String?        @db.Char(1)
+  dispven             String?        @db.Char(1)
+  matprima            String?        @db.Char(1)
+  margvar             Decimal?       @db.Decimal(9, 2)
+  precovar            Decimal?       @db.Decimal(9, 2)
+  desc_com            Decimal?       @db.Decimal(9, 2)
+  qtdepallet          Decimal?       @db.Decimal(18, 2)
+  valormaoobra        Decimal?       @default(0, map: "DF__t_itens__valorMa__61F08603") @db.Decimal(9, 2)
+  fixaform            String?        @default("N", map: "DF__t_itens__FixaFor__62E4AA3C") @db.Char(1)
+  recprcform          String?        @db.Char(1)
+  difestmax           String?        @db.Char(1)
+  pcomprcmin          Decimal?       @db.Decimal(9, 2)
+  servicosn           String?        @db.Char(1)
+  cest                String?        @db.VarChar(7)
+  emitnf              String?        @db.Char(1)
+  cnae                String?        @db.VarChar(15)
+  locfotit2           String?        @db.VarChar(60)
+  locfotit3           String?        @db.VarChar(60)
+  locfotit4           String?        @db.VarChar(60)
+  aditform            String?        @db.Char(1)
+  foto1               Bytes?         @db.Image
+  vendmultemb         String?        @db.Char(1)
+  userrestit          String?        @db.VarChar(15)
+  cditemext           Int?
+  userrest            String?        @db.VarChar(15)
+  idsession           Int?
+  cdfpgit             Int?
+  naobaixarmp         String?        @db.Char(1)
+  naovembalanca       String?        @db.Char(1)
+  posvendatipo        String?        @db.VarChar(40)
+  posvendadias        Int?
+  valcmpmax           Decimal?       @db.Decimal(18, 4)
+  abrelote            String?        @db.Char(1)
+  partsped            Int?
+  abrircomp           String?        @db.Char(1)
+  grupocomp           Int?
+  maxcomp             Int?
+  CCLASSTRIB          String?        @db.VarChar(6)
+  CCLASSTRIB_ID       Int?
+  ID                  String?        @unique(map: "UQ_T_ITENS_ID") @default(dbgenerated("newid()"), map: "DF__t_itens__ID__1F5986F6") @db.UniqueIdentifier
+  isdeleted           Boolean        @default(false, map: "DF_t_itens_isdeleted")
+  createdat           DateTime?      @db.DateTime
+  updatedat           DateTime?      @db.DateTime
+  categoria_ncm       String?        @db.VarChar(40)
+  cst_ibs_cbs_padrao  String?        @db.VarChar(6)
+  industrializado_zfm String?        @db.Char(1)
+  fiscal_validado     String?        @db.Char(1)
+  fiscal_validado_em  DateTime?      @db.DateTime
+  fiscal_origem       String?        @db.VarChar(30)
+  ComboSN             String?        @db.Char(1)
+  t_formulas          t_formulas[]
+  t_imgitens          t_imgitens[]
+  T_CCLASSTRIB        T_CCLASSTRIB?  @relation(fields: [CCLASSTRIB_ID], references: [ID], onDelete: NoAction, onUpdate: NoAction, map: "FK_T_ITENS_T_CCLASSTRIB")
+  T_ItensCombo        T_ItensCombo[]
+  t_itpromo           t_itpromo[]    @ignore
 
   @@id([cdemp, cditem], map: "PK_t_itens")
   @@index([deitem], map: "idx_deitem")
@@ -3557,89 +3579,105 @@ model t_itnfc {
 }
 
 model t_itnfs {
-  seq              Int      @default(autoincrement())
-  cdemp            Int
-  numnf            Int
-  serie            String   @db.VarChar(5)
-  cditem           Int
-  deitem           String?  @db.VarChar(120)
-  und              String?  @db.VarChar(5)
-  qtde             Decimal? @db.Decimal(18, 6)
-  preco            Decimal? @db.Decimal(18, 6)
-  codcst           String?  @db.VarChar(3)
-  picms            Decimal? @db.Decimal(18, 2)
-  codcla           String?  @db.VarChar(8)
-  peso             Decimal? @db.Decimal(18, 2)
-  nrven            Int?     @map("_nrven")
-  cdcli            Int?     @map("_cdcli")
-  st               String?  @map("_st") @db.Char(1)
-  perdesc          Decimal? @db.Decimal(18, 10)
-  imed_sn          String?  @db.Char(1)
-  obs              String?  @db.VarChar(100)
-  codnf            Int?
-  regitsven        Int?
-  empitem          Int?
-  modelo           Int?
-  aliqipi          Decimal? @db.Decimal(9, 2)
-  ipi              Decimal? @db.Decimal(9, 2)
-  infoadic         String?  @db.VarChar(1000)
-  cfop             String?  @db.VarChar(5)
-  base             Decimal? @db.Decimal(9, 2)
-  empven           Int?
-  custo            Decimal? @db.Decimal(18, 4)
-  infoadic2        String?  @db.VarChar(254)
-  nrpedcmp         String?  @db.VarChar(20)
-  seqped           String?  @db.VarChar(15)
-  codnfext         Int?
-  veictpop         Int?
-  veicchassi       String?  @db.VarChar(40)
-  veicccor         Int?
-  veicxcor         String?  @db.VarChar(40)
-  veicpot          Decimal? @db.Decimal(9, 2)
-  veiccilin        Decimal? @db.Decimal(9, 2)
-  veicpesol        Decimal? @db.Decimal(9, 2)
-  veicpesob        Decimal? @db.Decimal(9, 2)
-  veicnserie       String?  @db.VarChar(40)
-  veicntpcomb      Int?
-  veicnmotor       String?  @db.VarChar(30)
-  veiccmt          Int?
-  veicdist         Int?
-  veicanomod       Int?
-  veicanofab       Int?
-  veictppint       Int?
-  veictpveic       Int?
-  veicespveic      Int?
-  veicvin          String?  @db.Char(1)
-  veiccondveic     Int?
-  veiccmod         Int?
-  veicccordenatran Int?
-  veiclota         Int?
-  veictprest       Int?
-  vdesc            Decimal? @db.Decimal(9, 2)
-  bcicms           Decimal? @db.Decimal(9, 2)
-  vicms            Decimal? @db.Decimal(9, 2)
-  bcst             Decimal? @db.Decimal(18, 4)
-  vst              Decimal? @db.Decimal(18, 4)
-  percPisItNFs     Decimal? @db.Decimal(9, 2)
-  vlPisItNFs       Decimal? @db.Decimal(9, 2)
-  percConfinsItNFs Decimal? @db.Decimal(9, 2)
-  vlCofinsItNFs    Decimal? @db.Decimal(9, 2)
-  bcalcItNFs       Decimal? @db.Decimal(9, 2)
-  vlContItNFs      Decimal? @db.Decimal(9, 2)
-  vlOutrasItNFs    Decimal? @db.Decimal(9, 2)
-  pStItNFs         Decimal? @db.Decimal(9, 2)
-  bcalcStItNFs     Decimal? @db.Decimal(9, 2)
-  vlIcmsStItNFs    Decimal? @db.Decimal(9, 2)
-  vldescIcmsItNFs  Decimal? @db.Decimal(9, 2)
-  vlDescPISItNFs   Decimal? @db.Decimal(9, 2)
-  vlDescCofisItNFs Decimal? @db.Decimal(9, 2)
-  VlAcrescimoItNFs Decimal? @db.Decimal(9, 2)
-  VlFreteItNFs     Decimal? @db.Decimal(9, 2)
-  rest_icmsItNFs   Decimal? @db.Decimal(9, 2)
-  CreatedAt        DateTime @default(now(), map: "DF__t_itnfs__Created__012A0591") @db.DateTime
-  UpdatedAt        DateTime @default(now(), map: "DF__t_itnfs__Updated__021E29CA") @db.DateTime
+  seq               Int      @default(autoincrement())
+  cdemp             Int
+  numnf             Int
+  serie             String   @db.VarChar(5)
+  cditem            Int
+  deitem            String?  @db.VarChar(120)
+  und               String?  @db.VarChar(5)
+  qtde              Decimal? @db.Decimal(18, 6)
+  preco             Decimal? @db.Decimal(18, 6)
+  codcst            String?  @db.VarChar(3)
+  picms             Decimal? @db.Decimal(18, 2)
+  codcla            String?  @db.VarChar(8)
+  peso              Decimal? @db.Decimal(18, 2)
+  nrven             Int?     @map("_nrven")
+  cdcli             Int?     @map("_cdcli")
+  st                String?  @map("_st") @db.Char(1)
+  perdesc           Decimal? @db.Decimal(18, 10)
+  imed_sn           String?  @db.Char(1)
+  obs               String?  @db.VarChar(100)
+  codnf             Int?
+  regitsven         Int?
+  empitem           Int?
+  modelo            Int?
+  aliqipi           Decimal? @db.Decimal(9, 2)
+  ipi               Decimal? @db.Decimal(9, 2)
+  infoadic          String?  @db.VarChar(1000)
+  cfop              String?  @db.VarChar(5)
+  base              Decimal? @db.Decimal(9, 2)
+  empven            Int?
+  custo             Decimal? @db.Decimal(18, 4)
+  infoadic2         String?  @db.VarChar(254)
+  nrpedcmp          String?  @db.VarChar(20)
+  seqped            String?  @db.VarChar(15)
+  codnfext          Int?
+  veictpop          Int?
+  veicchassi        String?  @db.VarChar(40)
+  veicccor          Int?
+  veicxcor          String?  @db.VarChar(40)
+  veicpot           Decimal? @db.Decimal(9, 2)
+  veiccilin         Decimal? @db.Decimal(9, 2)
+  veicpesol         Decimal? @db.Decimal(9, 2)
+  veicpesob         Decimal? @db.Decimal(9, 2)
+  veicnserie        String?  @db.VarChar(40)
+  veicntpcomb       Int?
+  veicnmotor        String?  @db.VarChar(30)
+  veiccmt           Int?
+  veicdist          Int?
+  veicanomod        Int?
+  veicanofab        Int?
+  veictppint        Int?
+  veictpveic        Int?
+  veicespveic       Int?
+  veicvin           String?  @db.Char(1)
+  veiccondveic      Int?
+  veiccmod          Int?
+  veicccordenatran  Int?
+  veiclota          Int?
+  veictprest        Int?
+  vdesc             Decimal? @db.Decimal(9, 2)
+  bcicms            Decimal? @db.Decimal(9, 2)
+  vicms             Decimal? @db.Decimal(9, 2)
+  bcst              Decimal? @db.Decimal(18, 4)
+  vst               Decimal? @db.Decimal(18, 4)
+  percPisItNFs      Decimal? @db.Decimal(9, 2)
+  vlPisItNFs        Decimal? @db.Decimal(9, 2)
+  percConfinsItNFs  Decimal? @db.Decimal(9, 2)
+  vlCofinsItNFs     Decimal? @db.Decimal(9, 2)
+  bcalcItNFs        Decimal? @db.Decimal(9, 2)
+  vlContItNFs       Decimal? @db.Decimal(9, 2)
+  vlOutrasItNFs     Decimal? @db.Decimal(9, 2)
+  pStItNFs          Decimal? @db.Decimal(9, 2)
+  bcalcStItNFs      Decimal? @db.Decimal(9, 2)
+  vlIcmsStItNFs     Decimal? @db.Decimal(9, 2)
+  vldescIcmsItNFs   Decimal? @db.Decimal(9, 2)
+  vlDescPISItNFs    Decimal? @db.Decimal(9, 2)
+  vlDescCofisItNFs  Decimal? @db.Decimal(9, 2)
+  VlAcrescimoItNFs  Decimal? @db.Decimal(9, 2)
+  VlFreteItNFs      Decimal? @db.Decimal(9, 2)
+  rest_icmsItNFs    Decimal? @db.Decimal(9, 2)
+  CreatedAt         DateTime @default(now(), map: "DF__t_itnfs__Created__012A0591") @db.DateTime
+  UpdatedAt         DateTime @default(now(), map: "DF__t_itnfs__Updated__021E29CA") @db.DateTime
+  uf_origem         String?  @db.Char(2)
+  uf_destino        String?  @db.Char(2)
+  regime_emitente   String?  @db.VarChar(20)
+  tipo_destinatario String?  @db.VarChar(10)
+  cclass_trib       String?  @db.VarChar(10)
+  cst_ibs_cbs       String?  @db.VarChar(6)
+  aliq_ibs          Decimal? @db.Decimal(9, 6)
+  aliq_cbs          Decimal? @db.Decimal(9, 6)
+  vIBS              Decimal? @db.Decimal(15, 2)
+  vCBS              Decimal? @db.Decimal(15, 2)
+  ano_emissao       Int?     @db.SmallInt
+  fundamento_json   String?  @db.NVarChar(Max)
+  hash_regra_fiscal String?  @db.VarChar(64)
+  gerado_por        String?  @db.VarChar(20)
 
   @@id([seq, cdemp], map: "PK_t_itnfs")
+  @@index([cfop], map: "IX_t_itnfs_cfop")
+  @@index([codnf, cdemp], map: "IX_t_itnfs_codnf_cdemp")
 }
 
 model t_itnfsv {
@@ -3874,19 +3912,22 @@ model t_itpromo {
   empromo    Int?
   cdpromo    Int?
   cditem     Int?
-  preco      Decimal? @db.Decimal(9, 2)
-  precomin   Decimal? @db.Decimal(9, 2)
-  precopromo Decimal? @db.Decimal(9, 2)
-  meta       Decimal? @db.Decimal(9, 2)
-  autocod    Int      @default(autoincrement())
+  preco      Decimal?  @db.Decimal(9, 2)
+  precomin   Decimal?  @db.Decimal(9, 2)
+  precopromo Decimal?  @db.Decimal(9, 2)
+  meta       Decimal?  @db.Decimal(9, 2)
+  autocod    Int       @default(autoincrement())
   empitem    Int?
-  undven     String?  @db.VarChar(3)
-  custo      Decimal? @db.Decimal(9, 4)
+  undven     String?   @db.VarChar(3)
+  custo      Decimal?  @db.Decimal(9, 4)
   autocodext Int?
-  hostname   String?  @db.VarChar(120)
-  ip         String?  @db.VarChar(15)
-  CreatedAt  DateTime @default(now(), map: "DF__t_itpromo__Creat__0AB36FCB") @db.DateTime
-  UpdatedAt  DateTime @default(now(), map: "DF__t_itpromo__Updat__0BA79404") @db.DateTime
+  hostname   String?   @db.VarChar(120)
+  ip         String?   @db.VarChar(15)
+  CreatedAt  DateTime  @default(now(), map: "DF__t_itpromo__Creat__0AB36FCB") @db.DateTime
+  UpdatedAt  DateTime  @default(now(), map: "DF__t_itpromo__Updat__0BA79404") @db.DateTime
+  DATA_PROMO DateTime? @db.DateTime
+  ID_ITEM    String?   @db.UniqueIdentifier
+  t_itens    t_itens?  @relation(fields: [ID_ITEM], references: [ID], onDelete: NoAction, onUpdate: NoAction, map: "FK_T_ITPROMO_T_ITENS_ID_ITEM")
 
   @@ignore
 }
@@ -4102,8 +4143,9 @@ model t_itsven {
   perccusto     Decimal?  @db.Decimal(38, 6)
   ID            String?   @default(dbgenerated("newid()"), map: "DF__t_itsven__ID__3DDE0E16") @db.UniqueIdentifier
   isdeleted     Boolean   @default(false, map: "DF_t_itsven_isdeleted")
-  createdat     DateTime? @db.DateTime
+  createdat     DateTime? @default(now(), map: "DF_T_ITSVEN_CreatedAt") @db.DateTime
   updatedat     DateTime? @db.DateTime
+  ID_VENDA      String?   @db.UniqueIdentifier
 
   @@id([registro, empven], map: "PK_t_itsven")
   @@index([nrven_iv, cditem_iv], map: "IX_t_itsven")
@@ -5066,6 +5108,9 @@ model t_nfs {
   impsn          String?   @db.Char(1)
   CreatedAt      DateTime  @default(now(), map: "DF__t_nfs__CreatedAt__58E70A0D") @db.DateTime
   UpdatedAt      DateTime  @default(now(), map: "DF__t_nfs__UpdatedAt__59DB2E46") @db.DateTime
+  bcIbsCbs       Decimal?  @db.Decimal(9, 2)
+  vlTotIbs       Decimal?  @db.Decimal(9, 2)
+  vlTotCbs       Decimal?  @db.Decimal(9, 2)
 
   @@id([autocod, cdemp], map: "PK_t_nfs", clustered: false)
   @@index([emis], map: "idx_emisnfs")
@@ -5738,6 +5783,7 @@ model t_pgcaixa {
   totaltaxa    Decimal?  @db.Decimal(34, 8)
   CreatedAt    DateTime  @default(now(), map: "DF__t_pgcaixa__Creat__02DD43D9") @db.DateTime
   UpdatedAt    DateTime  @default(now(), map: "DF__t_pgcaixa__Updat__03D16812") @db.DateTime
+  valorant     Decimal?  @db.Decimal(9, 2)
 
   @@id([registro, cdemp], map: "PK_t_pgcaixa")
   @@index([nrcx], map: "IX_t_pgcaixa")
@@ -6708,6 +6754,8 @@ model t_tpgto {
   PIX             String?   @db.Char(1)
   CreatedAt       DateTime  @default(now(), map: "DF__t_tpgto__Created__6AD0B01E") @db.DateTime
   UpdatedAt       DateTime  @default(now(), map: "DF__t_tpgto__Updated__6BC4D457") @db.DateTime
+  ID              String?   @default(dbgenerated("newid()"), map: "DF_T_TPGTO_ID") @db.UniqueIdentifier
+  OnLineSN        String?   @db.Char(1)
 }
 
 model t_tpgtoitpromo {
@@ -6977,13 +7025,18 @@ model t_vendas {
   codcoman             Int?
   ID                   String?   @default(dbgenerated("newid()"), map: "DF__t_vendas__ID__3A0D7D32") @db.UniqueIdentifier
   isdeleted            Boolean   @default(false, map: "DF_t_vendas_isdeleted")
-  createdat            DateTime? @db.DateTime
+  createdat            DateTime? @default(now(), map: "DF_T_VENDAS_CreatedAt") @db.DateTime
   updatedat            DateTime? @db.DateTime
+  ID_CLIENTE           String?   @db.UniqueIdentifier
+  ID_FPGTO             String?   @db.UniqueIdentifier
+  ID_TPGTO             String?   @db.UniqueIdentifier
+  t_cli                t_cli?    @relation(fields: [ID_CLIENTE], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_T_VENDAS_T_CLI_ID_CLIENTE")
 
   @@id([autocod_v, nrven_v, cdemp_v], map: "PK_t_vendas", clustered: false)
   @@index([emisven_v], map: "idx_emisven")
   @@index([nrven_v], map: "IX_t_vendas", clustered: true)
   @@index([autocod_v], map: "IX_t_vendas_1")
+  @@index([nrven_v, cdemp_v], map: "IX_t_vendas_nrven_cdemp")
 }
 
 model t_vendas_tmp {
@@ -7354,4 +7407,35 @@ model t_auditoriaEstoque {
   @@index([cditem], map: "IX_t_auditoriaEstoque_cditem")
   @@index([data], map: "IX_t_auditoriaEstoque_data")
   @@index([usuario], map: "IX_t_auditoriaEstoque_usuario")
+}
+
+model Regras_Transicao_Reforma {
+  ID                  Int      @id(map: "PK__Regras_T__3214EC2756953A68") @default(autoincrement())
+  Ano                 Int?
+  cClassTrib          String?  @db.VarChar(10)
+  Descricao           String?  @db.VarChar(100)
+  Aliq_IBS            Decimal? @db.Decimal(10, 4)
+  Aliq_CBS            Decimal? @db.Decimal(10, 4)
+  Aliq_Total_Estimada Decimal? @db.Decimal(11, 4)
+}
+
+model t_imgitens {
+  AUTOCOD   Int      @default(autoincrement())
+  ID        String   @id(map: "PK_T_IMGITENS") @default(dbgenerated("newid()"), map: "DF__t_imgitens__ID__6F2B50E7") @db.UniqueIdentifier
+  ID_ITEM   String   @db.UniqueIdentifier
+  URL       String   @db.VarChar(200)
+  CREATEDAT DateTime @default(now(), map: "DF__t_imgiten__CREAT__701F7520") @db.DateTime
+  UPDATEDAT DateTime @default(now(), map: "DF__t_imgiten__UPDAT__71139959") @db.DateTime
+  t_itens   t_itens  @relation(fields: [ID_ITEM], references: [ID], onUpdate: NoAction, map: "FK_T_IMGITENS_ITENS")
+}
+
+model T_ItensCombo {
+  AUTOCOD   Int      @default(autoincrement())
+  ID        String   @id(map: "PK_T_ItensCombo") @default(dbgenerated("newid()"), map: "DF__T_ItensCombo__ID__7F61B8B0") @db.UniqueIdentifier
+  ID_ITEM   String   @db.UniqueIdentifier
+  CDGRU     Int
+  QTDE      Decimal  @db.Decimal(9, 2)
+  CREATEDAT DateTime @default(now(), map: "DF__T_ItensCo__CREAT__0055DCE9") @db.DateTime
+  UPDATEDAT DateTime @default(now(), map: "DF__T_ItensCo__UPDAT__014A0122") @db.DateTime
+  t_itens   t_itens  @relation(fields: [ID_ITEM], references: [ID], onUpdate: NoAction, map: "FK_T_T_ItensCombo_ITENS")
 }
