@@ -5,72 +5,49 @@ import {
   Delete,
   Get,
   Param,
-  Patch,
   Post,
-  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
 import type { Request } from 'express';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { TenantJwtGuard } from '../auth/tenant-jwt.guard';
 import { TFormulasService } from './t_formulas.service';
 import { CreateTFormulaDto } from './dto/create-t_formulas.dto';
-import { UpdateTFormulaDto } from './dto/update-t_formulas.dto';
 
 interface TenantRequest extends Request {
   user: { tenant: string };
 }
 
 @Controller('t_formulas')
-@UseGuards(JwtAuthGuard)
+@UseGuards(TenantJwtGuard)
 export class TFormulasController {
   constructor(private readonly tFormulasService: TFormulasService) {}
 
   @Post()
   create(@Req() req: TenantRequest, @Body() dto: CreateTFormulaDto) {
+    console.log(
+      '[t_formulas] POST payload',
+      JSON.stringify({ tenant: req.user?.tenant, dto }, null, 2),
+    );
     return this.tFormulasService.create(req.user.tenant, dto);
   }
 
-  @Get()
-  findAll(@Req() req: TenantRequest, @Query('cditem') cditem?: string) {
-    const filters =
-      typeof cditem === 'string' && cditem.trim().length > 0
-        ? { cditem: this.parseCditem(cditem) }
-        : undefined;
-
-        // console.log('Query params:', req.query); 
-
-      
-
-    return this.tFormulasService.findAll(req.user.tenant, filters);
-  }
-
-  private parseCditem(raw: string) {
-    const parsed = Number(raw);
-    if (!Number.isFinite(parsed)) {
-      throw new BadRequestException('O parametro cditem deve ser numerico.');
+  private parseIdItem(raw: string) {
+    const trimmed = raw?.trim();
+    if (!trimmed) {
+      throw new BadRequestException('O parametro idItem e obrigatorio.');
     }
 
-    return parsed;
+    return trimmed;
   }
 
   @Get(':id')
   findOne(@Req() req: TenantRequest, @Param('id') id: string) {
-    // console.log(req) 
-    return this.tFormulasService.findOne(req.user.tenant, +id);
-  }
-
-  @Patch(':id')
-  update(
-    @Req() req: TenantRequest,
-    @Param('id') id: string,
-    @Body() dto: UpdateTFormulaDto,
-  ) {
-    return this.tFormulasService.update(req.user.tenant, +id, dto);
+    return this.tFormulasService.findOne(req.user.tenant, this.parseIdItem(id));
   }
 
   @Delete(':id')
   remove(@Req() req: TenantRequest, @Param('id') id: string) {
-    return this.tFormulasService.remove(req.user.tenant, +id);
+    return this.tFormulasService.remove(req.user.tenant, this.parseIdItem(id));
   }
 }

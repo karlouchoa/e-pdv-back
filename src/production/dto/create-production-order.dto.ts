@@ -2,13 +2,8 @@ import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
   IsDateString,
-  IsInt,
-  IsNotEmpty,
-  IsNumber,
   IsOptional,
   IsString,
-  MaxLength,
-  Min,
   ValidateNested,
 } from 'class-validator';
 
@@ -60,8 +55,9 @@ export class CreateProductionOrderDto {
   @IsDateString()
   custom_validate_date?: string;
 
-  @Transform(({ value, obj }) =>
-    (value ?? obj.author_user ?? obj.authoruser ?? '').trim() || undefined,
+  @Transform(
+    ({ value, obj }) =>
+      (value ?? obj.author_user ?? obj.authoruser ?? '').trim() || undefined,
   )
   @IsOptional()
   @IsString()

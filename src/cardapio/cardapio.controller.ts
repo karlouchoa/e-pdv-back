@@ -1,7 +1,8 @@
-import { Controller, Get, Req, NotFoundException } from '@nestjs/common';
+import { Controller, Get, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { Public } from '../auth/decorators/public.decorator';
 import { TenantDbService } from '../tenant-db/tenant-db.service';
+import { resolveTenantFromRequest } from '../public/tenant-resolver';
 
 @Controller('cardapio')
 export class CardapioController {
@@ -16,24 +17,15 @@ export class CardapioController {
       : req.query.page;
     const parsedPage = Number(pageParam);
     const page =
-      Number.isFinite(parsedPage) && parsedPage > 0 ? Math.floor(parsedPage) : 1;
+      Number.isFinite(parsedPage) && parsedPage > 0
+        ? Math.floor(parsedPage)
+        : 1;
     const skip = (page - 1) * pageSize;
+    const tenant = resolveTenantFromRequest(req);
 
-    // 1. Captura o host (ex: loja_a.goldpdv.com.br)
-    const host = req.headers.host;
-
-    const hostWithoutPort = host?.split(':')[0];
-    
-    // 2. Extrai o subdomínio (loja_a)
-    const subdomain = host?.split(':')[0].split('.')[0];
-
-    if (!subdomain || subdomain === 'www') {
-      throw new NotFoundException('Estabelecimento não identificado.');
-    }
-
-    // 3. Obtém o cliente Prisma específico para este banco
-    // Seu TenantDbService já busca na t_acessos pelo campo 'banco'
-    const prisma = await this.tenantDbService.getTenantClient(subdomain);
+    // Obtem o cliente Prisma especifico para este banco
+    // Seu TenantDbService ja busca na t_acessos pelo campo 'banco'
+    const prisma = await this.tenantDbService.getTenantClient(tenant);
 
     // 4. Retorna os produtos (ajustado ao seu schema_tenant)
     const where = { ativosn: 'S' };
@@ -118,7 +110,14 @@ export class CardapioController {
     const groupMap = new Map(groups.map((group) => [group.cdgru, group]));
 
     const itemsWithImages = items.map((item) => {
-      const imageUrls = (item.t_imgitens ?? [])
+      const {
+        t_imgitens: rawImages,
+        t_formulas: rawFormulas,
+        T_ItensCombo: rawCombos,
+        ...rest
+      } = item;
+
+      const imageUrls = (rawImages ?? [])
         .map((image) => (image.URL ?? '').trim())
         .filter((url) => url.length > 0);
       if (!imageUrls.length) {
@@ -130,20 +129,20 @@ export class CardapioController {
       const primaryImage = imageUrls[0] ?? item.locfotitem ?? null;
       const categoria =
         typeof item.cdgruit === 'number'
-          ? groupMap.get(item.cdgruit) ?? null
+          ? (groupMap.get(item.cdgruit) ?? null)
           : null;
-      const formulas = item.itprodsn === 'S' ? item.t_formulas ?? [] : undefined;
+      const formulas =
+        item.itprodsn === 'S' ? (rawFormulas ?? []) : undefined;
       const combos =
         item.ComboSN === 'S'
-          ? (item.T_ItensCombo ?? []).map((combo) => ({
+          ? (rawCombos ?? []).map((combo) => ({
               ...combo,
               grupo:
                 typeof combo.CDGRU === 'number'
-                  ? groupMap.get(combo.CDGRU) ?? null
+                  ? (groupMap.get(combo.CDGRU) ?? null)
                   : null,
             }))
           : undefined;
-      const { t_imgitens, t_formulas, T_ItensCombo, ...rest } = item;
       return {
         ...rest,
         locfotitem: primaryImage,

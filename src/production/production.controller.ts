@@ -5,7 +5,6 @@
   Delete,
   Get,
   Param,
-  ParseIntPipe,
   ParseUUIDPipe,
   Patch,
   Post,
@@ -14,7 +13,7 @@
   Res,
   UseGuards,
 } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
+import { TenantJwtGuard } from '../auth/tenant-jwt.guard';
 import type { Request, Response } from 'express';
 import { ProductionService } from './production.service';
 import { CreateProductionOrderDto } from './dto/create-production-order.dto';
@@ -32,7 +31,7 @@ interface TenantRequest extends Request {
   user?: { tenant?: string };
 }
 
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(TenantJwtGuard)
 @Controller('production')
 export class ProductionController {
   constructor(private readonly productionService: ProductionService) {}
@@ -94,10 +93,7 @@ export class ProductionController {
     );
 
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename="${filename}"`,
-    );
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.setHeader('Content-Length', file.length.toString());
 
     return res.send(file);
@@ -122,11 +118,8 @@ export class ProductionController {
 
   @Post('orders')
   createOrder(
-    
     @Req() req: TenantRequest,
     @Body() dto: CreateProductionOrderDto,
-
-    
   ) {
     // console.log("DTO recebido pelo backend:", dto);
     return this.productionService.createOrder(this.getTenant(req), dto);
@@ -143,23 +136,16 @@ export class ProductionController {
 
   @Get('orders/separacao')
   findOrdersInSeparation(@Req() req: TenantRequest) {
-    return this.productionService.findOrdersInSeparation(
-      this.getTenant(req),
-    );
+    return this.productionService.findOrdersInSeparation(this.getTenant(req));
   }
 
   @Get('orders/producao')
   findOrdersInProduction(@Req() req: TenantRequest) {
-    return this.productionService.findOrdersInProduction(
-      this.getTenant(req),
-    );
+    return this.productionService.findOrdersInProduction(this.getTenant(req));
   }
 
   @Get('orders/:id')
-  getOrder(
-    @Req() req: TenantRequest,
-    @Param('id') idOrOp: string,
-  ) {
+  getOrder(@Req() req: TenantRequest, @Param('id') idOrOp: string) {
     console.log('OP/ID recebida pelo backend - GetOrder/:ID:', idOrOp);
     return this.productionService.getOrder(this.getTenant(req), idOrOp);
   }
@@ -201,11 +187,7 @@ export class ProductionController {
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: CompleteProductionOrderDto,
   ) {
-    return this.productionService.completeOrder(
-      this.getTenant(req),
-      id,
-      dto,
-    );
+    return this.productionService.completeOrder(this.getTenant(req), id, dto);
   }
 
   @Get('orders/:id/status')
@@ -222,11 +204,7 @@ export class ProductionController {
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: RecordFinishedGoodDto,
   ) {
-    return this.productionService.addFinishedGood(
-      this.getTenant(req),
-      id,
-      dto,
-    );
+    return this.productionService.addFinishedGood(this.getTenant(req), id, dto);
   }
 
   @Get('orders/:id/finished-goods')
@@ -243,11 +221,7 @@ export class ProductionController {
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: RecordRawMaterialDto,
   ) {
-    return this.productionService.addRawMaterial(
-      this.getTenant(req),
-      id,
-      dto,
-    );
+    return this.productionService.addRawMaterial(this.getTenant(req), id, dto);
   }
 
   @Get('orders/:id/raw-materials')
@@ -258,5 +232,3 @@ export class ProductionController {
     return this.productionService.getRawMaterials(this.getTenant(req), id);
   }
 }
-
-

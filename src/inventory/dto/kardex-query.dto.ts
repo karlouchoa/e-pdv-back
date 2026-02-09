@@ -15,4 +15,7 @@ export class KardexQueryDto {
   @Type(() => Number)
   @IsInt()
   cdemp?: number;
+
+  @IsOptional()
+  warehouse?: string;
 }

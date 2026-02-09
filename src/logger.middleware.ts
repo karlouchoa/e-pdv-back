@@ -5,28 +5,42 @@ import { Request, Response, NextFunction } from 'express';
 export class LoggerMiddleware implements NestMiddleware {
   private readonly logger = new Logger('RequestLogger');
 
-  use(req: Request, res: Response, next: NextFunction) {
-    // 1. URL Completa (incluindo parâmetros de consulta)
-    const fullUrl = req.originalUrl; 
-    
-    // 2. Payload da Requisição (Body)
-    // O body (payload) só estará populado para requisições POST, PUT, PATCH.
-    // Para GET/DELETE, ele será um objeto vazio.
-    const payload = req.body; 
-    
-    // 3. Método HTTP
-    const method = req.method;
+  // use(req: Request, res: Response, next: NextFunction) {
+  //   const fullUrl = req.originalUrl;
+  //   const payload = req.body;
+  //   const method = req.method;
+  //   this.logger.log(`
+  //     --- DADOS DA REQUISIÇÃO ---
+  //     Método: ${method}
+  //     URL: ${fullUrl}
+  //     Payload/Body: ${JSON.stringify(payload, null, 2)}
+  //     ---------------------------
+  //   `);
+  //   next();
+  // }
 
-    // Logando as informações
-    this.logger.log(`
-      --- DADOS DA REQUISIÇÃO ---
-      Método: ${method}
-      URL: ${fullUrl}
-      Payload/Body: ${JSON.stringify(payload, null, 2)}
-      ---------------------------
-    `);
-    
-    // É crucial chamar next() para permitir que a requisição continue
+  use(req: Request, res: Response, next: NextFunction) {
+    // intercepta res.send para capturar a resposta
+    const originalSend = res.send.bind(res);
+    res.send = (body?: any) => {
+      res.locals.responseBody = body;
+      return originalSend(body);
+    };
+
+    // res.on('finish', () => {
+    //   this.logger.log(
+    //     [
+    //       '--- DADOS DA REQUISIÇÃO ---',
+    //       `Método: ${method}`,
+    //       `URL: ${fullUrl}`,
+    //       `Payload/Body: ${JSON.stringify(payload, null, 2)}`,
+    //       `Status: ${res.statusCode}`,
+    //       `Response: ${JSON.stringify(res.locals.responseBody, null, 2)}`,
+    //       '---------------------------',
+    //     ].join('\n'),
+    //   );
+    // });
+
     next();
   }
 }

@@ -8,12 +8,16 @@ import {
 } from 'class-validator';
 
 export class BomItemDto {
-  @Transform(({ value, obj }) => value ?? obj.component_code ?? obj.componentCode)
+  @Transform(
+    ({ value, obj }) => value ?? obj.component_code ?? obj.componentCode,
+  )
   @IsString()
   @MaxLength(80)
   componentCode!: string;
 
-  @Transform(({ value, obj }) => (value ?? obj.description ?? '').trim() || undefined)
+  @Transform(
+    ({ value, obj }) => (value ?? obj.description ?? '').trim() || undefined,
+  )
   @IsOptional()
   @IsString()
   @MaxLength(200)

@@ -12,9 +12,12 @@ import { TenantTablesModule } from './tenant-tables/tenant-tables.module';
 import { ProductionModule } from './production/production.module';
 import { InventoryModule } from './inventory/inventory.module';
 import { LoggerMiddleware } from './logger.middleware';
+import { TenantMiddleware } from './tenant.middleware';
 import { CardapioModule } from './cardapio/cardapio.module';
 import { UploadModule } from './upload/upload.module';
 import { PublicModule } from './public/public.module';
+import { OrdersModule } from './orders/orders.module';
+import { AdminProductsModule } from './admin-products/admin-products.module';
 
 @Module({
   imports: [
@@ -31,6 +34,8 @@ import { PublicModule } from './public/public.module';
     CardapioModule,
     UploadModule,
     PublicModule,
+    OrdersModule,
+    AdminProductsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
@@ -38,8 +43,6 @@ import { PublicModule } from './public/public.module';
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     // Aplica o Middleware para TODAS as rotas
-    consumer
-      .apply(LoggerMiddleware)
-      .forRoutes('*'); 
+    consumer.apply(TenantMiddleware, LoggerMiddleware).forRoutes('*');
   }
 }

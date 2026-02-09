@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import type {
   PrismaClient as TenantClient,
@@ -84,7 +88,9 @@ export class TItensComboService {
     const data = this.mapUpdateData(dto);
 
     if (Object.keys(data).length === 0) {
-      throw new BadRequestException('Informe ao menos um campo para atualizar.');
+      throw new BadRequestException(
+        'Informe ao menos um campo para atualizar.',
+      );
     }
 
     const record = await prisma.t_ItensCombo.findUnique({

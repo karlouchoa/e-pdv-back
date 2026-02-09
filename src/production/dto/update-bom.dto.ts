@@ -44,7 +44,9 @@ export class UpdateBomDto {
   @IsNumber({ allowInfinity: false, allowNaN: false })
   marginTarget?: number;
 
-  @Transform(({ value, obj }) => value ?? obj.marginAchieved ?? obj.margin_achieved)
+  @Transform(
+    ({ value, obj }) => value ?? obj.marginAchieved ?? obj.margin_achieved,
+  )
   @IsOptional()
   @Type(() => Number)
   @IsNumber({ allowInfinity: false, allowNaN: false })

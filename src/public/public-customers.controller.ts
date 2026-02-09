@@ -7,7 +7,9 @@ import { resolveTenantFromRequest } from './tenant-resolver';
 
 @Controller('t_cli')
 export class PublicCustomersController {
-  constructor(private readonly publicCustomersService: PublicCustomersService) {}
+  constructor(
+    private readonly publicCustomersService: PublicCustomersService,
+  ) {}
 
   @Public()
   @Post('public/lookup')

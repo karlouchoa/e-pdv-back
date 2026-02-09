@@ -13,7 +13,7 @@ import {
 import { TItensService } from './t_itens.service';
 import { CreateTItemDto } from './dto/create-t_itens.dto';
 import { UpdateTItemDto } from './dto/update-t_itens.dto';
-import { AuthGuard } from '@nestjs/passport';
+import { TenantJwtGuard } from '../auth/tenant-jwt.guard';
 import type { Request } from 'express';
 
 interface TenantRequest extends Request {
@@ -26,14 +26,13 @@ export class TItensController {
 
   /** 🔹 CREATE */
   @Post()
-  @UseGuards(AuthGuard("jwt"))
+  @UseGuards(TenantJwtGuard)
   create(@Req() req: TenantRequest, @Body() dto: CreateTItemDto) {
     return this.tItensService.create(req.user.tenant, dto);
   }
 
-  
   /** 🔹 UPDATE (UUID) */
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(TenantJwtGuard)
   @Patch(':id')
   update(
     @Req() req: TenantRequest,
@@ -44,7 +43,7 @@ export class TItensController {
   }
 
   /** 🔹 FIND ALL */
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(TenantJwtGuard)
   @Get()
   findAll(
     @Req() req: TenantRequest,
@@ -60,24 +59,29 @@ export class TItensController {
     return this.tItensService.findAll(req.user.tenant, query);
   }
 
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(TenantJwtGuard)
   @Get('search')
   searchByDescription(
     @Req() req: TenantRequest,
     @Query('descricao') descricao?: string,
+    @Query('matprima') matprima?: string,
+    @Query('itprodsn') itprodsn?: string,
   ) {
-    return this.tItensService.searchByDescription(req.user.tenant, descricao);
+    return this.tItensService.searchByDescription(req.user.tenant, descricao, {
+      matprima,
+      itprodsn,
+    });
   }
 
   /** 🔹 FIND ONE (UUID) */
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(TenantJwtGuard)
   @Get(':id')
   findOne(@Req() req: TenantRequest, @Param('id') id: string) {
     return this.tItensService.findOne(req.user.tenant, id);
   }
 
   /** 🔹 DELETE (UUID) */
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(TenantJwtGuard)
   @Delete(':id')
   remove(
     @Req() req: TenantRequest,

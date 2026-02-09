@@ -8,6 +8,9 @@ export class TItpromoPublicDto {
   CDITEM!: number | null;
 
   @Expose()
+  ID_ITEM!: string | null;
+
+  @Expose()
   DEITEM!: string | null;
 
   @Expose()

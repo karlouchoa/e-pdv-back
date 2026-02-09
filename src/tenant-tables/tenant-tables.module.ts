@@ -12,13 +12,10 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { Module, Provider } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
+import { TenantJwtGuard } from '../auth/tenant-jwt.guard';
 import type { Request } from 'express';
 import { TenantDbService } from '../tenant-db/tenant-db.service';
-import {
-  TENANT_TABLE_CONFIGS,
-  TenantTableConfig,
-} from './tenant-table.config';
+import { TENANT_TABLE_CONFIGS, TenantTableConfig } from './tenant-table.config';
 import { GenericTenantService } from './generic-tenant.service';
 
 interface TenantRequest extends Request {
@@ -55,19 +52,19 @@ const createController = (config: TenantTableConfig) => {
       return tenant;
     }
 
-    @UseGuards(AuthGuard('jwt'))
+    @UseGuards(TenantJwtGuard)
     @Post()
     create(@Req() req: TenantRequest, @Body() dto: Record<string, any>) {
       return this.service.create(this.getTenant(req), dto);
     }
 
-    @UseGuards(AuthGuard('jwt'))
+    @UseGuards(TenantJwtGuard)
     @Get()
     findAll(@Req() req: TenantRequest) {
       return this.service.findAll(this.getTenant(req));
     }
 
-    @UseGuards(AuthGuard('jwt'))
+    @UseGuards(TenantJwtGuard)
     @Get(paramPath)
     findOne(
       @Req() req: TenantRequest,
@@ -76,7 +73,7 @@ const createController = (config: TenantTableConfig) => {
       return this.service.findOne(this.getTenant(req), params);
     }
 
-    @UseGuards(AuthGuard('jwt'))
+    @UseGuards(TenantJwtGuard)
     @Patch(paramPath)
     update(
       @Req() req: TenantRequest,
@@ -86,12 +83,9 @@ const createController = (config: TenantTableConfig) => {
       return this.service.update(this.getTenant(req), params, dto);
     }
 
-    @UseGuards(AuthGuard('jwt'))
+    @UseGuards(TenantJwtGuard)
     @Delete(paramPath)
-    remove(
-      @Req() req: TenantRequest,
-      @Param() params: Record<string, string>,
-    ) {
+    remove(@Req() req: TenantRequest, @Param() params: Record<string, string>) {
       return this.service.remove(this.getTenant(req), params);
     }
   }

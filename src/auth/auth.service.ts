@@ -67,16 +67,34 @@ export class AuthService {
     });
   }
 
-  async login(login: string, senha: string) {
+  async login(login: string, senha: string, requestTenant?: string | null) {
     const identifier = login?.trim();
     if (!identifier) {
       throw new Error('Login nao informado.');
     }
 
-    const { slug: tenantSlug, logoUrl, companyName } =
-      await this.tenantDbService.getTenantMetadataByIdentifier(identifier);
+    const {
+      slug: tenantSlug,
+      logoUrl,
+      companyName,
+    } = await this.tenantDbService.getTenantMetadataByIdentifier(identifier);
+    const tenantFromRequest = requestTenant?.trim();
+    console.log('[AUTH][login]', {
+      identifier,
+      tenantFromRequest,
+      tenantSlug,
+    });
+    if (
+      tenantFromRequest &&
+      tenantFromRequest.toLowerCase() !== tenantSlug.toLowerCase()
+    ) {
+      throw new BadRequestException(
+        'Tenant informado na requisicao nao corresponde ao login.',
+      );
+    }
+    const resolvedTenant = tenantFromRequest ?? tenantSlug;
 
-    const prisma = await this.tenantDbService.getTenantClient(tenantSlug);
+    const prisma = await this.tenantDbService.getTenantClient(resolvedTenant);
     const passwordInput = senha?.trim() ?? '';
 
     const user = await prisma.t_users.findFirst({
@@ -118,7 +136,7 @@ export class AuthService {
       name: userName,
       email: userEmail,
       admin: isAdmin,
-      tenant: tenantSlug,
+      tenant: resolvedTenant,
     };
 
     const token = await this.jwtService.signAsync(payload);
@@ -131,8 +149,8 @@ export class AuthService {
       deusu: userName,
       admin: isAdmin,
       email: userEmail,
-      empresa: companyName ?? tenantSlug,
-      tenant: tenantSlug,
+      empresa: companyName ?? resolvedTenant,
+      tenant: resolvedTenant,
       logoUrl,
       mensagem: 'Login efetuado com sucesso',
     };

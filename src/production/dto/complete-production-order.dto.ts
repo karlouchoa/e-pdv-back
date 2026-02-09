@@ -14,7 +14,10 @@ export class CompleteProductionOrderDto {
   @MaxLength(80)
   product_code!: string;
 
-  @Transform(({ value, obj }) => value ?? obj.quantity ?? obj.quantity_good ?? obj.quantityGood)
+  @Transform(
+    ({ value, obj }) =>
+      value ?? obj.quantity ?? obj.quantity_good ?? obj.quantityGood,
+  )
   @Type(() => Number)
   @IsNumber({ allowNaN: false, allowInfinity: false })
   @Min(0.0001)

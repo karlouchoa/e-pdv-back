@@ -1662,7 +1662,9 @@ exports.Prisma.T_empScalarFieldEnum = {
   updatedat: 'updatedat',
   ID: 'ID',
   cadastro_suframa: 'cadastro_suframa',
-  suframa_ativa: 'suframa_ativa'
+  suframa_ativa: 'suframa_ativa',
+  path_img_capa: 'path_img_capa',
+  ambiente_nfe: 'ambiente_nfe'
 };
 
 exports.Prisma.T_encargocalculoScalarFieldEnum = {
@@ -2840,6 +2842,27 @@ exports.Prisma.T_itpedcmpScalarFieldEnum = {
   emprec: 'emprec',
   CreatedAt: 'CreatedAt',
   UpdatedAt: 'UpdatedAt'
+};
+
+exports.Prisma.T_itpromoScalarFieldEnum = {
+  empromo: 'empromo',
+  cdpromo: 'cdpromo',
+  cditem: 'cditem',
+  preco: 'preco',
+  precomin: 'precomin',
+  precopromo: 'precopromo',
+  meta: 'meta',
+  autocod: 'autocod',
+  empitem: 'empitem',
+  undven: 'undven',
+  custo: 'custo',
+  autocodext: 'autocodext',
+  hostname: 'hostname',
+  ip: 'ip',
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  DATA_PROMO: 'DATA_PROMO',
+  ID_ITEM: 'ID_ITEM'
 };
 
 exports.Prisma.T_itromScalarFieldEnum = {
@@ -5486,6 +5509,70 @@ exports.Prisma.T_ItensComboScalarFieldEnum = {
   UPDATEDAT: 'UPDATEDAT'
 };
 
+exports.Prisma.T_ENDCLIScalarFieldEnum = {
+  AUTOCOD: 'AUTOCOD',
+  ID: 'ID',
+  ID_CLIENTE: 'ID_CLIENTE',
+  CEP: 'CEP',
+  LOGRADOURO: 'LOGRADOURO',
+  NUMERO: 'NUMERO',
+  BAIRRO: 'BAIRRO',
+  CIDADE: 'CIDADE',
+  UF: 'UF',
+  COMPLEMENTO: 'COMPLEMENTO',
+  PONTO_REFERENCIA: 'PONTO_REFERENCIA',
+  TIPO_LOCAL: 'TIPO_LOCAL',
+  INSTRUCOES_ENTREGA: 'INSTRUCOES_ENTREGA',
+  LATITUDE: 'LATITUDE',
+  LONGITUDE: 'LONGITUDE',
+  CDUSU: 'CDUSU',
+  TIPO_ENDERECO: 'TIPO_ENDERECO',
+  CREATEDAT: 'CREATEDAT',
+  UPDATEDAT: 'UPDATEDAT',
+  ISDELETED: 'ISDELETED'
+};
+
+exports.Prisma.T_PedidosOnLineScalarFieldEnum = {
+  ID: 'ID',
+  CDEMP: 'CDEMP',
+  ID_CLIENTE: 'ID_CLIENTE',
+  ID_ENDERECO: 'ID_ENDERECO',
+  CANAL: 'CANAL',
+  STATUS: 'STATUS',
+  DT_PEDIDO: 'DT_PEDIDO',
+  PUBLIC_TOKEN: 'PUBLIC_TOKEN',
+  TOTAL_BRUTO: 'TOTAL_BRUTO',
+  DESCONTO: 'DESCONTO',
+  TAXA_ENTREGA: 'TAXA_ENTREGA',
+  TOTAL_LIQ: 'TOTAL_LIQ',
+  OBS: 'OBS',
+  ID_VENDA: 'ID_VENDA',
+  DT_CONFIRMACAO: 'DT_CONFIRMACAO',
+  CONFIRMADO_POR: 'CONFIRMADO_POR',
+  DT_CANCELAMENTO: 'DT_CANCELAMENTO',
+  CANCELADO_POR: 'CANCELADO_POR',
+  MOTIVO_CANCEL: 'MOTIVO_CANCEL'
+};
+
+exports.Prisma.T_PedidosOnLineComboEscolhasScalarFieldEnum = {
+  ID: 'ID',
+  ID_PEDIDO_ITEM: 'ID_PEDIDO_ITEM',
+  CDGRU: 'CDGRU',
+  ID_ITEM_ESCOLHIDO: 'ID_ITEM_ESCOLHIDO',
+  QTDE: 'QTDE'
+};
+
+exports.Prisma.T_PedidosOnLineItensScalarFieldEnum = {
+  ID: 'ID',
+  ID_PEDIDO: 'ID_PEDIDO',
+  ID_ITEM: 'ID_ITEM',
+  QTDE: 'QTDE',
+  VLR_UNIT_CALC: 'VLR_UNIT_CALC',
+  VLR_TOTAL_CALC: 'VLR_TOTAL_CALC',
+  OBS_ITEM: 'OBS_ITEM',
+  EH_COMBO: 'EH_COMBO'
+};
+
 exports.Prisma.SortOrder = {
   asc: 'asc',
   desc: 'desc'
@@ -5605,6 +5692,7 @@ exports.Prisma.ModelName = {
   t_itorc: 't_itorc',
   t_itpdc: 't_itpdc',
   t_itpedcmp: 't_itpedcmp',
+  t_itpromo: 't_itpromo',
   t_itrom: 't_itrom',
   t_itsep: 't_itsep',
   t_itsreq: 't_itsreq',
@@ -5711,7 +5799,11 @@ exports.Prisma.ModelName = {
   t_auditoriaEstoque: 't_auditoriaEstoque',
   Regras_Transicao_Reforma: 'Regras_Transicao_Reforma',
   t_imgitens: 't_imgitens',
-  T_ItensCombo: 'T_ItensCombo'
+  T_ItensCombo: 'T_ItensCombo',
+  T_ENDCLI: 'T_ENDCLI',
+  T_PedidosOnLine: 'T_PedidosOnLine',
+  T_PedidosOnLineComboEscolhas: 'T_PedidosOnLineComboEscolhas',
+  T_PedidosOnLineItens: 'T_PedidosOnLineItens'
 };
 
 /**

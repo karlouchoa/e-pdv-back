@@ -1,4 +1,4 @@
-import { Transform, Type } from "class-transformer";
+import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
   IsString,
@@ -8,7 +8,7 @@ import {
   IsIn,
   IsNotEmpty,
   ValidateNested,
-} from "class-validator";
+} from 'class-validator';
 
 export class ItemImageDto {
   @IsOptional()
@@ -110,10 +110,10 @@ export class CreateTItemDto {
   images?: ItemImageDto[];
 
   @IsOptional()
-  @IsIn(["S", "N"])
+  @IsIn(['S', 'N'])
   itprodsn?: string;
 
   @IsOptional()
-  @IsIn(["S", "N"])
+  @IsIn(['S', 'N'])
   matprima?: string;
 }

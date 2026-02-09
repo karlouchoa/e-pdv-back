@@ -7,6 +7,7 @@ import { AuthService } from './auth.service';
 import { TenantDbService } from '../tenant-db/tenant-db.service';
 import { JwtStrategy } from './jwt.strategy';
 import { JwtAuthGuard } from './jwt-auth.guard';
+import { TenantJwtGuard } from './tenant-jwt.guard';
 
 const jwtSecret = process.env.JWT_SECRET ?? 'change-me';
 const jwtExpiresIn: ms.StringValue | number = (process.env.JWT_EXPIRES_IN ??
@@ -22,7 +23,13 @@ const jwtExpiresIn: ms.StringValue | number = (process.env.JWT_EXPIRES_IN ??
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, TenantDbService, JwtStrategy, JwtAuthGuard],
+  providers: [
+    AuthService,
+    TenantDbService,
+    JwtStrategy,
+    JwtAuthGuard,
+    TenantJwtGuard,
+  ],
   exports: [AuthService],
 })
 export class AuthModule {}

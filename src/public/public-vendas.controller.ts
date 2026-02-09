@@ -1,4 +1,12 @@
-import { Body, Controller, Post, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Req,
+} from '@nestjs/common';
 import type { Request } from 'express';
 import { Public } from '../auth/decorators/public.decorator';
 import { CreatePublicVendaComItensDto } from './dto/create-public-venda-com-itens.dto';
@@ -10,7 +18,6 @@ import { resolveTenantFromRequest } from './tenant-resolver';
 export class PublicVendasController {
   constructor(private readonly publicOrdersService: PublicOrdersService) {}
 
-  @Public()
   @Post('public')
   create(@Req() req: Request, @Body() dto: CreatePublicVendaDto) {
     const tenant = resolveTenantFromRequest(req);
@@ -18,6 +25,15 @@ export class PublicVendasController {
   }
 
   @Public()
+  @Get('public/:id')
+  getPublicOrder(
+    @Req() req: Request,
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
+    const tenant = resolveTenantFromRequest(req);
+    return this.publicOrdersService.getPublicOrder(tenant, id);
+  }
+
   @Post('public/completo')
   createWithItens(
     @Req() req: Request,

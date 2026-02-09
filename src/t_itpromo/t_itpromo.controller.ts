@@ -3,7 +3,6 @@ import {
   Controller,
   Delete,
   Get,
-  NotFoundException,
   Param,
   Patch,
   Post,
@@ -13,7 +12,9 @@ import {
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { Public } from '../auth/decorators/public.decorator';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { TenantJwtGuard } from '../auth/tenant-jwt.guard';
+import { resolveTenantFromRequest } from '../public/tenant-resolver';
+import { CreateTItpromoBatchDto } from './dto/create-t_itpromo-batch.dto';
 import { CreateTItpromoDto } from './dto/create-t_itpromo.dto';
 import { UpdateTItpromoDto } from './dto/update-t_itpromo.dto';
 import { TItpromoService } from './t_itpromo.service';
@@ -23,20 +24,25 @@ interface TenantRequest extends Request {
 }
 
 @Controller('t_itpromo')
-@UseGuards(JwtAuthGuard)
+@UseGuards(TenantJwtGuard)
 export class TItpromoController {
   constructor(private readonly tItpromoService: TItpromoService) {}
 
   @Public()
   @Get()
   findPublic(@Req() req: Request) {
-    const tenant = this.getTenantFromHost(req);
+    const tenant = resolveTenantFromRequest(req);
     return this.tItpromoService.findPublic(tenant);
   }
 
   @Post()
   create(@Req() req: TenantRequest, @Body() dto: CreateTItpromoDto) {
     return this.tItpromoService.create(req.user.tenant, dto);
+  }
+
+  @Post('batch')
+  createMany(@Req() req: TenantRequest, @Body() dto: CreateTItpromoBatchDto) {
+    return this.tItpromoService.createMany(req.user.tenant, dto.items);
   }
 
   @Patch(':autocod')
@@ -54,17 +60,5 @@ export class TItpromoController {
     @Param('autocod', ParseIntPipe) autocod: number,
   ) {
     return this.tItpromoService.remove(req.user.tenant, autocod);
-  }
-
-  private getTenantFromHost(req: Request) {
-    const host = req.headers.host;
-    const hostWithoutPort = host?.split(':')[0];
-    const subdomain = hostWithoutPort?.split('.')[0];
-
-    if (!subdomain || subdomain === 'www') {
-      throw new NotFoundException('Estabelecimento nao identificado.');
-    }
-
-    return subdomain;
   }
 }

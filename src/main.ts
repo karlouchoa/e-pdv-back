@@ -1,6 +1,8 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
+import { json, urlencoded } from 'express';
+import type { Request, Response, NextFunction } from 'express';
 
 declare global {
   interface BigInt {
@@ -14,6 +16,22 @@ declare global {
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  app.use(json({ limit: '2mb' }));
+  app.use(urlencoded({ extended: true, limit: '2mb' }));
+  app.use((req: Request, _res: Response, next: NextFunction) => {
+    let payload = '';
+    if (req.body !== undefined) {
+      try {
+        payload = JSON.stringify(req.body);
+      } catch {
+        payload = '[unserializable]';
+      }
+    }
+    console.log(
+      `[${new Date().toISOString()}] ${req.method} ${req.originalUrl} payload=${payload}`,
+    );
+    next();
+  });
 
   // Lista de domínios fixos (domínios principais sem subdomínios)
   const allowedFixedOrigins = [
@@ -43,8 +61,7 @@ async function bootstrap() {
   // =========================================================
   else {
     app.enableCors({
-      origin: (origin: string | undefined, callback:any) => {
-        
+      origin: (origin: string | undefined, callback: any) => {
         if (!origin) {
           return callback(null, true);
         }
@@ -60,10 +77,12 @@ async function bootstrap() {
         }
 
         // 4. Bloqueia todas as outras origens
-        return callback(new Error(`Origin ${origin} not allowed by CORS.`), false);
-        
+        return callback(
+          new Error(`Origin ${origin} not allowed by CORS.`),
+          false,
+        );
       },
-    
+
       credentials: true,
       allowedHeaders: [
         'Origin',
@@ -73,13 +92,10 @@ async function bootstrap() {
         'x-warehouse',
         'x-tenant',
         'X-Tenant',
-        'X-Requested-With'
+        'X-Requested-With',
       ],
       methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
-    
     });
-    
-    
   }
 
   // =========================================================
@@ -103,4 +119,7 @@ async function bootstrap() {
   console.log(`🌐 Ambiente: ${isDev ? 'DESENVOLVIMENTO' : 'PRODUÇÃO'}`);
 }
 
-bootstrap();
+bootstrap().catch((error) => {
+  console.error('Erro ao iniciar a API.', error);
+  process.exit(1);
+});

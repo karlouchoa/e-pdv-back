@@ -10,7 +10,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
+import { TenantJwtGuard } from '../auth/tenant-jwt.guard';
 import type { Request } from 'express';
 import { InventoryService } from './inventory.service';
 import { MovementFiltersDto } from './dto/movement-filters.dto';
@@ -23,7 +23,7 @@ interface TenantRequest extends Request {
 }
 
 @Controller('inventory')
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(TenantJwtGuard)
 export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
 
@@ -44,32 +44,17 @@ export class InventoryController {
     return this.inventoryService.getSummary(this.getTenant(req), query);
   }
 
-  // @Get('movements')
-  // listMovements(
-  //   @Req() req: TenantRequest,
-  //   @Query() query: MovementFiltersDto,
-  // ) {
-  //   console.log('Listing movements with query:', query);
-  //   return this.inventoryService.listMovements(this.getTenant(req), query);
-  // }
-
   @Get('movements')
   async listMovements(
     @Req() req: TenantRequest,
     @Query() query: MovementFiltersDto,
   ) {
-    // console.log('Listing movements with query:', query);
-
     const result = await this.inventoryService.listMovements(
       this.getTenant(req),
       query,
     );
-
-    // console.log('Listing movements response:', JSON.stringify(result, null, 2));
-
     return result;
   }
-
 
   @Get('movements/:itemId')
   getKardex(
@@ -77,15 +62,23 @@ export class InventoryController {
     @Param('itemId', ParseIntPipe) itemId: number,
     @Query() query: KardexQueryDto,
   ) {
-    // console.log(`Getting kardex for itemId ${itemId} with query:`, query);
-    return this.inventoryService.getKardex(this.getTenant(req), itemId, query);
+    // aceita cdemp ou warehouse; se enviado, filtra pelo deposito informado
+    const cdemp =
+      typeof query.cdemp === 'number' && Number.isFinite(query.cdemp)
+        ? query.cdemp
+        : Number.isFinite(Number(query.warehouse))
+          ? Number(query.warehouse)
+          : 0;
+    const payload = { ...query, cdemp };
+    return this.inventoryService.getKardex(
+      this.getTenant(req),
+      itemId,
+      payload,
+    );
   }
 
   @Post('movements')
-  create(
-    @Req() req: TenantRequest,
-    @Body() dto: CreateMovementDto,
-  ) {
+  create(@Req() req: TenantRequest, @Body() dto: CreateMovementDto) {
     return this.inventoryService.createMovement(this.getTenant(req), dto);
   }
 }

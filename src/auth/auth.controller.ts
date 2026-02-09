@@ -9,15 +9,19 @@ import {
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import type { Request } from 'express';
-import { JwtAuthGuard } from './jwt-auth.guard';
+import { TenantJwtGuard } from './tenant-jwt.guard';
 import type { JwtPayload } from './types/jwt-payload.type';
+import { resolveTenantFromRequest } from '../public/tenant-resolver';
 
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('login')
-  async login(@Body() body: { login: string; senha: string }) {
+  async login(
+    @Req() req: Request,
+    @Body() body: { login: string; senha: string },
+  ) {
     const identifier = body.login?.trim();
     const password = body.senha?.trim();
 
@@ -29,20 +33,19 @@ export class AuthController {
       throw new BadRequestException('Senha nao foi informada.');
     }
 
-    return this.authService.login(identifier, password);
+    const tenant = resolveTenantFromRequest(req, { optional: true });
+    return this.authService.login(identifier, password, tenant);
   }
 
   @Get('me')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(TenantJwtGuard)
   me(@Req() request: Request & { user?: JwtPayload }) {
     return request.user;
   }
 
   @Get('companies_user')
-  @UseGuards(JwtAuthGuard)
-  async listCompaniesForUser(
-    @Req() request: Request & { user?: JwtPayload },
-  ) {
+  @UseGuards(TenantJwtGuard)
+  async listCompaniesForUser(@Req() request: Request & { user?: JwtPayload }) {
     const tenant = request.user?.tenant;
     if (!tenant) {
       throw new BadRequestException('Tenant nao encontrado no token.');

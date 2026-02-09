@@ -68,7 +68,17 @@ export class CreatePublicVendaDto {
   @IsOptional()
   @Transform(toNumber)
   @IsNumber()
+  totpro_v?: number;
+
+  @IsOptional()
+  @Transform(toNumber)
+  @IsNumber()
   totven_v?: number;
+
+  @IsOptional()
+  @Transform(toNumber)
+  @IsNumber()
+  txfin_v?: number;
 
   @IsOptional()
   @Transform(toNumber)
@@ -79,6 +89,11 @@ export class CreatePublicVendaDto {
   @Transform(toNumber)
   @IsNumber()
   vdesc_v?: number;
+
+  @IsOptional()
+  @Transform(toNumber)
+  @IsNumber()
+  vlfrete_v?: number;
 
   @IsOptional()
   @Transform(toNumber)

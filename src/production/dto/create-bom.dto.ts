@@ -42,7 +42,9 @@ export class CreateBomDto {
   @IsNumber({ allowInfinity: false, allowNaN: false })
   marginTarget!: number;
 
-  @Transform(({ value, obj }) => value ?? obj.marginAchieved ?? obj.margin_achieved)
+  @Transform(
+    ({ value, obj }) => value ?? obj.marginAchieved ?? obj.margin_achieved,
+  )
   @Type(() => Number)
   @IsNumber({ allowInfinity: false, allowNaN: false })
   marginAchieved!: number;
@@ -58,6 +60,4 @@ export class CreateBomDto {
   @ValidateNested({ each: true })
   @Type(() => BomItemDto)
   items!: BomItemDto[];
-
-  
 }

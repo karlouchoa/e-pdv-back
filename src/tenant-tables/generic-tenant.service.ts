@@ -5,10 +5,7 @@ import {
 } from '@nestjs/common';
 import type { PrismaClient as TenantClient } from '../../prisma/generated/client_tenant';
 import { TenantDbService } from '../tenant-db/tenant-db.service';
-import type {
-  PrimaryKeyType,
-  TenantTableConfig,
-} from './tenant-table.config';
+import type { PrimaryKeyType, TenantTableConfig } from './tenant-table.config';
 
 interface WhereParams {
   [key: string]: string;
@@ -104,18 +101,18 @@ export class GenericTenantService {
 
   async create(tenant: string, dto: Record<string, any>) {
     const { delegate } = await this.getDelegate(tenant);
-    return (delegate as any).create({ data: dto });
+    return delegate.create({ data: dto });
   }
 
   async findAll(tenant: string) {
     const { delegate } = await this.getDelegate(tenant);
-    return (delegate as any).findMany();
+    return delegate.findMany();
   }
 
   async findOne(tenant: string, params: WhereParams) {
     const { delegate } = await this.getDelegate(tenant);
     const where = this.buildWhere(params);
-    const record = await (delegate as any).findUnique({ where });
+    const record = await delegate.findUnique({ where });
 
     if (!record) {
       throw new NotFoundException(
@@ -126,21 +123,17 @@ export class GenericTenantService {
     return record;
   }
 
-  async update(
-    tenant: string,
-    params: WhereParams,
-    dto: Record<string, any>,
-  ) {
+  async update(tenant: string, params: WhereParams, dto: Record<string, any>) {
     const { delegate } = await this.getDelegate(tenant);
     const where = this.buildWhere(params);
     await this.ensureExists(delegate, where);
-    return (delegate as any).update({ where, data: dto });
+    return delegate.update({ where, data: dto });
   }
 
   async remove(tenant: string, params: WhereParams) {
     const { delegate } = await this.getDelegate(tenant);
     const where = this.buildWhere(params);
     await this.ensureExists(delegate, where);
-    return (delegate as any).delete({ where });
+    return delegate.delete({ where });
   }
 }

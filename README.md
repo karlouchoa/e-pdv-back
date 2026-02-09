@@ -74,6 +74,7 @@ With Mau, you can deploy your application in just a few clicks, allowing you to 
 
 - [Processo de produção, endpoints e payloads](docs/production-process.md)
 - [Movimentação de estoque (T_MOVEST)](docs/stock-movements.md)
+- [Contact form SMTP config](docs/contact-form.md)
 
 ## Resources
 

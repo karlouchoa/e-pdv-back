@@ -137,8 +137,6 @@ export const TENANT_TABLE_CONFIGS: TenantTableConfig[] = [
   },
   {
     name: 't_socio',
-    primaryKeys: [
-      { name: 'autocod', type: 'number' },
-    ],
+    primaryKeys: [{ name: 'autocod', type: 'number' }],
   },
 ];

@@ -44,36 +44,37 @@ export class ProductionService {
     private readonly tFormulasService: TFormulasService,
   ) {}
 
-  private readonly orderScalarSelect: TenantPrismaTypes.production_ordersSelect = {
-    id: true,
-    external_code: true,
-    product_code: true,
-    quantity_planned: true,
-    unit: true,
-    start_date: true,
-    due_date: true,
-    notes: true,
-    created_at: true,
-    updated_at: true,
-    lote: true,
-    validate: true,
-    boxes_qty: true,
-    box_cost: true,
-    labor_per_unit: true,
-    sale_price: true,
-    markup: true,
-    post_sale_tax: true,
-    custom_validate_date: true,
-    OP: true,
-    author_user: true,
-    ingredients: true,
-    labor: true,
-    packaging: true,
-    taxes: true,
-    Overhead: true,
-    totalCost: true,
-    unitCost: true,
-  };
+  private readonly orderScalarSelect: TenantPrismaTypes.production_ordersSelect =
+    {
+      id: true,
+      external_code: true,
+      product_code: true,
+      quantity_planned: true,
+      unit: true,
+      start_date: true,
+      due_date: true,
+      notes: true,
+      created_at: true,
+      updated_at: true,
+      lote: true,
+      validate: true,
+      boxes_qty: true,
+      box_cost: true,
+      labor_per_unit: true,
+      sale_price: true,
+      markup: true,
+      post_sale_tax: true,
+      custom_validate_date: true,
+      OP: true,
+      author_user: true,
+      ingredients: true,
+      labor: true,
+      packaging: true,
+      taxes: true,
+      Overhead: true,
+      totalCost: true,
+      unitCost: true,
+    };
 
   private buildOrderSelect(options?: {
     rawMaterials?: boolean;
@@ -102,22 +103,20 @@ export class ProductionService {
           quantity_used: true,
           unit: true,
           unit_cost: true,
-          warehouse: true,       // ✅ AQUI ESTÁ O PONTO
+          warehouse: true, // ✅ AQUI ESTÁ O PONTO
           batch_number: true,
           consumed_at: true,
         },
       };
     }
-    
 
     return base;
   }
 
-  
   private async prisma(tenant: string): Promise<TenantClient> {
     return this.tenantDb.getTenantClient(tenant);
   }
-  
+
   //
   // --------------------------------------------------------------------------
   //  BOM (Ficha Técnica)
@@ -146,7 +145,7 @@ export class ProductionService {
 
     return {
       ...bom,
-      items: bom.bom_items,  // <-- padroniza o nome
+      items: bom.bom_items, // <-- padroniza o nome
     };
   }
 
@@ -206,7 +205,7 @@ export class ProductionService {
       formulas: legacyFormulas,
     };
   }
-  
+
   async getBomPdf(tenant: string, id: string) {
     const bom = await this.getBom(tenant, id);
     const productDescription = await this.getProductDescription(
@@ -214,10 +213,12 @@ export class ProductionService {
       bom.product_code,
     );
 
-    const { bom_items: _bomItems, ...bomForPdf } = bom;
-    
+    const { bom_items: bomItems, items, ...bomForPdf } = bom;
+    const normalizedItems = items ?? bomItems ?? [];
+
     const file = await this.bomPdfService.createBomPdf({
       ...bomForPdf,
+      items: normalizedItems,
       product_description: productDescription,
     });
 
@@ -236,12 +237,11 @@ export class ProductionService {
 
     // 💥 Garante que version enviado pelo frontend será ignorado
     const computedItems = dto.items.map((item) => {
-
       const quantity_base = item.quantity_base ?? 0;
       const fator = item.fator ?? 100;
-    
+
       const quantity = quantity_base * fator;
-    
+
       return {
         componentCode: item.componentCode,
         description: item.description ?? null,
@@ -251,7 +251,6 @@ export class ProductionService {
         fator,
       };
     });
-    
 
     const totalCost = computedItems.reduce(
       (acc, item) => acc + item.quantity * item.unitCost,
@@ -259,7 +258,7 @@ export class ProductionService {
     );
 
     const unitCost = dto.lotSize > 0 ? Number(totalCost / dto.lotSize) : 0;
-  
+
     const normalizedVersion = (() => {
       const raw = dto.version?.trim();
       if (!raw) {
@@ -352,9 +351,8 @@ export class ProductionService {
 
       const quantityChanged =
         !latestItems ||
-        latestItems.some(
-          (item, idx) =>
-            quantityDiffers(item.quantity, incomingItems[idx].quantity),
+        latestItems.some((item, idx) =>
+          quantityDiffers(item.quantity, incomingItems[idx].quantity),
         );
 
       if (!compositionChanged && !quantityChanged && bomByVersion) {
@@ -414,7 +412,7 @@ export class ProductionService {
       const nextVersion = this.getNextVersion(
         existingVersions.map((v) => v.version),
       );
-  
+
       // 3️⃣ Criar novo header
       const header = await tx.bom_headers.create({
         data: {
@@ -430,7 +428,7 @@ export class ProductionService {
           notes: dto.notes ?? null,
         },
       });
-  
+
       // 4️⃣ Criar itens
       const items = computedItems.map((item, index) => ({
         bom_id: header.id,
@@ -442,27 +440,26 @@ export class ProductionService {
         quantity_base: item.quantity_base,
         fator: item.fator,
       }));
-  
+
       await tx.bom_items.createMany({ data: items });
-  
+
       return {
         id: header.id,
         version: nextVersion,
-        message: "BOM criada (nova versão após alteração de itens).",
+        message: 'BOM criada (nova versão após alteração de itens).',
       };
     });
   }
-  
 
   private parseVersion(v: string) {
-    const [major, minor] = v.split(".").map(Number);
+    const [major, minor] = v.split('.').map(Number);
     return { major, minor };
   }
-  
+
   private buildVersion(major: number, minor: number) {
     return `${major}.${minor}`;
   }
-  
+
   /**
    * 🔥 Auto-versionamento simples:
    * - Primeira versão → 1.0
@@ -470,21 +467,18 @@ export class ProductionService {
    */
   private getNextVersion(existingVersions: string[]) {
     if (!existingVersions || existingVersions.length === 0) {
-      return "1.0";
+      return '1.0';
     }
-  
+
     const parsed = existingVersions
-      .map(v => this.parseVersion(v))
+      .map((v) => this.parseVersion(v))
       .sort((a, b) =>
-        a.major === b.major
-          ? b.minor - a.minor
-          : b.major - a.major
+        a.major === b.major ? b.minor - a.minor : b.major - a.major,
       );
-  
+
     const last = parsed[0];
     return this.buildVersion(last.major, last.minor + 1);
   }
-  
 
   async updateBom(tenant: string, id: string, dto: UpdateBomDto) {
     const db = await this.prisma(tenant);
@@ -494,8 +488,7 @@ export class ProductionService {
       include: { bom_items: true },
     });
 
-    if (!existing)
-      throw new NotFoundException(`BOM '${id}' não encontrado.`);
+    if (!existing) throw new NotFoundException(`BOM '${id}' não encontrado.`);
 
     const mappedItems = dto.items?.map((item, index) => {
       const rawquantity_base =
@@ -533,13 +526,9 @@ export class ProductionService {
           unitCost: Number(i.unit_cost),
         }));
 
-    
     const lotSize = Number(dto.lotSize ?? existing.lot_size);
 
-    const totalCost = items.reduce(
-      (s, i) => s + i.quantity * i.unitCost,
-      0,
-    );
+    const totalCost = items.reduce((s, i) => s + i.quantity * i.unitCost, 0);
 
     const unitCost = lotSize > 0 ? Number(totalCost / lotSize) : 0;
 
@@ -552,8 +541,7 @@ export class ProductionService {
           lot_size: lotSize,
           validity_days: dto.validityDays ?? existing.validity_days,
           margin_target: dto.marginTarget ?? existing.margin_target,
-          margin_achieved:
-            dto.marginAchieved ?? existing.margin_achieved,
+          margin_achieved: dto.marginAchieved ?? existing.margin_achieved,
           total_cost: totalCost,
           unit_cost: unitCost,
           updated_at: new Date(),
@@ -586,8 +574,7 @@ export class ProductionService {
       where: { id, tenant_id: tenant },
     });
 
-    if (!exists)
-      throw new NotFoundException(`BOM '${id}' não encontrado.`);
+    if (!exists) throw new NotFoundException(`BOM '${id}' não encontrado.`);
 
     await db.bom_headers.delete({ where: { id } });
 
@@ -595,9 +582,12 @@ export class ProductionService {
   }
 
   private async getFormulaCompanyId(
-      tenant: string,
-      prisma: Omit<TenantClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$extends'>,
-    ): Promise<number> {
+    tenant: string,
+    prisma: Omit<
+      TenantClient,
+      '$connect' | '$disconnect' | '$on' | '$transaction' | '$extends'
+    >,
+  ): Promise<number> {
     const cached = this.formulaCompanyCache.get(tenant);
     if (cached) return cached;
 
@@ -612,16 +602,19 @@ export class ProductionService {
   }
 
   private async ensureLegacyFormula(
-      tenant: string,
-      prisma: Omit<TenantClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$extends'>,
-      productCode: string,
-      rawMaterials: Array<{
-        component_code: string;
-        description: string | null;
-        quantity_used: number;
-        unit: string;
-      }>,
-    ) {
+    tenant: string,
+    prisma: Omit<
+      TenantClient,
+      '$connect' | '$disconnect' | '$on' | '$transaction' | '$extends'
+    >,
+    productCode: string,
+    rawMaterials: Array<{
+      component_code: string;
+      description: string | null;
+      quantity_used: number;
+      unit: string;
+    }>,
+  ) {
     const cditem = Number(productCode);
     if (!Number.isFinite(cditem)) {
       return;
@@ -652,7 +645,9 @@ export class ProductionService {
           deitem_iv: item.description ?? null,
         } as TenantPrismaTypes.t_formulasCreateManyInput;
       })
-      .filter((i): i is TenantPrismaTypes.t_formulasCreateManyInput => Boolean(i));
+      .filter((i): i is TenantPrismaTypes.t_formulasCreateManyInput =>
+        Boolean(i),
+      );
 
     if (!data.length) return;
 
@@ -661,7 +656,10 @@ export class ProductionService {
 
   private async ensureBomFromOrder(
     tenant: string,
-    prisma: Omit<TenantClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$extends'>,
+    prisma: Omit<
+      TenantClient,
+      '$connect' | '$disconnect' | '$on' | '$transaction' | '$extends'
+    >,
     productCode: string,
     rawMaterials: Array<{
       component_code: string;
@@ -719,35 +717,32 @@ export class ProductionService {
   //  PRODUCTION ORDERS
   // --------------------------------------------------------------------------
   //
-  
+
   async createOrder(tenant: string, dto: CreateProductionOrderDto) {
     const db = await this.prisma(tenant);
-  
-    const externalCode =
-      dto.external_code?.trim() || randomUUID();
-  
+
+    const externalCode = dto.external_code?.trim() || randomUUID();
+
     // ---- calcular ingredientes ----
     const ingredients = dto.raw_materials.reduce(
       (sum, item) => sum + item.quantity_used * (item.unit_cost ?? 0),
       0,
     );
-  
+
     const labor = dto.labor_per_unit * dto.quantity_planned;
-  
+
     const packaging = (dto.box_cost ?? 0) * (dto.boxes_qty ?? 0);
-  
+
     const taxes = dto.post_sale_tax ?? 0;
-  
+
     //const totalCost = ingredients + labor + packaging + taxes;
     const totalCost = ingredients + labor + packaging;
-  
+
     const unitCost =
-      dto.quantity_planned > 0
-        ? totalCost / dto.quantity_planned
-        : 0;
+      dto.quantity_planned > 0 ? totalCost / dto.quantity_planned : 0;
 
     // console.log(JSON.stringify(dto.raw_materials, null, 2));
-    
+
     const rawMaterialsToInsert = dto.raw_materials.map((item) => ({
       component_code: item.component_code,
       description: item.description ?? null,
@@ -756,7 +751,7 @@ export class ProductionService {
       unit_cost: item.unit_cost,
       warehouse: item.warehouse ?? null,
     }));
-  
+
     const { order: created } = await db.$transaction(async (tx) => {
       const order = await tx.production_orders.create({
         data: {
@@ -780,8 +775,8 @@ export class ProductionService {
           sale_price: dto.sale_price ?? null,
           markup: dto.markup ?? 0,
           post_sale_tax: dto.post_sale_tax ?? 0,
-          author_user: dto.author_user ?? "Desconhecido",
-    
+          author_user: dto.author_user ?? 'Desconhecido',
+
           // ---- calculados automaticamente ----
           ingredients,
           labor,
@@ -789,7 +784,7 @@ export class ProductionService {
           taxes,
           totalCost,
           unitCost,
-    
+
           raw_materials: {
             create: rawMaterialsToInsert,
           },
@@ -798,11 +793,11 @@ export class ProductionService {
             create: {
               status: this.defaultOrderStatus,
               responsible: this.systemStatusResponsible,
-              status_user: dto.author_user ?? "Desconhecido",
+              status_user: dto.author_user ?? 'Desconhecido',
             },
           },
         },
-    
+
         select: this.buildOrderSelect({
           rawMaterials: true,
           statuses: true,
@@ -856,16 +851,12 @@ export class ProductionService {
       statusHistory: created.statuses ?? [],
     };
   }
-  
- 
-  async findOrders(
-    tenant: string,
-    query: FindProductionOrdersQueryDto,
-  ) {
+
+  async findOrders(tenant: string, query: FindProductionOrdersQueryDto) {
     const db = await this.prisma(tenant);
 
-    console.log('Finding orders with query:', query); 
-    
+    console.log('Finding orders with query:', query);
+
     const orders = await db.production_orders.findMany({
       where: {
         ...(query.external_code && {
@@ -901,10 +892,7 @@ export class ProductionService {
     return enriched;
   }
 
-  private async findOrdersByCurrentStatus(
-    tenant: string,
-    status: OrderStatus,
-  ) {
+  private async findOrdersByCurrentStatus(tenant: string, status: OrderStatus) {
     const db = await this.prisma(tenant);
 
     const orders = await db.production_orders.findMany({
@@ -941,7 +929,8 @@ export class ProductionService {
     );
 
     return enriched.filter(
-      (order): order is NonNullable<(typeof enriched)[number]> => Boolean(order),
+      (order): order is NonNullable<(typeof enriched)[number]> =>
+        Boolean(order),
     );
   }
 
@@ -956,7 +945,7 @@ export class ProductionService {
   async getOrder(tenant: string, idOrOp: string) {
     const db = await this.prisma(tenant);
 
-     console.log('Getting order for ID/OP:', idOrOp);
+    console.log('Getting order for ID/OP:', idOrOp);
 
     const asNumber = Number(idOrOp);
     const byOp = Number.isFinite(asNumber);
@@ -993,19 +982,14 @@ export class ProductionService {
     };
   }
 
-  async updateOrder(
-    tenant: string,
-    id: string,
-    dto: UpdateProductionOrderDto,
-  ) {
+  async updateOrder(tenant: string, id: string, dto: UpdateProductionOrderDto) {
     const db = await this.prisma(tenant);
 
     const exists = await db.production_orders.findUnique({
       where: { id },
     });
 
-    if (!exists)
-      throw new NotFoundException(`Ordem '${id}' não encontrada.`);
+    if (!exists) throw new NotFoundException(`Ordem '${id}' não encontrada.`);
 
     try {
       return db.production_orders.update({
@@ -1013,17 +997,14 @@ export class ProductionService {
         data: {
           external_code: dto.external_code ?? exists.external_code,
           product_code: dto.product_code ?? exists.product_code,
-          quantity_planned:
-            dto.quantity_planned ?? exists.quantity_planned,
+          quantity_planned: dto.quantity_planned ?? exists.quantity_planned,
           unit: dto.unit ?? exists.unit,
           start_date:
             dto.start_date != null
               ? new Date(dto.start_date)
               : exists.start_date,
           due_date:
-            dto.due_date != null
-              ? new Date(dto.due_date)
-              : exists.due_date,
+            dto.due_date != null ? new Date(dto.due_date) : exists.due_date,
           notes:
             dto.notes !== undefined
               ? this.normalizeNullableString(dto.notes)
@@ -1094,8 +1075,7 @@ export class ProductionService {
       where: { id },
     });
 
-    if (!exists)
-      throw new NotFoundException(`Ordem '${id}' não encontrada.`);
+    if (!exists) throw new NotFoundException(`Ordem '${id}' não encontrada.`);
 
     return db.production_order_status.create({
       data: {
@@ -1137,8 +1117,7 @@ export class ProductionService {
       where: { id },
     });
 
-    if (!order)
-      throw new NotFoundException(`Ordem '${id}' não encontrada.`);
+    if (!order) throw new NotFoundException(`Ordem '${id}' não encontrada.`);
 
     if (!dto.raw_materials?.length) {
       throw new BadRequestException(
@@ -1157,7 +1136,7 @@ export class ProductionService {
       movement: {
         id: number;
         itemId: number;
-        type: "E" | "S";
+        type: 'E' | 'S';
         quantity: number;
         unitPrice: number | null;
         totalValue: number | null;
@@ -1189,9 +1168,7 @@ export class ProductionService {
 
       const componentCode = material.component_code?.trim();
       if (!componentCode) {
-        throw new BadRequestException(
-          'Código da matéria-prima não informado.',
-        );
+        throw new BadRequestException('Código da matéria-prima não informado.');
       }
 
       const item = await this.findItemForMovement(db, componentCode);
@@ -1258,8 +1235,7 @@ export class ProductionService {
       where: { id },
     });
 
-    if (!order)
-      throw new NotFoundException(`Ordem '${id}' nÇœo encontrada.`);
+    if (!order) throw new NotFoundException(`Ordem '${id}' nÇœo encontrada.`);
 
     const productCode = dto.product_code?.trim() || order.product_code?.trim();
     if (!productCode) {
@@ -1339,8 +1315,7 @@ export class ProductionService {
       where: { id },
     });
 
-    if (!exists)
-      throw new NotFoundException(`Ordem '${id}' não encontrada.`);
+    if (!exists) throw new NotFoundException(`Ordem '${id}' não encontrada.`);
 
     return db.order_finished_goods.create({
       data: {
@@ -1372,19 +1347,14 @@ export class ProductionService {
   // --------------------------------------------------------------------------
   //
 
-  async addRawMaterial(
-    tenant: string,
-    id: string,
-    dto: RecordRawMaterialDto,
-  ) {
+  async addRawMaterial(tenant: string, id: string, dto: RecordRawMaterialDto) {
     const db = await this.prisma(tenant);
 
     const exists = await db.production_orders.findUnique({
       where: { id },
     });
 
-    if (!exists)
-      throw new NotFoundException(`Ordem '${id}' não encontrada.`);
+    if (!exists) throw new NotFoundException(`Ordem '${id}' não encontrada.`);
 
     return db.order_raw_materials.create({
       data: {
@@ -1422,10 +1392,7 @@ export class ProductionService {
     );
   }
 
-  private async findItemForMovement(
-    prisma: TenantClient,
-    code: string,
-  ) {
+  private async findItemForMovement(prisma: TenantClient, code: string) {
     const normalized = code?.trim();
     if (!normalized) {
       throw new BadRequestException('CÇodigo do item nÇœo informado.');

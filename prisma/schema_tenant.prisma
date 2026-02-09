@@ -1289,6 +1289,7 @@ model t_cli {
   suframa_ativa              String?      @db.Char(1)
   tipo_op_gov                String?      @db.VarChar(15)
   perc_red_gov               Decimal?     @db.Decimal(9, 2)
+  T_ENDCLI                   T_ENDCLI[]
   t_equipcli                 t_equipcli[]
   t_vendas                   t_vendas[]
 }
@@ -2182,6 +2183,8 @@ model t_emp {
   ID                     String?   @default(dbgenerated("newid()"), map: "DF__t_emp__ID__79DDE984") @db.UniqueIdentifier
   cadastro_suframa       String?   @db.VarChar(20)
   suframa_ativa          String?   @db.Char(1)
+  path_img_capa          String?   @db.VarChar(200)
+  ambiente_nfe           String?   @db.Char(1)
 }
 
 model t_encargocalculo {
@@ -3013,8 +3016,8 @@ model t_gritens {
   cdgruext              Int?
   ID                    String?   @default(dbgenerated("newid()"), map: "DF__t_gritens__ID__232A17DA") @db.UniqueIdentifier
   isdeleted             Boolean   @default(false, map: "DF_t_gritens_isdeleted")
-  createdat             DateTime? @db.DateTime
-  updatedat             DateTime? @db.DateTime
+  createdat             DateTime? @default(now(), map: "DF_T_GRITENS_createdat") @db.DateTime
+  updatedat             DateTime? @default(now(), map: "DF_T_GRITENS_updatedat") @db.DateTime
 
   @@index([degru], map: "IX_t_gritens")
 }
@@ -3916,7 +3919,7 @@ model t_itpromo {
   precomin   Decimal?  @db.Decimal(9, 2)
   precopromo Decimal?  @db.Decimal(9, 2)
   meta       Decimal?  @db.Decimal(9, 2)
-  autocod    Int       @default(autoincrement())
+  autocod    Int       @id(map: "PK_t_itpromo") @default(autoincrement())
   empitem    Int?
   undven     String?   @db.VarChar(3)
   custo      Decimal?  @db.Decimal(9, 4)
@@ -3927,9 +3930,9 @@ model t_itpromo {
   UpdatedAt  DateTime  @default(now(), map: "DF__t_itpromo__Updat__0BA79404") @db.DateTime
   DATA_PROMO DateTime? @db.DateTime
   ID_ITEM    String?   @db.UniqueIdentifier
-  t_itens    t_itens?  @relation(fields: [ID_ITEM], references: [ID], onDelete: NoAction, onUpdate: NoAction, map: "FK_T_ITPROMO_T_ITENS_ID_ITEM")
+  t_itens    t_itens?  @relation(fields: [empitem, cditem], references: [cdemp, cditem], onDelete: NoAction, onUpdate: NoAction, map: "FK_t_itpromo_t_itens_cditem_empitem")
 
-  @@ignore
+  @@index([empitem, cditem], map: "IX_t_itpromo_empitem_cditem")
 }
 
 /// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
@@ -7438,4 +7441,86 @@ model T_ItensCombo {
   CREATEDAT DateTime @default(now(), map: "DF__T_ItensCo__CREAT__0055DCE9") @db.DateTime
   UPDATEDAT DateTime @default(now(), map: "DF__T_ItensCo__UPDAT__014A0122") @db.DateTime
   t_itens   t_itens  @relation(fields: [ID_ITEM], references: [ID], onUpdate: NoAction, map: "FK_T_T_ItensCombo_ITENS")
+}
+
+model T_ENDCLI {
+  AUTOCOD            Int      @default(autoincrement())
+  ID                 String   @id(map: "PK_T_ENDCLI") @default(dbgenerated("newsequentialid()"), map: "DF__T_ENDCLI__ID__4E89772B") @db.UniqueIdentifier
+  ID_CLIENTE         String   @db.UniqueIdentifier
+  CEP                String?  @db.VarChar(10)
+  LOGRADOURO         String?  @db.VarChar(100)
+  NUMERO             String?  @db.VarChar(20)
+  BAIRRO             String?  @db.VarChar(60)
+  CIDADE             String?  @db.VarChar(60)
+  UF                 String?  @db.Char(2)
+  COMPLEMENTO        String?  @db.VarChar(100)
+  PONTO_REFERENCIA   String?  @db.VarChar(255)
+  TIPO_LOCAL         String?  @db.VarChar(20)
+  INSTRUCOES_ENTREGA String?  @db.VarChar(Max)
+  LATITUDE           Decimal? @db.Decimal(10, 8)
+  LONGITUDE          Decimal? @db.Decimal(11, 8)
+  CDUSU              String?  @db.VarChar(15)
+  TIPO_ENDERECO      String?  @db.VarChar(3)
+  CREATEDAT          DateTime @default(now(), map: "DF__T_ENDCLI__CREATE__4F7D9B64") @db.DateTime
+  UPDATEDAT          DateTime @default(now(), map: "DF__T_ENDCLI__UPDATE__5071BF9D") @db.DateTime
+  ISDELETED          Boolean  @default(false, map: "DF__T_ENDCLI__ISDELE__5165E3D6")
+  t_cli              t_cli    @relation(fields: [ID_CLIENTE], references: [id], onUpdate: NoAction, map: "FK_T_ENDCLI_CLIENTE")
+
+  @@index([ID_CLIENTE, TIPO_ENDERECO], map: "IDX_ENDCLI_CLI_TIPO")
+}
+
+model T_PedidosOnLine {
+  ID                   String                 @id(map: "PK_T_PedidosOnLine") @default(dbgenerated("newid()"), map: "DF_T_PedidosOnLine_ID") @db.UniqueIdentifier
+  CDEMP                Int?
+  ID_CLIENTE           String?                @db.UniqueIdentifier
+  ID_ENDERECO          String?                @db.UniqueIdentifier
+  CANAL                String                 @default("EPDV", map: "DF_T_PedidosOnLine_CANAL") @db.VarChar(20)
+  STATUS               String                 @default("ABERTO", map: "DF_T_PedidosOnLine_STATUS") @db.VarChar(12)
+  DT_PEDIDO            DateTime               @default(dbgenerated("sysdatetime()"), map: "DF_T_PedidosOnLine_DT_PEDIDO")
+  PUBLIC_TOKEN         String                 @unique(map: "UX_T_PedidosOnLine_PUBLIC_TOKEN") @default(dbgenerated("newid()"), map: "DF_T_PedidosOnLine_PUBLIC_TOKEN") @db.UniqueIdentifier
+  TOTAL_BRUTO          Decimal                @default(0, map: "DF_T_PedidosOnLine_TOTAL_BRUTO") @db.Decimal(18, 2)
+  DESCONTO             Decimal                @default(0, map: "DF_T_PedidosOnLine_DESCONTO") @db.Decimal(18, 2)
+  TAXA_ENTREGA         Decimal                @default(0, map: "DF_T_PedidosOnLine_TAXA_ENTREGA") @db.Decimal(18, 2)
+  TOTAL_LIQ            Decimal                @default(0, map: "DF_T_PedidosOnLine_TOTAL_LIQ") @db.Decimal(18, 2)
+  OBS                  String?                @db.VarChar(500)
+  ID_VENDA             String?                @db.UniqueIdentifier
+  DT_CONFIRMACAO       DateTime?
+  CONFIRMADO_POR       String?                @db.VarChar(50)
+  DT_CANCELAMENTO      DateTime?
+  CANCELADO_POR        String?                @db.VarChar(50)
+  MOTIVO_CANCEL        String?                @db.VarChar(200)
+  T_PedidosOnLineItens T_PedidosOnLineItens[]
+
+  @@index([ID_CLIENTE, DT_PEDIDO], map: "IX_T_PedidosOnLine_CLIENTE_DTPEDIDO")
+  @@index([ID_VENDA], map: "IX_T_PedidosOnLine_IDVENDA")
+  @@index([STATUS, DT_PEDIDO], map: "IX_T_PedidosOnLine_STATUS_DTPEDIDO")
+}
+
+model T_PedidosOnLineComboEscolhas {
+  ID                   String               @id(map: "PK_T_PedidosOnLineComboEscolhas") @default(dbgenerated("newid()"), map: "DF_T_PedidosOnLineComboEscolhas_ID") @db.UniqueIdentifier
+  ID_PEDIDO_ITEM       String               @db.UniqueIdentifier
+  CDGRU                Int?
+  ID_ITEM_ESCOLHIDO    String               @db.UniqueIdentifier
+  QTDE                 Decimal              @db.Decimal(18, 3)
+  T_PedidosOnLineItens T_PedidosOnLineItens @relation(fields: [ID_PEDIDO_ITEM], references: [ID], onUpdate: NoAction, map: "FK_T_PedidosOnLineComboEscolhas_PedidoItem")
+
+  @@index([ID_ITEM_ESCOLHIDO], map: "IX_T_PedidosOnLineComboEscolhas_ITEMESCOLHIDO")
+  @@index([ID_PEDIDO_ITEM], map: "IX_T_PedidosOnLineComboEscolhas_PEDIDOITEM")
+}
+
+model T_PedidosOnLineItens {
+  ID                           String                         @id(map: "PK_T_PedidosOnLineItens") @default(dbgenerated("newid()"), map: "DF_T_PedidosOnLineItens_ID") @db.UniqueIdentifier
+  ID_PEDIDO                    String                         @db.UniqueIdentifier
+  ID_ITEM                      String                         @db.UniqueIdentifier
+  QTDE                         Decimal                        @db.Decimal(18, 3)
+  VLR_UNIT_CALC                Decimal                        @db.Decimal(18, 2)
+  VLR_TOTAL_CALC               Decimal                        @db.Decimal(18, 2)
+  OBS_ITEM                     String?                        @db.VarChar(300)
+  EH_COMBO                     String                         @default("N", map: "DF_T_PedidosOnLineItens_EH_COMBO") @db.Char(1)
+  T_PedidosOnLineComboEscolhas T_PedidosOnLineComboEscolhas[]
+  T_PedidosOnLine              T_PedidosOnLine                @relation(fields: [ID_PEDIDO], references: [ID], onUpdate: NoAction, map: "FK_T_PedidosOnLineItens_Pedido")
+
+  @@index([ID_ITEM], map: "IX_T_PedidosOnLineItens_ITEM")
+  @@index([ID_PEDIDO], map: "IX_T_PedidosOnLineItens_PEDIDO")
+  @@index([ID_PEDIDO, ID_ITEM], map: "UX_T_PedidosOnLineItens_PEDIDO_ITEM")
 }

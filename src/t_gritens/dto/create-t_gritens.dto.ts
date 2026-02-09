@@ -1,11 +1,5 @@
 import { Transform } from 'class-transformer';
-import {
-  IsString,
-  IsOptional,
-  IsNumber,
-  IsBoolean,
-  IsNotEmpty,
-} from 'class-validator';
+import { IsString, IsOptional, IsNumber, IsNotEmpty } from 'class-validator';
 
 export class CreateTGritensDto {
   @IsString()
@@ -21,5 +15,4 @@ export class CreateTGritensDto {
   @Transform(({ value }) => Number(value))
   @IsNumber()
   perccomgru?: number;
-
 }

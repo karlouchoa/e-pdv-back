@@ -1,4 +1,5 @@
-import { Expose } from 'class-transformer';
+import { Expose, Type } from 'class-transformer';
+import { PublicClientAddressDto } from './public-client-address.dto';
 
 export class PublicClientDto {
   @Expose()
@@ -30,4 +31,8 @@ export class PublicClientDto {
 
   @Expose()
   cnpj_cpfcli?: string | null;
+
+  @Expose()
+  @Type(() => PublicClientAddressDto)
+  enderecos?: PublicClientAddressDto[];
 }

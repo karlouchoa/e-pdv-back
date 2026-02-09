@@ -51,6 +51,20 @@ const T_ITPROMO_OUTPUT_COLUMNS = [
   'ID_ITEM',
 ];
 
+const T_ITPROMO_PUBLIC_COLUMNS = [
+  'EMPROMO',
+  'CDITEM',
+  'ID_ITEM',
+  'DEITEM',
+  'UNDVEN',
+  'PRECO',
+  'PRECOPROMO',
+  'DATA_PROMO',
+  'CDEMP',
+  'PRECOMIN',
+  'CUSTO',
+];
+
 @Injectable()
 export class TItpromoService {
   constructor(private readonly tenantDbService: TenantDbService) {}
@@ -60,15 +74,57 @@ export class TItpromoService {
   }
 
   private toPublicResponse(records: TItpromoPublicDto[]) {
-    return plainToInstance(TItpromoPublicDto, records, {
+    return records.map((record) => this.normalizePublicRecord(record));
+  }
+
+  private toRecordResponse(record: TItpromoRecordDto) {
+    const normalized = this.normalizeRecord(record);
+    return plainToInstance(TItpromoRecordDto, normalized, {
       excludeExtraneousValues: true,
     });
   }
 
-  private toRecordResponse(record: TItpromoRecordDto) {
-    return plainToInstance(TItpromoRecordDto, record, {
-      excludeExtraneousValues: true,
+  private normalizeRecord(record: TItpromoRecordDto) {
+    const raw = record as unknown as Record<string, unknown>;
+    const output: Record<string, unknown> = {};
+    T_ITPROMO_OUTPUT_COLUMNS.forEach((column) => {
+      let value = raw[column];
+
+      if (value === undefined) {
+        value = null;
+      }
+
+      if (TenantPrisma.Decimal?.isDecimal?.(value)) {
+        const numeric = Number(value);
+        value = Number.isNaN(numeric) ? value.toString() : numeric;
+      }
+
+      output[column] = value;
     });
+
+    return output as unknown as TItpromoRecordDto;
+  }
+
+  private normalizePublicRecord(record: TItpromoPublicDto) {
+    const raw = record as unknown as Record<string, unknown>;
+    const output: Record<string, unknown> = {};
+
+    T_ITPROMO_PUBLIC_COLUMNS.forEach((column) => {
+      let value = raw[column];
+
+      if (value === undefined) {
+        value = null;
+      }
+
+      if (TenantPrisma.Decimal?.isDecimal?.(value)) {
+        const numeric = Number(value);
+        value = Number.isNaN(numeric) ? value.toString() : numeric;
+      }
+
+      output[column] = value;
+    });
+
+    return output as unknown as TItpromoPublicDto;
   }
 
   private buildEntries(dto: CreateTItpromoDto | UpdateTItpromoDto) {
@@ -96,6 +152,54 @@ export class TItpromoService {
     );
   }
 
+  private buildPromoMatchByKeys(keys: { cditem: number; empitem: number }) {
+    return TenantPrisma.sql`
+      T_ITPROMO.CDITEM = ${keys.cditem}
+      AND T_ITPROMO.EMPITEM = ${keys.empitem}
+    `;
+  }
+
+
+  private async resolvePromoKeys(
+    tx: { $queryRaw: TenantClient['$queryRaw'] },
+    dto: CreateTItpromoDto,
+  ): Promise<{ cditem: number; empitem: number }> {
+    let cditem = dto.cditem;
+    let empitem = dto.empitem;
+
+    if ((cditem === undefined || empitem === undefined) && dto.id_item) {
+      const rows = await tx.$queryRaw<
+        Array<{ cditem: number | null; cdemp: number | null }>
+      >(
+        TenantPrisma.sql`
+          SELECT TOP (1)
+            CDITEM AS cditem,
+            CDEMP AS cdemp
+          FROM T_ITENS
+          WHERE ID = ${dto.id_item}
+        `,
+      );
+
+      const found = rows[0];
+      if (found) {
+        if (cditem === undefined && found.cditem !== null) {
+          cditem = found.cditem;
+        }
+        if (empitem === undefined && found.cdemp !== null) {
+          empitem = found.cdemp;
+        }
+      }
+    }
+
+    if (cditem === undefined || empitem === undefined) {
+      throw new BadRequestException(
+        'Informe CDITEM e CDEMP (EMPITEM) ou um ID_ITEM valido.',
+      );
+    }
+
+    return { cditem, empitem };
+  }
+
   async findPublic(tenant: string) {
     const prisma = await this.getPrisma(tenant);
 
@@ -103,6 +207,7 @@ export class TItpromoService {
       SELECT
         T_ITPROMO.EMPROMO AS EMPROMO,
         T_ITENS.CDITEM AS CDITEM,
+        T_ITPROMO.ID_ITEM AS ID_ITEM,
         T_ITENS.DEITEM AS DEITEM,
         T_ITENS.UNDVEN AS UNDVEN,
         T_ITENS.PRECO AS PRECO,
@@ -123,33 +228,115 @@ export class TItpromoService {
   }
 
   async create(tenant: string, dto: CreateTItpromoDto) {
-    const prisma = await this.getPrisma(tenant);
-    const entries = this.buildEntries(dto);
-    const columns = this.buildColumnList(entries.map((entry) => entry.column));
-    const values = entries.map((entry) => entry.value);
-    const output = this.buildOutputColumns('INSERTED');
-
-    const records = await prisma.$queryRaw<TItpromoRecordDto[]>(
-      TenantPrisma.sql`
-        INSERT INTO T_ITPROMO (${TenantPrisma.join(columns)})
-        OUTPUT ${TenantPrisma.join(output)}
-        VALUES (${TenantPrisma.join(values)})
-      `,
-    );
-
+    const records = await this.createMany(tenant, [dto]);
     const record = records[0];
     if (!record) {
       throw new BadRequestException('Falha ao inserir em T_ITPROMO.');
     }
+    return record;
+  }
 
-    return this.toRecordResponse(record);
+  async createMany(tenant: string, dtos: CreateTItpromoDto[]) {
+    if (!dtos || dtos.length === 0) {
+      throw new BadRequestException('Informe ao menos um item.');
+    }
+
+    const prisma = await this.getPrisma(tenant);
+    const output = this.buildOutputColumns('INSERTED');
+    const records = await prisma.$transaction(async (tx) => {
+      const collected: TItpromoRecordDto[] = [];
+
+      for (const dto of dtos) {
+        const keys = await this.resolvePromoKeys(tx, dto);
+        const insertDto: CreateTItpromoDto = {
+          ...dto,
+          cditem: keys.cditem,
+          empitem: keys.empitem,
+        };
+
+        const updateEntries = this.buildEntries(dto);
+        const insertEntries = this.buildEntries(insertDto);
+        const columns = this.buildColumnList(
+          insertEntries.map((entry) => entry.column),
+        );
+        const values = insertEntries.map((entry) => entry.value);
+        const updates = updateEntries.map(
+          (entry) =>
+            TenantPrisma.sql`${TenantPrisma.raw(`[${entry.column}]`)} = ${entry.value}`,
+        );
+        updates.push(TenantPrisma.raw('[UpdatedAt] = GETDATE()'));
+
+        if (!updates.length) {
+          throw new BadRequestException('Informe ao menos um campo.');
+        }
+
+        const matchByKeys = this.buildPromoMatchByKeys(keys);
+
+        const updated = await tx.$queryRaw<TItpromoRecordDto[]>(
+          TenantPrisma.sql`
+            UPDATE TOP (1) T_ITPROMO
+            SET ${TenantPrisma.join(updates)}
+            OUTPUT ${TenantPrisma.join(output)}
+            WHERE ${matchByKeys}
+              AND PRECOPROMO < PRECOMIN
+              AND PRECOMIN < PRECO
+              AND DATA_PROMO < GETDATE()
+          `,
+        );
+
+        const updatedRecord = updated[0];
+        if (updatedRecord) {
+          collected.push(updatedRecord);
+          continue;
+        }
+
+        const updatedFallback = await tx.$queryRaw<TItpromoRecordDto[]>(
+          TenantPrisma.sql`
+            UPDATE TOP (1) T_ITPROMO
+            SET ${TenantPrisma.join(updates)}
+            OUTPUT ${TenantPrisma.join(output)}
+            WHERE ${matchByKeys}
+          `,
+        );
+
+        const updatedFallbackRecord = updatedFallback[0];
+        if (updatedFallbackRecord) {
+          collected.push(updatedFallbackRecord);
+          continue;
+        }
+
+        const inserted = await tx.$queryRaw<TItpromoRecordDto[]>(
+          TenantPrisma.sql`
+            INSERT INTO T_ITPROMO (${TenantPrisma.join(columns)})
+            OUTPUT ${TenantPrisma.join(output)}
+            VALUES (${TenantPrisma.join(values)})
+          `,
+        );
+
+        const insertedRecord = inserted[0];
+        if (!insertedRecord) {
+          throw new BadRequestException('Falha ao inserir itens em T_ITPROMO.');
+        }
+
+        collected.push(insertedRecord);
+      }
+
+      return collected;
+    });
+
+    if (records.length !== dtos.length) {
+      throw new BadRequestException('Falha ao inserir itens em T_ITPROMO.');
+    }
+
+    return records.map((record) => this.toRecordResponse(record));
   }
 
   async update(tenant: string, autocod: number, dto: UpdateTItpromoDto) {
     const prisma = await this.getPrisma(tenant);
     const entries = this.buildEntries(dto);
-    const updates = entries.map((entry) =>
-      TenantPrisma.sql`${TenantPrisma.raw(`[${entry.column}]`)} = ${entry.value}`,
+    const updates = entries.map(
+      (entry) =>
+        TenantPrisma.sql`${TenantPrisma.raw(`[${entry.column}]`)} = ${entry.value}`,
     );
     updates.push(TenantPrisma.raw('[UpdatedAt] = GETDATE()'));
     const output = this.buildOutputColumns('INSERTED');

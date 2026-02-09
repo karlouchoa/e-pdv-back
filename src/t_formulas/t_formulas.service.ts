@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import type {
   Prisma,
   PrismaClient as TenantClient,
@@ -6,7 +10,6 @@ import type {
 } from '../../prisma/generated/client_tenant';
 import { TenantDbService } from '../tenant-db/tenant-db.service';
 import { CreateTFormulaDto } from './dto/create-t_formulas.dto';
-import { UpdateTFormulaDto } from './dto/update-t_formulas.dto';
 
 interface TFormulasFilters {
   cditem?: number;
@@ -42,45 +45,157 @@ export class TFormulasService {
     return cdemp;
   }
 
-  private buildWhere(autocod: number) {
-    return { autocod };
-  }
-
-  private async ensureFormula(
+  private async getFormulasByItem(
     prisma: TenantClient,
     cdemp: number,
-    autocod: number,
+    cditem: number,
   ) {
-    const formula = await prisma.t_formulas.findFirst({
-      where: { cdemp, autocod },
+    const formulas = await prisma.t_formulas.findMany({
+      where: { cdemp, cditem },
+      orderBy: { autocod: 'asc' },
     });
 
-    if (!formula) {
+    if (!formulas.length) {
       throw new NotFoundException(
-        `Formula ${autocod} nao encontrada para a empresa ${cdemp}`,
+        `Formula do item ${cditem} nao encontrada para a empresa ${cdemp}`,
       );
     }
 
-    return formula;
+    return this.includeMateriaPrima(prisma, formulas);
+  }
+
+  private async getFormulasByItemId(prisma: TenantClient, idItem: string) {
+    const formulas = await prisma.t_formulas.findMany({
+      where: { ID_ITEM: idItem },
+      orderBy: { autocod: 'asc' },
+    });
+
+    if (!formulas.length) {
+      throw new NotFoundException(`Formula do item ${idItem} nao encontrada.`);
+    }
+
+    return this.includeMateriaPrima(prisma, formulas);
   }
 
   async create(tenant: string, dto: CreateTFormulaDto) {
     const prisma = await this.getPrisma(tenant);
-    const cdemp = await this.getCompanyId(tenant, prisma);
+    const item = await prisma.t_itens.findFirst({
+      where: { ID: dto.idItem },
+      select: {
+        cditem: true,
+        cdemp: true,
+        undven: true,
+      },
+    });
 
-    const data: Prisma.t_formulasUncheckedCreateInput = {
-      cdemp,
-      cditem: dto.cditem,
-      empitem: dto.empitem,
-      undven: dto.undven,
-      matprima: dto.matprima,
-      qtdemp: dto.qtdemp,
-      undmp: dto.undmp,
-      empitemmp: dto.empitemmp,
-      deitem_iv: dto.deitem_iv,
-    };
+    if (!item) {
+      throw new NotFoundException(
+        `Item ${dto.idItem} nao encontrado para cadastro da formula.`,
+      );
+    }
 
-    return prisma.t_formulas.create({ data });
+    const cdemp = item.cdemp ?? (await this.getCompanyId(tenant, prisma));
+    const cditem = item.cditem ?? dto.cditem;
+    const empitem = dto.empitem ?? cdemp;
+    const undven = item.undven ?? dto.undven;
+
+    if (!dto.lines?.length) {
+      throw new BadRequestException('Informe ao menos uma materia-prima.');
+    }
+
+    const invalidLine = dto.lines.find(
+      (line) =>
+        !Number.isFinite(line.matprima) ||
+        !Number.isFinite(line.qtdemp) ||
+        line.qtdemp <= 0,
+    );
+
+    if (invalidLine) {
+      throw new BadRequestException('Revise os dados das materias-primas.');
+    }
+
+    return prisma.$transaction(async (tx) => {
+      await tx.t_formulas.deleteMany({
+        where: {
+          ID_ITEM: dto.idItem,
+        },
+      });
+
+      const data: Prisma.t_formulasUncheckedCreateInput[] = dto.lines.map(
+        (line) => ({
+          cdemp,
+          cditem,
+          empitem,
+          undven,
+          matprima: line.matprima,
+          qtdemp: line.qtdemp,
+          undmp: line.undmp,
+          empitemmp: line.empitemmp,
+          deitem_iv: line.deitem_iv,
+          ID_ITEM: dto.idItem,
+        }),
+      );
+
+      if (dto.updateItemPrices) {
+        const matprimaIds = Array.from(
+          new Set(
+            dto.lines
+              .map((line) => line.matprima)
+              .filter((id) => Number.isFinite(id)),
+          ),
+        );
+
+        if (matprimaIds.length === 0) {
+          throw new BadRequestException(
+            'Nao foi possivel calcular custos: nenhuma materia-prima valida encontrada.',
+          );
+        }
+
+        const materiasPrimas = await tx.t_itens.findMany({
+          where: { cditem: { in: matprimaIds } },
+          select: { cditem: true, custo: true, preco: true, precomin: true },
+        });
+
+        const materiaMap = new Map(materiasPrimas.map((mp) => [mp.cditem, mp]));
+
+        let totalCusto = 0;
+        let totalPreco = 0;
+        let totalPrecomin = 0;
+
+        for (const line of dto.lines) {
+          const qty = Number(line.qtdemp) || 0;
+          const mp = materiaMap.get(line.matprima);
+          const custo = Number(mp?.custo ?? 0);
+          const preco = Number(mp?.preco ?? 0);
+          const precomin = Number(mp?.precomin ?? 0);
+
+          totalCusto += custo * qty;
+          totalPreco += preco * qty;
+          totalPrecomin += precomin * qty;
+        }
+
+        await tx.t_itens.updateMany({
+          where: {
+            OR: [{ ID: dto.idItem }, { cdemp, cditem }],
+          },
+          data: {
+            custo: totalCusto,
+            preco: totalPreco,
+            precomin: totalPrecomin,
+            updatedat: new Date(),
+          },
+        });
+      }
+
+      await tx.t_formulas.createMany({ data });
+
+      const created = await tx.t_formulas.findMany({
+        where: { ID_ITEM: dto.idItem },
+        orderBy: { autocod: 'asc' },
+      });
+
+      return this.includeMateriaPrima(tx, created);
+    });
   }
 
   async findAll(tenant: string, filters?: TFormulasFilters) {
@@ -113,41 +228,27 @@ export class TFormulasService {
     return enrichedFormulas;
   }
 
-  async findOne(tenant: string, id: number) {
+  async findOne(tenant: string, id: string) {
     const prisma = await this.getPrisma(tenant);
-    const cdemp = await this.getCompanyId(tenant, prisma);
-
-   
-    return this.ensureFormula(prisma, cdemp, id);
+    return this.getFormulasByItemId(prisma, id);
   }
 
-  async update(tenant: string, id: number, dto: UpdateTFormulaDto) {
+  async remove(tenant: string, id: string) {
     const prisma = await this.getPrisma(tenant);
-    const cdemp = await this.getCompanyId(tenant, prisma);
-    await this.ensureFormula(prisma, cdemp, id);
 
-    const data: Prisma.t_formulasUncheckedUpdateInput = {
-      ...dto,
-    };
-
-    return prisma.t_formulas.update({
-      where: this.buildWhere(id),
-      data,
+    const result = await prisma.t_formulas.deleteMany({
+      where: { ID_ITEM: id },
     });
-  }
 
-  async remove(tenant: string, id: number) {
-    const prisma = await this.getPrisma(tenant);
-    const cdemp = await this.getCompanyId(tenant, prisma);
-    await this.ensureFormula(prisma, cdemp, id);
+    if (result.count === 0) {
+      throw new NotFoundException(`Formula do item ${id} nao encontrada.`);
+    }
 
-    return prisma.t_formulas.delete({
-      where: this.buildWhere(id),
-    });
+    return result;
   }
 
   private async includeMateriaPrima(
-    prisma: TenantClient,
+    prisma: TenantClient | Prisma.TransactionClient,
     formulas: FormulaModel[],
   ) {
     const materiaPrimaIds = Array.from(
@@ -169,6 +270,8 @@ export class TFormulasService {
         deitem: true,
         custo: true,
         undven: true,
+        preco: true,
+        precomin: true,
       },
     });
 
@@ -182,4 +285,3 @@ export class TFormulasService {
     }));
   }
 }
-

@@ -6,6 +6,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Min,
 } from 'class-validator';
 
 const toNumber = ({ value }: { value: unknown }) =>
@@ -64,6 +65,7 @@ export class CreatePublicItsvenDto {
   @IsOptional()
   @Transform(toNumber)
   @IsNumber()
+  @Min(0.000001)
   qtdesol_iv?: number;
 
   @IsOptional()

@@ -1,10 +1,5 @@
 import { Transform } from 'class-transformer';
-import {
-  IsDateString,
-  IsNumber,
-  IsOptional,
-  IsString,
-} from 'class-validator';
+import { IsDateString, IsNumber, IsOptional, IsString } from 'class-validator';
 
 const toNumber = ({ value }: { value: unknown }) =>
   value === null || value === undefined ? value : Number(value);

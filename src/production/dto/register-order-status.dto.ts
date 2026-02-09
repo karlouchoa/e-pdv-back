@@ -1,6 +1,18 @@
-import { IsDateString, IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
+import {
+  IsDateString,
+  IsIn,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
 
-export const ORDER_STATUS_VALUES = ['PENDENTE', 'SEPARACAO', 'PRODUCAO', 'CONCLUIDA', 'CANCELADA'] as const;
+export const ORDER_STATUS_VALUES = [
+  'PENDENTE',
+  'SEPARACAO',
+  'PRODUCAO',
+  'CONCLUIDA',
+  'CANCELADA',
+] as const;
 export type OrderStatus = (typeof ORDER_STATUS_VALUES)[number];
 
 export class RegisterOrderStatusDto {
@@ -10,7 +22,7 @@ export class RegisterOrderStatusDto {
   @IsOptional()
   @IsDateString()
   event_time?: string;
-  
+
   @IsString()
   @MaxLength(120)
   responsible!: string;

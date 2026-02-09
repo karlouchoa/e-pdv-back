@@ -107,11 +107,7 @@ export class BomPdfService {
         .text(item.label.toUpperCase(), {
           width: this.contentWidth(doc),
         });
-      doc
-        .font('Helvetica')
-        .fontSize(12)
-        .fillColor('#111827')
-        .text(item.value);
+      doc.font('Helvetica').fontSize(12).fillColor('#111827').text(item.value);
       doc.moveDown(0.3);
     });
 
@@ -206,11 +202,11 @@ export class BomPdfService {
 
     const tableTop = doc.y;
     doc.save();
-    
+
     doc
-    .lineWidth(1)
-    .roundedRect(startX, tableTop, tableWidth, headerHeight, 4)
-    .fillAndStroke('#ffffff', '#000000'); // fundo branco, borda preta
+      .lineWidth(1)
+      .roundedRect(startX, tableTop, tableWidth, headerHeight, 4)
+      .fillAndStroke('#ffffff', '#000000'); // fundo branco, borda preta
     doc.restore();
 
     const columnOffsets = this.buildColumnOffsets(columns, startX);
@@ -363,10 +359,3 @@ export class BomPdfService {
     return typeof value === 'number' ? value : Number(value);
   }
 }
-
-
-
-
-
-
-

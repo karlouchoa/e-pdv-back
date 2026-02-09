@@ -13,10 +13,9 @@ export class TenantDbService implements OnModuleDestroy {
   /**
    * Cache de conexões Prisma por tenant
    */
-  
+
   /*private connections = new Map<string, TenantClient>();*/
   private connections: Map<string, TenantClient> = new Map();
-
 
   /**
    * Conexão fixa com o banco principal (t_acessos, t_empresas, etc)
@@ -128,10 +127,10 @@ export class TenantDbService implements OnModuleDestroy {
   /**
    * Finaliza todas as conexões quando o módulo é desligado.
    */
- 
+
   async onModuleDestroy() {
     this.logger.log('Desconectando Prisma (main + tenants)...');
-  
+
     const disconnects = Array.from(this.connections.values()).map((client) =>
       client.$disconnect(),
     );
@@ -140,6 +139,4 @@ export class TenantDbService implements OnModuleDestroy {
 
     await this.main.$disconnect();
   }
-  
-
 }

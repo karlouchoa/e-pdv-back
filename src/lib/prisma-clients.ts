@@ -13,7 +13,6 @@ function requirePrismaModule<T>(
 
   for (const modulePath of candidatePaths) {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
       return require(modulePath) as T;
     } catch (error: any) {
       if (error?.code !== 'MODULE_NOT_FOUND') {
@@ -27,9 +26,8 @@ function requirePrismaModule<T>(
   );
 }
 
-const tenantPrismaModule = requirePrismaModule<TenantPrismaModule>(
-  'client_tenant',
-);
+const tenantPrismaModule =
+  requirePrismaModule<TenantPrismaModule>('client_tenant');
 
 const mainPrismaModule = requirePrismaModule<MainPrismaModule>('client_main');
 

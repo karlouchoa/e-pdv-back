@@ -138,7 +138,9 @@ export class TItensService {
   private parseCditem(id: string) {
     const cditem = Number(id);
     if (!Number.isFinite(cditem)) {
-      throw new BadRequestException('O identificador do item precisa ser numerico.');
+      throw new BadRequestException(
+        'O identificador do item precisa ser numerico.',
+      );
     }
     return cditem;
   }
@@ -164,9 +166,7 @@ export class TItensService {
     item: T,
     fallbackCdemp: number | null,
   ): T & { cdemp: number | null } {
-    const current = this.toOptionalNumber(
-      (item as { cdemp?: unknown }).cdemp,
-    );
+    const current = this.toOptionalNumber((item as { cdemp?: unknown }).cdemp);
     if (current !== null) {
       return { ...item, cdemp: current };
     }
@@ -244,7 +244,9 @@ export class TItensService {
   private async attachCategorias<T extends { cdgruit?: unknown }>(
     prisma: TenantClient,
     items: T[],
-  ): Promise<Array<T & { categoria: { cdgru: number; degru: string | null } | null }>> {
+  ): Promise<
+    Array<T & { categoria: { cdgru: number; degru: string | null } | null }>
+  > {
     const categoryIds = [
       ...new Set(
         items
@@ -270,7 +272,7 @@ export class TItensService {
       const cdgruit = this.toOptionalNumber(item.cdgruit);
       return {
         ...item,
-        categoria: cdgruit !== null ? categoryMap.get(cdgruit) ?? null : null,
+        categoria: cdgruit !== null ? (categoryMap.get(cdgruit) ?? null) : null,
       };
     });
   }
@@ -464,40 +466,38 @@ export class TItensService {
     const cdemp = await this.getMatrizCompanyId(tenant, prisma);
     const imageInputs = this.normalizeImageInputs(dto.images);
     const primaryImageUrl = this.resolvePrimaryImageUrl(imageInputs);
-  
+
     const data = {
       cdemp,
-  
+
       // mapeamento DTO → banco
       deitem: dto.name,
-      defat: dto.description ?? "",
-      undven: dto.unit ?? "UN",
+      defat: dto.description ?? '',
+      undven: dto.unit ?? 'UN',
       cdgruit: dto.category ? Number(dto.category) : null,
-  
+
       preco: dto.salePrice ?? 0,
       custo: dto.costPrice ?? 0,
-  
+
       codncm: dto.ncm || null,
       cest: dto.cest || null,
       codcst: dto.cst || null,
       barcodeit: dto.barcode || null,
-  
+
       diasent: dto.leadTimeDays ?? 0,
-  
-      itprodsn: dto.itprodsn ?? "N",
-      matprima: dto.matprima ?? "N",
-  
+
+      itprodsn: dto.itprodsn ?? 'N',
+      matprima: dto.matprima ?? 'N',
+
       obsitem: dto.notes ?? null,
       locfotitem:
-        dto.imagePath !== undefined
-          ? dto.imagePath
-          : primaryImageUrl ?? null,
-  
+        dto.imagePath !== undefined ? dto.imagePath : (primaryImageUrl ?? null),
+
       // defaults obrigatórios
-      ativosn: "S",
-      negativo: "S",
-      aceitadesc: "S",
-  
+      ativosn: 'S',
+      negativo: 'S',
+      aceitadesc: 'S',
+
       qtembitem: 0,
       pesobr: 0,
       pesolq: 0,
@@ -508,22 +508,19 @@ export class TItensService {
       precomin: 0,
       percom: 0,
       sldatual: 0,
-  
+
       datacadit: new Date(),
       updatedat: new Date(),
     };
-  
+
     const created = await prisma.t_itens.create({ data });
     if (imageInputs.length && created.ID) {
       await this.syncItemImages(prisma, created.ID, imageInputs);
     }
     return this.ensureCdemp(created, cdemp);
   }
-  
-  async findAll(
-    tenant: string,
-    filters?: Record<string, string | string[]>,
-  ) {
+
+  async findAll(tenant: string, filters?: Record<string, string | string[]>) {
     const prisma = await this.getPrisma(tenant);
 
     const getParam = (key: string) => {
@@ -635,10 +632,10 @@ export class TItensService {
         findManyArgs.take = pageSize;
       }
 
-    const [items, total] = await Promise.all([
-      prisma.t_itens.findMany(findManyArgs),
-      prisma.t_itens.count({ where }),
-    ]);
+      const [items, total] = await Promise.all([
+        prisma.t_itens.findMany(findManyArgs),
+        prisma.t_itens.count({ where }),
+      ]);
 
       const itemsWithSaldo = await this.attachSaldo(prisma, saldoCdemp, items);
       const ensuredItems = this.ensureCdempList(itemsWithSaldo, itemsCdemp);
@@ -774,7 +771,11 @@ export class TItensService {
     return response;
   }
 
-  async searchByDescription(tenant: string, description?: string) {
+  async searchByDescription(
+    tenant: string,
+    description?: string,
+    filters?: { matprima?: string; itprodsn?: string },
+  ) {
     const term = description?.trim();
     if (!term) {
       throw new BadRequestException('Parametro "description" obrigatorio.');
@@ -786,16 +787,28 @@ export class TItensService {
 
     const isNumeric = /^\d+$/.test(term);
 
+    const where: PrismaTypes.t_itensWhereInput = isNumeric
+      ? {
+          cdemp,
+          cditem: Number(term),
+        }
+      : {
+          cdemp,
+          deitem: { startsWith: term },
+        };
+
+    const matprima = filters?.matprima?.trim().toUpperCase();
+    if (matprima === 'S' || matprima === 'N') {
+      where.matprima = matprima;
+    }
+
+    const itprodsn = filters?.itprodsn?.trim().toUpperCase();
+    if (itprodsn === 'S' || itprodsn === 'N') {
+      where.itprodsn = itprodsn;
+    }
+
     const results = await prisma.t_itens.findMany({
-      where: isNumeric
-        ? {
-            cdemp,
-            cditem: Number(term),
-          }
-        : {
-            cdemp,
-            deitem: { startsWith: term },
-          },
+      where,
       orderBy: { deitem: 'asc' },
       include: {
         t_imgitens: {
@@ -817,7 +830,6 @@ export class TItensService {
     );
     return this.withImageUrlsList(itemsWithCategorias);
   }
-  
 
   async findOne(tenant: string, id: string) {
     const prisma = await this.getPrisma(tenant);
@@ -843,13 +855,12 @@ export class TItensService {
     return this.withImageUrls(withCategoria);
   }
 
-
   async update(tenant: string, uuid: string, dto: UpdateTItemDto) {
     const prisma = await this.getPrisma(tenant);
     const cdemp = await this.getMatrizCompanyId(tenant, prisma);
     const imageInputs = this.normalizeImageInputs(dto.images);
     const primaryImageUrl = this.resolvePrimaryImageUrl(imageInputs);
-  
+
     // 1️⃣ Buscar o item pelo UUID
     const existing = await prisma.t_itens.findFirst({
       where: {
@@ -857,13 +868,13 @@ export class TItensService {
         ID: uuid, // <-- UUID verdadeiro
       },
     });
-  
+
     if (!existing) {
       throw new Error('Item não encontrado para este tenant.');
     }
-  
+
     const cditem = existing.cditem; // <- chave real
-  
+
     // 2️⃣ Construir data de atualização
     const data: any = {
       deitem: dto.name,
@@ -871,12 +882,12 @@ export class TItensService {
       undven: dto.unit,
       mrcitem: dto.marca,
       cdgruit: dto.category ? Number(dto.category) : undefined,
-  
+
       preco: dto.salePrice,
       custo: dto.costPrice,
       valcmp: dto.valcmp,
       margem: dto.margem,
-  
+
       codncm: dto.ncm,
       cest: dto.cest,
       codcst: dto.cst,
@@ -887,9 +898,9 @@ export class TItensService {
 
       itprodsn: dto.itprodsn,
       matprima: dto.matprima,
-  
+
       obsitem: dto.notes,
-  
+
       updatedat: new Date(),
     };
 
@@ -898,12 +909,12 @@ export class TItensService {
     } else if (primaryImageUrl) {
       data.locfotitem = primaryImageUrl;
     }
-  
+
     // Remove undefined
     Object.keys(data).forEach(
-      key => data[key] === undefined && delete data[key],
+      (key) => data[key] === undefined && delete data[key],
     );
-  
+
     // 3️⃣ UPDATE via PK composta (cdemp + cditem)
     const updated = await prisma.t_itens.update({
       where: {
@@ -919,8 +930,7 @@ export class TItensService {
     }
     return this.ensureCdemp(updated, cdemp);
   }
-  
-  
+
   async remove(tenant: string, id: string, cdempInput: unknown) {
     const prisma = await this.getPrisma(tenant);
     const cdemp = this.toOptionalNumber(cdempInput);
@@ -971,9 +981,6 @@ export class TItensService {
     return this.ensureCdemp(updated, cdemp);
   }
 
-
-  
-
   /** -------------------------
    *     FILTROS E TRATAMENTO
    *  ------------------------- */
@@ -997,9 +1004,10 @@ export class TItensService {
     return { value: trimmed, wasQuoted: false };
   }
 
-  private tryCoerceValue(
-    value: { value: string; wasQuoted: boolean },
-  ): string | number {
+  private tryCoerceValue(value: {
+    value: string;
+    wasQuoted: boolean;
+  }): string | number {
     if (value.wasQuoted) return value.value;
 
     const numeric = Number(value.value);

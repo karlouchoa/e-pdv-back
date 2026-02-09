@@ -15,7 +15,7 @@ export class IssueRawMaterialsDto {
   @Type(() => RecordRawMaterialDto)
   raw_materials!: RecordRawMaterialDto[];
 
-  @Transform(({ value, obj }) => value ?? obj.warehouse ?? (obj as any)?.wharehouse)
+  @Transform(({ value, obj }) => value ?? obj.warehouse ?? obj?.wharehouse)
   @IsOptional()
   @IsString()
   @MaxLength(80)

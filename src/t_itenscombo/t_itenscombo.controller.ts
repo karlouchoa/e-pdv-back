@@ -10,7 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import type { Request } from 'express';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { TenantJwtGuard } from '../auth/tenant-jwt.guard';
 import { CreateTItensComboDto } from './dto/create-t_itenscombo.dto';
 import { UpdateTItensComboDto } from './dto/update-t_itenscombo.dto';
 import { TItensComboService } from './t_itenscombo.service';
@@ -20,7 +20,7 @@ interface TenantRequest extends Request {
 }
 
 @Controller('t_itenscombo')
-@UseGuards(JwtAuthGuard)
+@UseGuards(TenantJwtGuard)
 export class TItensComboController {
   constructor(private readonly tItensComboService: TItensComboService) {}
 
