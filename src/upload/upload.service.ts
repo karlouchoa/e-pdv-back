@@ -1,14 +1,24 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+} from '@nestjs/common';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
 
+type UploadTarget = {
+  bucketName: string;
+  publicDomain: string;
+};
+
 @Injectable()
 export class UploadService {
-  private s3Client: S3Client;
+  private readonly logger = new Logger(UploadService.name);
+  private readonly s3Client: S3Client;
 
-  constructor(private configService: ConfigService) {
+  constructor(private readonly configService: ConfigService) {
     this.s3Client = new S3Client({
       region: 'auto',
       endpoint: `https://${this.configService.getOrThrow('R2_ACCOUNT_ID')}.r2.cloudflarestorage.com`,
@@ -19,12 +29,12 @@ export class UploadService {
     });
   }
 
-  // Adicionado o parâmetro opcional 'origin'
   async generatePresignedUrl(
     tenantSlug: string,
     _fileName: string,
     fileType: string,
     origin?: string,
+    requestHost?: string,
   ) {
     try {
       const extension =
@@ -41,44 +51,116 @@ export class UploadService {
       const year = date.getFullYear();
       const month = String(date.getMonth() + 1).padStart(2, '0');
       const key = `uploads/${safeTenant}/${year}/${month}/${randomUUID()}.${extension}`;
+      const target = this.resolveUploadTarget({ origin, requestHost });
 
       const command = new PutObjectCommand({
-        Bucket: this.configService.getOrThrow('R2_BUCKET_NAME'),
+        Bucket: target.bucketName,
         Key: key,
         ContentType: fileType,
       });
 
-      // Gera a URL assinada (válida por 10 minutos)
       const uploadUrl = await getSignedUrl(this.s3Client, command, {
         expiresIn: 600,
       });
 
-      // --- LÓGICA DE WHITE-LABEL ---
-      // Pega o domínio padrão do .env (ex: https://cdn.goldpdv.com.br)
-      let publicDomain = this.configService.getOrThrow('R2_PUBLIC_DOMAIN');
-
-      // Se a origem da requisição for do domínio E-PDV, altera a URL de retorno
-      if (
-        origin &&
-        (origin.includes('e-pdv.com') || origin.includes('localhost'))
-      ) {
-        // Você pode refinar a regra do localhost se quiser testar um específico
-        // ou apenas verificar se inclui a string do domínio secundário
-        if (origin.includes('e-pdv.com')) {
-          publicDomain = 'https://cdn.e-pdv.com';
-        }
-      }
-
       return {
-        uploadUrl, // URL para upload (PUT)
-        fileUrl: `${publicDomain}/${key}`, // URL pública ajustada conforme a origem
-        fileKey: key, // Chave interna
+        uploadUrl,
+        fileUrl: `${target.publicDomain}/${key}`,
+        fileKey: key,
       };
     } catch (error) {
-      console.error('Erro ao gerar Presigned URL:', error);
+      this.logger.error(
+        'Erro ao gerar presigned URL',
+        error instanceof Error ? error.stack : undefined,
+      );
       throw new InternalServerErrorException(
         'Erro ao preparar upload de imagem',
       );
     }
+  }
+
+  private resolveUploadTarget(context: {
+    origin?: string;
+    requestHost?: string;
+  }): UploadTarget {
+    const defaultBucket = this.configService
+      .getOrThrow<string>('R2_BUCKET_NAME')
+      .trim();
+    const defaultDomain = this.normalizePublicDomain(
+      this.configService.getOrThrow<string>('R2_PUBLIC_DOMAIN'),
+    );
+
+    if (!this.isEpdvRequest(context)) {
+      return { bucketName: defaultBucket, publicDomain: defaultDomain };
+    }
+
+    const epdvBucket = this.configService.get<string>('R2_BUCKET_NAME_EPDV');
+    const epdvDomain = this.configService.get<string>('R2_PUBLIC_DOMAIN_EPDV');
+    const normalizedEpdvBucket = epdvBucket?.trim();
+    const normalizedEpdvDomain = epdvDomain?.trim();
+    const fallbackEpdvBucket = 'e-pdv-assets';
+    const fallbackEpdvDomain = 'https://cdn.e-pdv.com';
+
+    if (!normalizedEpdvBucket || !normalizedEpdvDomain) {
+      this.logger.warn(
+        'Configuracao R2 EPDV ausente/incompleta; usando fallback e-pdv-assets/cdn.e-pdv.com.',
+      );
+    }
+
+    return {
+      bucketName: normalizedEpdvBucket ?? fallbackEpdvBucket,
+      publicDomain: this.normalizePublicDomain(
+        normalizedEpdvDomain ?? fallbackEpdvDomain,
+      ),
+    };
+  }
+
+  private isEpdvRequest(context: {
+    origin?: string;
+    requestHost?: string;
+  }): boolean {
+    const originHost = this.extractHostname(context.origin);
+    if (originHost && this.isEpdvHostname(originHost)) {
+      return true;
+    }
+
+    const requestHost = this.extractHostname(context.requestHost);
+    if (requestHost && this.isEpdvHostname(requestHost)) {
+      return true;
+    }
+
+    return false;
+  }
+
+  private extractHostname(input?: string): string | null {
+    if (!input) return null;
+
+    const raw = input.split(',')[0]?.trim();
+    if (!raw) return null;
+
+    try {
+      return new URL(raw).hostname.toLowerCase();
+    } catch {
+      return raw
+        .replace(/^https?:\/\//i, '')
+        .split('/')[0]
+        .replace(/:\d+$/, '')
+        .toLowerCase();
+    }
+  }
+
+  private isEpdvHostname(hostname: string): boolean {
+    const normalized = hostname.replace(/:\d+$/, '');
+
+    return (
+      normalized === 'e-pdv.com' ||
+      normalized.endsWith('.e-pdv.com') ||
+      normalized === 'e-pdv.local' ||
+      normalized.endsWith('.e-pdv.local')
+    );
+  }
+
+  private normalizePublicDomain(value: string): string {
+    return value.trim().replace(/\/+$/, '');
   }
 }

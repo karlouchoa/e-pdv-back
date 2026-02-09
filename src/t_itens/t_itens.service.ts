@@ -207,36 +207,58 @@ export class TItensService {
 
   private resolveImageUrls(item: {
     locfotitem?: string | null;
-    t_imgitens?: Array<{ URL?: string | null }>;
+    t_imgitens?: Array<{ ID?: string | null; URL?: string | null }>;
   }) {
-    const imageUrls = (item.t_imgitens ?? [])
-      .map((image) => (image.URL ?? '').trim())
-      .filter((url) => url.length > 0);
+    return this.resolveImages(item).map((image) => image.url);
+  }
 
-    if (!imageUrls.length) {
-      const fallback = item.locfotitem?.trim();
-      if (fallback) {
-        imageUrls.push(fallback);
+  private resolveImages(item: {
+    locfotitem?: string | null;
+    t_imgitens?: Array<{ ID?: string | null; URL?: string | null }>;
+  }) {
+    const images: Array<{ id?: string; url: string }> = [];
+    for (const image of item.t_imgitens ?? []) {
+      const url = (image.URL ?? '').trim();
+      if (!url) {
+        continue;
+      }
+
+      const id = image.ID?.trim();
+      if (id) {
+        images.push({ id, url });
+      } else {
+        images.push({ url });
       }
     }
 
-    return imageUrls;
+    if (images.length) {
+      return images;
+    }
+
+    const fallback = item.locfotitem?.trim();
+    return fallback ? [{ url: fallback }] : [];
   }
 
   private withImageUrls<T extends { locfotitem?: string | null }>(
-    item: T & { t_imgitens?: Array<{ URL?: string | null }> },
+    item: T & {
+      t_imgitens?: Array<{ ID?: string | null; URL?: string | null }>;
+    },
   ) {
+    const images = this.resolveImages(item);
     const imageUrls = this.resolveImageUrls(item);
     const primaryImage = imageUrls[0] ?? item.locfotitem ?? null;
     return {
       ...item,
       locfotitem: primaryImage,
+      images,
       imageUrls,
     };
   }
 
   private withImageUrlsList<T extends { locfotitem?: string | null }>(
-    items: Array<T & { t_imgitens?: Array<{ URL?: string | null }> }>,
+    items: Array<
+      T & { t_imgitens?: Array<{ ID?: string | null; URL?: string | null }> }
+    >,
   ) {
     return items.map((item) => this.withImageUrls(item));
   }
@@ -283,18 +305,41 @@ export class TItensService {
     >,
   ) {
     if (!Array.isArray(images)) return [];
+
+    const seen = new Set<string>();
     return images
       .map((image) => {
         if (typeof image === 'string') {
-          return { url: image.trim() || undefined };
+          const trimmed = image.trim() || undefined;
+          if (trimmed && trimmed.length > 200) {
+            throw new BadRequestException(
+              'Cada URL de imagem deve ter no maximo 200 caracteres.',
+            );
+          }
+          return { url: trimmed };
         }
         const url = image.url ?? image.URL;
+        const trimmedUrl = url?.trim() || undefined;
+        if (trimmedUrl && trimmedUrl.length > 200) {
+          throw new BadRequestException(
+            'Cada URL de imagem deve ter no maximo 200 caracteres.',
+          );
+        }
+
         return {
           id: image.id?.trim() || undefined,
-          url: url?.trim() || undefined,
+          url: trimmedUrl,
         };
       })
-      .filter((image) => image.id || image.url);
+      .filter((image) => image.id || image.url)
+      .filter((image) => {
+        const key = image.id ? `id:${image.id}` : `url:${image.url}`;
+        if (seen.has(key)) {
+          return false;
+        }
+        seen.add(key);
+        return true;
+      });
   }
 
   private resolvePrimaryImageUrl(images: Array<{ url?: string }>) {
@@ -307,98 +352,32 @@ export class TItensService {
     itemId: string,
     images: Array<{ id?: string; url?: string }>,
   ) {
-    if (!images.length) return;
-
-    const ids = images
-      .map((image) => image.id)
-      .filter((id): id is string => Boolean(id));
-    const existingById = new Map<string, { ID: string; URL: string | null }>();
-    const urlCandidates = Array.from(
+    const urls = Array.from(
       new Set(
         images
           .map((image) => image.url?.trim())
           .filter((url): url is string => Boolean(url)),
       ),
     );
-    const existingByUrl = new Map<string, { ID: string; URL: string | null }>();
-
-    if (ids.length) {
-      const existing = await prisma.t_imgitens.findMany({
-        where: {
-          ID_ITEM: itemId,
-          ID: { in: ids },
-        },
-        select: {
-          ID: true,
-          URL: true,
-        },
-      });
-
-      for (const record of existing) {
-        existingById.set(record.ID, record);
-      }
-    }
-
-    if (urlCandidates.length) {
-      const existing = await prisma.t_imgitens.findMany({
-        where: {
-          ID_ITEM: itemId,
-          URL: { in: urlCandidates },
-        },
-        select: {
-          ID: true,
-          URL: true,
-        },
-      });
-
-      for (const record of existing) {
-        if (record.URL) {
-          existingByUrl.set(record.URL.trim(), record);
-        }
-      }
-    }
-
     const operations: PrismaTypes.PrismaPromise<unknown>[] = [];
     const now = new Date();
 
-    for (const image of images) {
-      const url = image.url?.trim();
+    operations.push(
+      prisma.t_imgitens.deleteMany({
+        where: { ID_ITEM: itemId },
+      }),
+    );
 
-      if (image.id) {
-        const existing = existingById.get(image.id);
-        if (!existing || !url) {
-          continue;
-        }
-        const currentUrl = (existing.URL ?? '').trim();
-        if (currentUrl === url) {
-          continue;
-        }
-        operations.push(
-          prisma.t_imgitens.update({
-            where: { ID: existing.ID },
-            data: {
-              URL: url,
-              UPDATEDAT: now,
-            },
-          }),
-        );
-        continue;
-      }
-
-      if (url) {
-        if (existingByUrl.has(url)) {
-          continue;
-        }
-        operations.push(
-          prisma.t_imgitens.create({
-            data: {
-              ID_ITEM: itemId,
-              URL: url,
-              UPDATEDAT: now,
-            },
-          }),
-        );
-      }
+    for (const url of urls) {
+      operations.push(
+        prisma.t_imgitens.create({
+          data: {
+            ID_ITEM: itemId,
+            URL: url,
+            UPDATEDAT: now,
+          },
+        }),
+      );
     }
 
     if (!operations.length) return;
@@ -464,6 +443,7 @@ export class TItensService {
   async create(tenant: string, dto: CreateTItemDto) {
     const prisma = await this.getPrisma(tenant);
     const cdemp = await this.getMatrizCompanyId(tenant, prisma);
+    const hasImagesPayload = Array.isArray(dto.images);
     const imageInputs = this.normalizeImageInputs(dto.images);
     const primaryImageUrl = this.resolvePrimaryImageUrl(imageInputs);
 
@@ -514,7 +494,7 @@ export class TItensService {
     };
 
     const created = await prisma.t_itens.create({ data });
-    if (imageInputs.length && created.ID) {
+    if (hasImagesPayload && created.ID) {
       await this.syncItemImages(prisma, created.ID, imageInputs);
     }
     return this.ensureCdemp(created, cdemp);
@@ -590,6 +570,7 @@ export class TItensService {
     const includeCategoria: PrismaTypes.t_itensInclude = {
       t_imgitens: {
         select: {
+          ID: true,
           URL: true,
         },
         orderBy: {
@@ -813,6 +794,7 @@ export class TItensService {
       include: {
         t_imgitens: {
           select: {
+            ID: true,
             URL: true,
           },
           orderBy: {
@@ -841,6 +823,7 @@ export class TItensService {
       include: {
         t_imgitens: {
           select: {
+            ID: true,
             URL: true,
           },
           orderBy: {
@@ -858,6 +841,7 @@ export class TItensService {
   async update(tenant: string, uuid: string, dto: UpdateTItemDto) {
     const prisma = await this.getPrisma(tenant);
     const cdemp = await this.getMatrizCompanyId(tenant, prisma);
+    const hasImagesPayload = Array.isArray(dto.images);
     const imageInputs = this.normalizeImageInputs(dto.images);
     const primaryImageUrl = this.resolvePrimaryImageUrl(imageInputs);
 
@@ -906,6 +890,8 @@ export class TItensService {
 
     if (dto.imagePath !== undefined) {
       data.locfotitem = dto.imagePath;
+    } else if (hasImagesPayload) {
+      data.locfotitem = primaryImageUrl;
     } else if (primaryImageUrl) {
       data.locfotitem = primaryImageUrl;
     }
@@ -925,7 +911,7 @@ export class TItensService {
       },
       data,
     });
-    if (imageInputs.length) {
+    if (hasImagesPayload) {
       await this.syncItemImages(prisma, uuid, imageInputs);
     }
     return this.ensureCdemp(updated, cdemp);
