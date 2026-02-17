@@ -11,22 +11,45 @@ export class TenantDbService implements OnModuleDestroy {
   private readonly logger = new Logger(TenantDbService.name);
 
   /**
-   * Cache de conexões Prisma por tenant
+   * Prisma connection cache by tenant database URL.
    */
-
-  /*private connections = new Map<string, TenantClient>();*/
   private connections: Map<string, TenantClient> = new Map();
 
   /**
-   * Conexão fixa com o banco principal (t_acessos, t_empresas, etc)
+   * Main database connection (t_acessos, etc).
    */
   private readonly main: MainClient = new MainPrismaClient();
 
   /**
-   * Monta dinamicamente a connection string de cada tenant
-   * com base nas variáveis de ambiente.
+   * Build tenant connection string dynamically from environment variables.
+   * Priority:
+   * 1) TENANT_DATABASE_URL_TEMPLATE
+   * 2) DATABASE_ACESSOS or DATABASE_URL (with database replaced by tenant slug)
+   * 3) DATABASE_MODELO (with database replaced by tenant slug)
+   * 4) DB_HOST/DB_PORT/DB_USER/DB_PASS fallback
    */
   private buildTenantConnectionString(dbName: string): string {
+    const template = process.env.TENANT_DATABASE_URL_TEMPLATE?.trim();
+    const acessosUrl =
+      process.env.DATABASE_ACESSOS?.trim() || process.env.DATABASE_URL?.trim();
+    const modelUrl = process.env.DATABASE_MODELO?.trim();
+
+    let connectionString: string;
+
+    if (template) {
+      connectionString = this.applyTenantTemplate(template, dbName);
+    } else if (acessosUrl) {
+      connectionString = this.withDatabaseName(acessosUrl, dbName);
+    } else if (modelUrl) {
+      connectionString = this.withDatabaseName(modelUrl, dbName);
+    } else {
+      connectionString = this.buildTenantConnectionFromDbVars(dbName);
+    }
+
+    return this.applyTlsOverrides(connectionString);
+  }
+
+  private buildTenantConnectionFromDbVars(dbName: string): string {
     const host = process.env.DB_HOST;
     const port = process.env.DB_PORT;
     const user = process.env.DB_USER;
@@ -34,21 +57,128 @@ export class TenantDbService implements OnModuleDestroy {
 
     if (!host || !port || !user || !pass) {
       throw new Error(
-        'Variáveis de ambiente do SQL Server não foram definidas: DB_HOST, DB_PORT, DB_USER, DB_PASS.',
+        'SQL Server variables are missing: DB_HOST, DB_PORT, DB_USER, DB_PASS.',
       );
     }
+
+    const encrypt = this.readBooleanEnv('DB_ENCRYPT') ?? true;
+    const trustServerCertificate =
+      this.readBooleanEnv('DB_TRUST_SERVER_CERTIFICATE') ?? true;
 
     return (
       `sqlserver://${host}:${port};` +
       `database=${dbName};` +
       `user=${user};` +
       `password=${pass};` +
-      `encrypt=true;trustServerCertificate=true;`
+      `encrypt=${encrypt};trustServerCertificate=${trustServerCertificate};`
     );
   }
 
   /**
-   * Retorna metadados do tenant com base no login do usuário.
+   * Replace placeholders in tenant template.
+   */
+  private applyTenantTemplate(template: string, dbName: string): string {
+    const replaced = template
+      .replace(/\{\{\s*(TENANT|DB_NAME)\s*\}\}/gi, dbName)
+      .replace(/\$\{\s*(TENANT|DB_NAME)\s*\}/gi, dbName)
+      .replace(/__(TENANT|DB_NAME)__/gi, dbName);
+
+    if (replaced === template) {
+      throw new Error(
+        'TENANT_DATABASE_URL_TEMPLATE must contain one of: {{TENANT}}, ${TENANT}, __TENANT__, {{DB_NAME}}, ${DB_NAME}, __DB_NAME__.',
+      );
+    }
+
+    return replaced;
+  }
+
+  /**
+   * Replace "database=..." segment in a SQL Server URL.
+   */
+  private withDatabaseName(connectionString: string, dbName: string): string {
+    const withTrailingSemicolon = connectionString.endsWith(';')
+      ? connectionString
+      : `${connectionString};`;
+
+    const withoutDatabase = withTrailingSemicolon.replace(
+      /database=[^;]*;?/gi,
+      '',
+    );
+
+    return `${withoutDatabase}database=${dbName};`;
+  }
+
+  private describeConnectionEndpoint(connectionString: string): string {
+    const hostMatch = connectionString.match(/^sqlserver:\/\/([^;:/?]+)(?::(\d+))?/i);
+    const dbMatch = connectionString.match(/database=([^;]+)/i);
+    const host = hostMatch?.[1] ?? 'unknown-host';
+    const port = hostMatch?.[2] ?? 'default-port';
+    const database = dbMatch?.[1] ?? 'unknown-db';
+    return `${host}:${port}/${database}`;
+  }
+
+  /**
+   * Optional TLS overrides from DB_ENCRYPT / DB_TRUST_SERVER_CERTIFICATE.
+   */
+  private applyTlsOverrides(connectionString: string): string {
+    let next = connectionString.endsWith(';')
+      ? connectionString
+      : `${connectionString};`;
+
+    const encrypt = this.readBooleanEnv('DB_ENCRYPT');
+    if (encrypt !== undefined) {
+      next = this.upsertConnectionParam(next, 'encrypt', String(encrypt));
+    }
+
+    const trustServerCertificate = this.readBooleanEnv(
+      'DB_TRUST_SERVER_CERTIFICATE',
+    );
+    if (trustServerCertificate !== undefined) {
+      next = this.upsertConnectionParam(
+        next,
+        'trustServerCertificate',
+        String(trustServerCertificate),
+      );
+    }
+
+    return next;
+  }
+
+  private upsertConnectionParam(
+    connectionString: string,
+    key: string,
+    value: string,
+  ): string {
+    const regex = new RegExp(`${key}=[^;]*;?`, 'i');
+    if (regex.test(connectionString)) {
+      return connectionString.replace(regex, `${key}=${value};`);
+    }
+    return `${connectionString}${key}=${value};`;
+  }
+
+  private readBooleanEnv(name: string): boolean | undefined {
+    const raw = process.env[name];
+    if (raw === undefined || raw.trim() === '') {
+      return undefined;
+    }
+
+    const normalized = raw.trim().toLowerCase();
+    if (['1', 'true', 'yes', 'y', 'on'].includes(normalized)) {
+      return true;
+    }
+    if (['0', 'false', 'no', 'n', 'off'].includes(normalized)) {
+      return false;
+    }
+
+    this.logger.warn(
+      `Ignoring invalid boolean value for ${name}: "${raw}". Use true/false.`,
+    );
+    return undefined;
+  }
+
+  /**
+   * Return tenant metadata based on e-mail/login in t_acessos.
+   * Source of truth for tenant database is t_acessos.banco.
    */
   async getTenantMetadataByIdentifier(identifier: string): Promise<{
     slug: string;
@@ -58,29 +188,35 @@ export class TenantDbService implements OnModuleDestroy {
     const normalized = identifier?.trim();
 
     if (!normalized) {
-      throw new Error('Login não informado.');
+      throw new Error('Login not provided.');
     }
 
-    const tenant = await this.main.t_acessos.findFirst({
-      where: {
-        ativo: 'S',
-        OR: [{ login: normalized }, { nome: normalized }],
-      },
-    });
+    const rows = await this.main.$queryRaw<
+      Array<{
+        banco: string | null;
+        logoUrl: string | null;
+        Empresa: string | null;
+      }>
+    >`
+      SELECT TOP 1 banco, logoUrl, Empresa
+      FROM t_acessos
+      WHERE ISNULL(ativo, 'N') = 'S'
+        AND UPPER(LTRIM(RTRIM(login))) = UPPER(LTRIM(RTRIM(${normalized})))
+      ORDER BY id DESC
+    `;
 
+    const tenant = rows[0];
     if (!tenant) {
-      throw new Error(
-        `Nenhum tenant correspondente ao login '${normalized}' encontrado.`,
-      );
+      throw new Error(`No tenant mapped to login '${normalized}'.`);
     }
 
     const slug = tenant.banco?.trim();
-    const logoUrl = (tenant as any)?.logoUrl?.trim?.() || null;
-    const companyName = (tenant as any)?.empresa?.trim?.() || null;
+    const logoUrl = tenant.logoUrl?.trim() || null;
+    const companyName = tenant.Empresa?.trim() || null;
 
     if (!slug) {
       throw new Error(
-        `Tenant encontrado, mas o campo 'banco' está vazio para '${normalized}'.`,
+        `Tenant found, but field "banco" is empty for '${normalized}'.`,
       );
     }
 
@@ -88,7 +224,7 @@ export class TenantDbService implements OnModuleDestroy {
   }
 
   /**
-   * Retorna o PrismaClient do tenant para consultas no banco específico.
+   * Return Prisma client for tenant-specific queries.
    */
   async getTenantClient(tenantSlug: string): Promise<TenantClient> {
     const tenant = await this.main.t_acessos.findFirst({
@@ -97,22 +233,24 @@ export class TenantDbService implements OnModuleDestroy {
 
     if (!tenant) {
       throw new Error(
-        `Tenant '${tenantSlug}' não encontrado ou inativo em t_acessos.`,
+        `Tenant '${tenantSlug}' not found or inactive in t_acessos.`,
       );
     }
 
     const databaseName = tenant.banco?.trim();
     if (!databaseName) {
       throw new Error(
-        `Tenant '${tenantSlug}' encontrado, mas o campo 'banco' estǭ vazio.`,
+        `Tenant '${tenantSlug}' found, but field "banco" is empty.`,
       );
     }
 
     const connectionString = this.buildTenantConnectionString(databaseName);
 
-    // Usa cache para evitar múltiplas conexões
+    // Reuse existing tenant connection when available.
     if (!this.connections.has(connectionString)) {
-      this.logger.log(`Criando nova conexão Prisma para tenant: ${tenantSlug}`);
+      this.logger.log(
+        `Creating Prisma tenant connection for: ${tenantSlug} at ${this.describeConnectionEndpoint(connectionString)}`,
+      );
 
       const client = new TenantPrismaClient({
         datasources: { db: { url: connectionString } },
@@ -124,12 +262,15 @@ export class TenantDbService implements OnModuleDestroy {
     return this.connections.get(connectionString)!;
   }
 
-  /**
-   * Finaliza todas as conexões quando o módulo é desligado.
-   */
+  getMainClient(): MainClient {
+    return this.main;
+  }
 
+  /**
+   * Close all Prisma connections when module shuts down.
+   */
   async onModuleDestroy() {
-    this.logger.log('Desconectando Prisma (main + tenants)...');
+    this.logger.log('Disconnecting Prisma (main + tenants)...');
 
     const disconnects = Array.from(this.connections.values()).map((client) =>
       client.$disconnect(),

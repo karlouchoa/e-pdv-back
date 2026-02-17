@@ -18,6 +18,8 @@ import { UploadModule } from './upload/upload.module';
 import { PublicModule } from './public/public.module';
 import { OrdersModule } from './orders/orders.module';
 import { AdminProductsModule } from './admin-products/admin-products.module';
+import { CompanyConfigModule } from './company-config/company-config.module';
+import { AdminOperationsModule } from './admin-operations/admin-operations.module';
 
 @Module({
   imports: [
@@ -36,6 +38,8 @@ import { AdminProductsModule } from './admin-products/admin-products.module';
     PublicModule,
     OrdersModule,
     AdminProductsModule,
+    CompanyConfigModule,
+    AdminOperationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

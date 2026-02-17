@@ -11,6 +11,7 @@ import { IS_PUBLIC_KEY } from './decorators/public.decorator';
 type TenantRequest = {
   user?: { tenant?: string; tenantSlug?: string };
   tenant?: { slug?: string };
+  headers?: { 'x-tenant'?: string | string[] };
 };
 
 @Injectable()
@@ -42,24 +43,20 @@ export class TenantJwtGuard extends AuthGuard('jwt') {
       throw new BadRequestException('Tenant nao encontrado no token JWT.');
     }
 
-    let requestTenant = req?.tenant?.slug?.trim();
+    const rawHeaderTenant = req?.headers?.['x-tenant'];
+    const headerTenant = Array.isArray(rawHeaderTenant)
+      ? rawHeaderTenant[0]?.trim()
+      : rawHeaderTenant?.trim();
 
-    // Em clientes que nao enviam o header x-tenant (ex.: frontend B),
-    // alinhamos o tenant da requisicao com o do token para evitar 401.
-    if (!requestTenant && tokenTenant) {
-      req.tenant = { ...(req.tenant ?? {}), slug: tokenTenant };
-      requestTenant = tokenTenant;
+    if (
+      headerTenant &&
+      headerTenant.toLowerCase() !== tokenTenant.toLowerCase()
+    ) {
+      throw new ForbiddenException('Tenant do header nao corresponde ao token.');
     }
 
-    if (!requestTenant) {
-      throw new BadRequestException('Tenant nao identificado na requisicao.');
-    }
-
-    if (requestTenant.toLowerCase() !== tokenTenant.toLowerCase()) {
-      throw new ForbiddenException(
-        'Tenant do token nao corresponde ao tenant da requisicao.',
-      );
-    }
+    // For protected routes, tenant source of truth is always the token.
+    req.tenant = { ...(req.tenant ?? {}), slug: tokenTenant };
 
     return true;
   }

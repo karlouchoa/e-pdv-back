@@ -191,6 +191,7 @@ export class PedidosOnlineConfirmService {
     cdemp: number;
     nrven: number;
     item: {
+      ID?: string | null;
       cditem: number;
       deitem: string | null;
       undven: string | null;
@@ -227,7 +228,45 @@ export class PedidosOnlineConfirmService {
       compra_iv: cost,
       custo_iv: cost,
       mp: payload.mp,
+      ID_ITEM: payload.item.ID ?? undefined,
       ID_VENDA: payload.vendaId,
+    };
+  }
+
+  private buildMovestData(payload: {
+    cdemp: number;
+    cditem: number;
+    quantity: number;
+    unitPrice: number;
+    totalValue: number;
+    cost: number;
+    nrven: number;
+    userCode: string;
+    now: Date;
+    obs?: string | null;
+  }): Prisma.t_movestCreateManyInput {
+    return {
+      cdemp: payload.cdemp,
+      data: payload.now,
+      datadoc: payload.now,
+      datalan: payload.now,
+      numdoc: payload.nrven,
+      especie: 'V',
+      cditem: payload.cditem,
+      qtde: payload.quantity,
+      valor: payload.totalValue,
+      preco: payload.unitPrice,
+      custo: this.roundMoney(payload.cost),
+      st: 'S',
+      codusu: payload.userCode,
+      obs: payload.obs ?? null,
+      obsit: payload.obs ?? null,
+      empitem: payload.cdemp,
+      empven: payload.cdemp,
+      empmov: payload.cdemp,
+      isdeleted: false,
+      createdat: payload.now,
+      updatedat: payload.now,
     };
   }
 
@@ -451,21 +490,34 @@ export class PedidosOnlineConfirmService {
         }
       }
 
-      const matprimaIds = Array.from(
+      const matprimaCodes = Array.from(
         new Set(
           formulas
             .map((formula) => formula.matprima)
             .filter((value): value is number => typeof value === 'number'),
         ),
       );
+      const matprimaIds = Array.from(
+        new Set(
+          formulas
+            .map((formula) => formula.ID_MATPRIMA?.trim())
+            .filter((value): value is string => Boolean(value)),
+        ),
+      );
 
-      const matprimaRecords = matprimaIds.length
+      const matprimaRecords = matprimaCodes.length || matprimaIds.length
         ? await tx.t_itens.findMany({
             where: {
               cdemp,
-              cditem: { in: matprimaIds },
+              OR: [
+                ...(matprimaIds.length ? [{ ID: { in: matprimaIds } }] : []),
+                ...(matprimaCodes.length
+                  ? [{ cditem: { in: matprimaCodes } }]
+                  : []),
+              ],
             },
             select: {
+              ID: true,
               cditem: true,
               deitem: true,
               undven: true,
@@ -480,17 +532,14 @@ export class PedidosOnlineConfirmService {
           })
         : [];
 
-      const matprimaMap = new Map(
+      const matprimaMapByCode = new Map(
         matprimaRecords.map((record) => [record.cditem, record]),
       );
-
-      for (const matprimaId of matprimaIds) {
-        if (!matprimaMap.has(matprimaId)) {
-          throw new BadRequestException(
-            `Materia prima ${matprimaId} nao encontrada no catalogo.`,
-          );
-        }
-      }
+      const matprimaMapById = new Map(
+        matprimaRecords
+          .filter((record) => Boolean(record.ID))
+          .map((record) => [record.ID as string, record]),
+      );
 
       const totalsSubtotal = this.roundMoney(
         parentSnapshots.reduce((sum, item) => sum + item.lineTotal, 0),
@@ -588,7 +637,10 @@ export class PedidosOnlineConfirmService {
         if (snapshot.isFormula) {
           const formulasForItem =
             formulasByItem.get(snapshot.record.ID ?? '') ?? [];
-          const aggregated = new Map<number, number>();
+          const aggregated = new Map<
+            string,
+            { quantity: number; matprimaCode: number; matprimaId: string | null }
+          >();
 
           for (const formula of formulasForItem) {
             const qtdFormula = this.toNumber(formula.qtdemp);
@@ -602,23 +654,40 @@ export class PedidosOnlineConfirmService {
               qtdFormula * snapshot.quantity,
               6,
             );
-            aggregated.set(
-              formula.matprima,
-              (aggregated.get(formula.matprima) ?? 0) + totalQty,
-            );
+            const matprimaId = formula.ID_MATPRIMA?.trim() ?? null;
+            const matprimaCode = this.toNumber(formula.matprima);
+            const key = matprimaId ? `ID:${matprimaId}` : `CD:${matprimaCode}`;
+
+            const existing = aggregated.get(key);
+            if (existing) {
+              existing.quantity = this.roundDecimal(
+                existing.quantity + totalQty,
+                6,
+              );
+            } else {
+              aggregated.set(key, {
+                quantity: totalQty,
+                matprimaCode,
+                matprimaId,
+              });
+            }
           }
 
-          for (const [matprima, quantity] of aggregated.entries()) {
+          for (const entry of aggregated.values()) {
+            const quantity = entry.quantity;
             if (!Number.isFinite(quantity) || quantity <= 0) {
               throw new BadRequestException(
-                `Quantidade invalida para materia prima ${matprima}.`,
+                `Quantidade invalida para materia prima ${entry.matprimaCode}.`,
               );
             }
 
-            const record = matprimaMap.get(matprima);
+            const record = entry.matprimaId
+              ? matprimaMapById.get(entry.matprimaId) ??
+                matprimaMapByCode.get(entry.matprimaCode)
+              : matprimaMapByCode.get(entry.matprimaCode);
             if (!record) {
               throw new BadRequestException(
-                `Materia prima ${matprima} nao encontrada no catalogo.`,
+                `Materia prima ${entry.matprimaId ?? entry.matprimaCode} nao encontrada no catalogo.`,
               );
             }
 
@@ -650,6 +719,55 @@ export class PedidosOnlineConfirmService {
       await tx.t_itsven.createMany({ data: parentLines });
       if (componentLines.length) {
         await tx.t_itsven.createMany({ data: componentLines });
+      }
+
+      const movestLines: Prisma.t_movestCreateManyInput[] = [];
+
+      for (const snapshot of parentSnapshots) {
+        movestLines.push(
+          this.buildMovestData({
+            cdemp,
+            cditem: snapshot.record.cditem,
+            quantity: snapshot.quantity,
+            unitPrice: snapshot.unitPrice,
+            totalValue: snapshot.lineTotal,
+            cost: snapshot.cost,
+            nrven,
+            userCode,
+            now,
+            obs: `Pedido online ${pedidoId}`,
+          }),
+        );
+      }
+
+      for (const component of componentLines) {
+        const cditem = this.toNumber(component.cditem_iv);
+        const quantity = this.toNumber(component.qtdesol_iv);
+        if (!Number.isFinite(cditem) || cditem <= 0) continue;
+        if (!Number.isFinite(quantity) || quantity <= 0) continue;
+
+        const unitPrice = this.roundMoney(this.toNumber(component.precven_iv));
+        const totalValue = this.roundMoney(unitPrice * quantity);
+        const cost = this.roundDecimal(this.toNumber(component.custo_iv), 4);
+
+        movestLines.push(
+          this.buildMovestData({
+            cdemp,
+            cditem,
+            quantity,
+            unitPrice,
+            totalValue,
+            cost,
+            nrven,
+            userCode,
+            now,
+            obs: `Pedido online ${pedidoId} (componente)`,
+          }),
+        );
+      }
+
+      if (movestLines.length) {
+        await tx.t_movest.createMany({ data: movestLines });
       }
 
       const updatedPedido = await this.pedidosOnlineRepo.updateStatusConfirmado(

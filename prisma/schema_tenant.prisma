@@ -1598,6 +1598,7 @@ model t_config {
   CadRedSociais                  String?   @db.Char(1)
   CreatedAt                      DateTime  @default(now(), map: "DF__t_config__Create__50BBD860") @db.DateTime
   UpdatedAt                      DateTime  @default(now(), map: "DF__t_config__Update__51AFFC99") @db.DateTime
+  VERSAO_DB                      String    @default("1.0.0.0", map: "DF__t_config__VERSAO__4F48913A") @db.VarChar(15)
 }
 
 /// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
@@ -1724,6 +1725,7 @@ model t_cst {
   REDUZBC     String?   @db.Char(1)
   CreatedAt   DateTime  @default(now(), map: "DF__t_cst__CreatedAt__5FFE1BF0") @db.DateTime
   UpdatedAt   DateTime  @default(now(), map: "DF__t_cst__UpdatedAt__60F24029") @db.DateTime
+  ID          String?   @default(dbgenerated("newid()"), map: "DF_T_CST_ID") @db.UniqueIdentifier
 }
 
 model T_CST_IBS_CBS {
@@ -2032,159 +2034,164 @@ model t_embalagem {
 }
 
 model t_emp {
-  cdemp                  Int       @id(clustered: false, map: "PK_t_depar") @default(autoincrement())
-  deemp                  String?   @db.VarChar(60)
-  apelido                String?   @db.VarChar(30)
-  endemp                 String?   @db.Char(60)
-  baiemp                 String?   @db.Char(30)
-  cidemp                 String?   @db.VarChar(30)
-  estemp                 String?   @db.Char(2)
-  cepemp                 String?   @db.Char(11)
-  dddemp                 String?   @db.Char(3)
-  fonemp                 String?   @db.Char(10)
-  faxemp                 String?   @db.Char(10)
-  cnpjemp                String?   @db.Char(18)
-  ieemp                  String?   @db.Char(15)
-  emailemp               String?   @db.Char(40)
-  wwwemp                 String?   @db.Char(50)
+  cdemp                  Int                       @id(clustered: false, map: "PK_t_depar") @default(autoincrement())
+  deemp                  String?                   @db.VarChar(60)
+  apelido                String?                   @db.VarChar(30)
+  endemp                 String?                   @db.Char(60)
+  baiemp                 String?                   @db.Char(30)
+  cidemp                 String?                   @db.VarChar(30)
+  estemp                 String?                   @db.Char(2)
+  cepemp                 String?                   @db.Char(11)
+  dddemp                 String?                   @db.Char(3)
+  fonemp                 String?                   @db.Char(10)
+  faxemp                 String?                   @db.Char(10)
+  cnpjemp                String?                   @db.Char(18)
+  ieemp                  String?                   @db.Char(15)
+  emailemp               String?                   @db.Char(40)
+  wwwemp                 String?                   @db.Char(50)
   ultnfemp               Int?
-  tporcemp               String?   @db.Char(20)
-  impfisc                String?   @db.Char(10)
-  portef                 String?   @default("COM2", map: "DF_t_emp_portEF") @db.Char(5)
-  jurdia                 Decimal?  @db.Decimal(9, 3)
-  mulapv                 Decimal?  @db.Decimal(18, 2)
-  hostmail               String?   @db.Char(40)
-  usumail                String?   @db.Char(20)
-  saltarpagped           String?   @db.Char(1)
-  impexped               String?   @db.VarChar(40)
-  stimpexp               String?   @db.VarChar(10)
-  impbolsn               String?   @db.VarChar(1)
-  ativaemp               String?   @db.Char(1)
-  complemp               String?   @db.VarChar(60)
-  contemp                String?   @db.VarChar(30)
-  inscmun                String?   @db.VarChar(10)
-  msnfixanf              String?   @db.VarChar(100)
-  numemp                 String?   @db.VarChar(20)
-  locallogo              String?   @db.VarChar(60)
-  licenca                String?   @db.VarChar(40)
-  atacadista             String?   @default("N", map: "DF_t_emp_atacadista") @db.Char(1)
-  nrboleto               Decimal?  @default(0, map: "DF_t_emp_nrboleto") @db.Decimal(9, 0)
-  impimedi               String?   @db.VarChar(40)
-  perdesc                Decimal?  @db.Decimal(9, 2)
-  impincentiv            String?   @db.Char(1)
-  impsubs                String?   @db.Char(1)
-  aliqinterna            Decimal?  @db.Decimal(9, 2)
-  obs                    String?   @db.VarChar(60)
-  serienfe               String?   @db.VarChar(5)
-  destimed               String?   @db.Char(1)
+  tporcemp               String?                   @db.Char(20)
+  impfisc                String?                   @db.Char(10)
+  portef                 String?                   @default("COM2", map: "DF_t_emp_portEF") @db.Char(5)
+  jurdia                 Decimal?                  @db.Decimal(9, 3)
+  mulapv                 Decimal?                  @db.Decimal(18, 2)
+  hostmail               String?                   @db.Char(40)
+  usumail                String?                   @db.Char(20)
+  saltarpagped           String?                   @db.Char(1)
+  impexped               String?                   @db.VarChar(40)
+  stimpexp               String?                   @db.VarChar(10)
+  impbolsn               String?                   @db.VarChar(1)
+  ativaemp               String?                   @db.Char(1)
+  complemp               String?                   @db.VarChar(60)
+  contemp                String?                   @db.VarChar(30)
+  inscmun                String?                   @db.VarChar(10)
+  msnfixanf              String?                   @db.VarChar(100)
+  numemp                 String?                   @db.VarChar(20)
+  locallogo              String?                   @db.VarChar(60)
+  licenca                String?                   @db.VarChar(40)
+  atacadista             String?                   @default("N", map: "DF_t_emp_atacadista") @db.Char(1)
+  nrboleto               Decimal?                  @default(0, map: "DF_t_emp_nrboleto") @db.Decimal(9, 0)
+  impimedi               String?                   @db.VarChar(40)
+  perdesc                Decimal?                  @db.Decimal(9, 2)
+  impincentiv            String?                   @db.Char(1)
+  impsubs                String?                   @db.Char(1)
+  aliqinterna            Decimal?                  @db.Decimal(9, 2)
+  obs                    String?                   @db.VarChar(60)
+  serienfe               String?                   @db.VarChar(5)
+  destimed               String?                   @db.Char(1)
   ultvisita              Int?
-  contabil               String?   @db.VarChar(14)
-  cd                     String?   @db.Char(1)
-  vercd                  String?   @db.Char(1)
-  custoper               Decimal?  @db.Decimal(9, 2)
-  impstven               Decimal?  @db.Decimal(9, 2)
+  contabil               String?                   @db.VarChar(14)
+  cd                     String?                   @db.Char(1)
+  vercd                  String?                   @db.Char(1)
+  custoper               Decimal?                  @db.Decimal(9, 2)
+  impstven               Decimal?                  @db.Decimal(9, 2)
   modelo                 Int?
-  impincetiv             String?   @db.Char(1)
-  industria              String?   @db.Char(1)
-  matriz                 String?   @db.Char(1)
-  persubstrib            Decimal?  @db.Decimal(9, 2)
+  impincetiv             String?                   @db.Char(1)
+  industria              String?                   @db.Char(1)
+  matriz                 String?                   @db.Char(1)
+  persubstrib            Decimal?                  @db.Decimal(9, 2)
   selofisc               Int?
-  replicasn              String?   @db.Char(1)
+  replicasn              String?                   @db.Char(1)
   diasprotesto           Int?
-  certificado            String?   @db.VarChar(60)
-  logonfe                String?   @db.VarChar(200)
-  fantemp                String?   @db.VarChar(60)
-  bloqvenrem             String?   @db.Char(1)
-  pedcados               String?   @db.Char(1)
-  regfisc                String?   @db.VarChar(2)
-  represn                String?   @db.Char(1)
+  certificado            String?                   @db.VarChar(60)
+  logonfe                String?                   @db.VarChar(200)
+  fantemp                String?                   @db.VarChar(60)
+  bloqvenrem             String?                   @db.Char(1)
+  pedcados               String?                   @db.Char(1)
+  regfisc                String?                   @db.VarChar(2)
+  represn                String?                   @db.Char(1)
   cdmatriz               Int?
-  impressorapdv          String?   @db.VarChar(50)
-  piscofins              Decimal?  @db.Decimal(9, 2)
-  caminhonfe             String?   @db.VarChar(60)
-  carregaestoque         String?   @db.Char(1)
-  caminhonfc             String?   @db.VarChar(60)
+  impressorapdv          String?                   @db.VarChar(50)
+  piscofins              Decimal?                  @db.Decimal(9, 2)
+  caminhonfe             String?                   @db.VarChar(60)
+  carregaestoque         String?                   @db.Char(1)
+  caminhonfc             String?                   @db.VarChar(60)
   ultnfc                 Int?
   serienfc               Int?
   modelonfc              Int?
-  nrtoken                String?   @db.VarChar(120)
-  consultarfone          String?   @db.Char(1)
-  bloquearvendapdv       String?   @db.Char(1)
-  impreccx               String?   @db.Char(1)
-  carregaultprcven       String?   @db.Char(1)
-  revinsrec              String?   @db.Char(1)
-  promotpgsn             String?   @db.Char(1)
-  estlocsn               String?   @db.Char(1)
-  impmpnopv              String?   @db.Char(1)
-  senhaemail             String?   @db.VarChar(20)
-  smtp                   String?   @db.VarChar(60)
-  verprcmp               String?   @db.Char(1)
+  nrtoken                String?                   @db.VarChar(120)
+  consultarfone          String?                   @db.Char(1)
+  bloquearvendapdv       String?                   @db.Char(1)
+  impreccx               String?                   @db.Char(1)
+  carregaultprcven       String?                   @db.Char(1)
+  revinsrec              String?                   @db.Char(1)
+  promotpgsn             String?                   @db.Char(1)
+  estlocsn               String?                   @db.Char(1)
+  impmpnopv              String?                   @db.Char(1)
+  senhaemail             String?                   @db.VarChar(20)
+  smtp                   String?                   @db.VarChar(60)
+  verprcmp               String?                   @db.Char(1)
   idcsc                  Int?
-  caminhonfs             String?   @db.VarChar(60)
+  caminhonfs             String?                   @db.VarChar(60)
   ultnfsv                Int?
   modnfsv                Int?
   sernfsv                Int?
-  aliqiss                Decimal?  @db.Decimal(9, 2)
-  petshop                String?   @db.Char(1)
-  regesptr               String?   @db.Char(2)
-  usupovserv             String?   @db.VarChar(30)
-  snhpovserv             String?   @db.VarChar(30)
-  semnfce                String?   @db.Char(1)
-  traboff                String?   @db.Char(1)
-  vendasapp              String?   @db.Char(1)
-  comporatd              String?   @db.Char(1)
-  pdvporcod              String?   @db.VarChar(16)
-  autvendabxqteemb       String?   @db.Char(1)
-  controlasaidadacomanda String?   @db.Char(1)
+  aliqiss                Decimal?                  @db.Decimal(9, 2)
+  petshop                String?                   @db.Char(1)
+  regesptr               String?                   @db.Char(2)
+  usupovserv             String?                   @db.VarChar(30)
+  snhpovserv             String?                   @db.VarChar(30)
+  semnfce                String?                   @db.Char(1)
+  traboff                String?                   @db.Char(1)
+  vendasapp              String?                   @db.Char(1)
+  comporatd              String?                   @db.Char(1)
+  pdvporcod              String?                   @db.VarChar(16)
+  autvendabxqteemb       String?                   @db.Char(1)
+  controlasaidadacomanda String?                   @db.Char(1)
   cdempext               Int?
-  lerbarrasmod2          String?   @db.Char(1)
-  tipoemp                String?   @db.VarChar(40)
-  bloqitemsemsaldopdv    String?   @db.Char(1)
-  pedirtxdeentrega       String?   @db.Char(1)
-  imprimirtxdeentnonfc   String?   @db.Char(1)
-  agendaporhora          String?   @db.Char(1)
-  trabcoleta             String?   @db.Char(1)
-  posvendaporcliente     String?   @db.Char(1)
-  caminhodocertificado   String?   @db.VarChar(120)
-  senhadocertificado     String?   @db.VarChar(60)
-  cnpjprefeitura         String?   @db.VarChar(18)
-  userweb                String?   @db.VarChar(40)
-  senhaweb               String?   @db.VarChar(120)
-  frasesecweb            String?   @db.VarChar(120)
-  chaveacessoweb         String?   @db.VarChar(120)
-  chaveautorizweb        String?   @db.VarChar(180)
-  logonfs                String?   @db.VarChar(180)
-  logoprefeitura         String?   @db.VarChar(180)
-  prefeitura             String?   @db.VarChar(180)
-  pdvmodoficha           String?   @db.Char(1)
-  pathdoprovedor         String?   @db.VarChar(120)
-  tipo                   String?   @db.VarChar(10)
-  logomarca              Bytes?    @db.Image
+  lerbarrasmod2          String?                   @db.Char(1)
+  tipoemp                String?                   @db.VarChar(40)
+  bloqitemsemsaldopdv    String?                   @db.Char(1)
+  pedirtxdeentrega       String?                   @db.Char(1)
+  imprimirtxdeentnonfc   String?                   @db.Char(1)
+  agendaporhora          String?                   @db.Char(1)
+  trabcoleta             String?                   @db.Char(1)
+  posvendaporcliente     String?                   @db.Char(1)
+  caminhodocertificado   String?                   @db.VarChar(120)
+  senhadocertificado     String?                   @db.VarChar(60)
+  cnpjprefeitura         String?                   @db.VarChar(18)
+  userweb                String?                   @db.VarChar(40)
+  senhaweb               String?                   @db.VarChar(120)
+  frasesecweb            String?                   @db.VarChar(120)
+  chaveacessoweb         String?                   @db.VarChar(120)
+  chaveautorizweb        String?                   @db.VarChar(180)
+  logonfs                String?                   @db.VarChar(180)
+  logoprefeitura         String?                   @db.VarChar(180)
+  prefeitura             String?                   @db.VarChar(180)
+  pdvmodoficha           String?                   @db.Char(1)
+  pathdoprovedor         String?                   @db.VarChar(120)
+  tipo                   String?                   @db.VarChar(10)
+  logomarca              Bytes?                    @db.Image
   id_cidade              Int?
-  logoexpandidasn        String?   @db.Char(1)
-  comissaopormarkup      String?   @db.Char(1)
-  impreqentlojas         String?   @db.Char(1)
-  pedirddd               String?   @db.Char(1)
-  finpelocx              String?   @db.Char(1)
+  logoexpandidasn        String?                   @db.Char(1)
+  comissaopormarkup      String?                   @db.Char(1)
+  impreqentlojas         String?                   @db.Char(1)
+  pedirddd               String?                   @db.Char(1)
+  finpelocx              String?                   @db.Char(1)
   portpix                Int?
-  crt                    String?   @db.VarChar(24)
-  conspedpornrcoman      String?   @db.Char(1)
-  recnotaporxml          String?   @db.Char(1)
-  hostname               String?   @db.VarChar(30)
-  usuario                String?   @db.VarChar(10)
-  faturamentopornf       String?   @db.Char(1)
-  perfilsped             String?   @db.Char(1)
-  contabilizatroca       String?   @db.Char(1)
-  cstreducaobc           String?   @db.VarChar(3)
-  GerTitNaVend           String?   @db.Char(1)
-  isdeleted              Boolean?  @default(false, map: "DF__t_emp__isdeleted__1C7D1A4B")
-  createdat              DateTime? @default(now(), map: "DF__t_emp__createdat__1D713E84") @db.DateTime
-  updatedat              DateTime? @default(now(), map: "DF__t_emp__updatedat__1E6562BD") @db.DateTime
-  ID                     String?   @default(dbgenerated("newid()"), map: "DF__t_emp__ID__79DDE984") @db.UniqueIdentifier
-  cadastro_suframa       String?   @db.VarChar(20)
-  suframa_ativa          String?   @db.Char(1)
-  path_img_capa          String?   @db.VarChar(200)
-  ambiente_nfe           String?   @db.Char(1)
+  crt                    String?                   @db.VarChar(24)
+  conspedpornrcoman      String?                   @db.Char(1)
+  recnotaporxml          String?                   @db.Char(1)
+  hostname               String?                   @db.VarChar(30)
+  usuario                String?                   @db.VarChar(10)
+  faturamentopornf       String?                   @db.Char(1)
+  perfilsped             String?                   @db.Char(1)
+  contabilizatroca       String?                   @db.Char(1)
+  cstreducaobc           String?                   @db.VarChar(3)
+  GerTitNaVend           String?                   @db.Char(1)
+  isdeleted              Boolean?                  @default(false, map: "DF__t_emp__isdeleted__1C7D1A4B")
+  createdat              DateTime?                 @default(now(), map: "DF__t_emp__createdat__1D713E84") @db.DateTime
+  updatedat              DateTime?                 @default(now(), map: "DF__t_emp__updatedat__1E6562BD") @db.DateTime
+  ID                     String?                   @default(dbgenerated("newid()"), map: "DF__t_emp__ID__79DDE984") @db.UniqueIdentifier
+  cadastro_suframa       String?                   @db.VarChar(20)
+  suframa_ativa          String?                   @db.Char(1)
+  path_img_capa          String?                   @db.VarChar(200)
+  ambiente_nfe           String?                   @db.Char(1)
+  imagem_capa            String?                   @db.VarChar(200)
+  location               Unsupported("geography")?
+  latitude               Decimal?                  @db.Decimal(10, 8)
+  longitude              Decimal?                  @db.Decimal(10, 8)
+  StoreHours             StoreHours[]
 }
 
 model t_encargocalculo {
@@ -2732,20 +2739,21 @@ model t_formulalote {
 
 /// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
 model t_formulas {
-  autocod   Int      @id(map: "PK_t_formulas") @default(autoincrement())
-  cditem    Int
-  empitem   Int
-  undven    String   @db.VarChar(3)
-  matprima  Int
-  qtdemp    Decimal  @db.Decimal(18, 6)
-  undmp     String   @db.VarChar(3)
-  empitemmp Int
-  deitem_iv String?  @db.VarChar(60)
-  cdemp     Int?
-  CreatedAt DateTime @default(now(), map: "DF__t_formula__Creat__2B554987") @db.DateTime
-  UpdatedAt DateTime @default(now(), map: "DF__t_formula__Updat__2C496DC0") @db.DateTime
-  ID_ITEM   String?  @default(dbgenerated("newid()"), map: "DF_T_FORMULAS_ID_ITEM") @db.UniqueIdentifier
-  t_itens   t_itens? @relation(fields: [ID_ITEM], references: [ID], onDelete: NoAction, onUpdate: NoAction, map: "FK_T_FORMULAS_T_ITENS_ID_ITEM")
+  autocod     Int      @id(map: "PK_t_formulas") @default(autoincrement())
+  cditem      Int
+  empitem     Int
+  undven      String   @db.VarChar(3)
+  matprima    Int
+  qtdemp      Decimal  @db.Decimal(18, 6)
+  undmp       String   @db.VarChar(3)
+  empitemmp   Int
+  deitem_iv   String?  @db.VarChar(60)
+  cdemp       Int?
+  CreatedAt   DateTime @default(now(), map: "DF__t_formula__Creat__2B554987") @db.DateTime
+  UpdatedAt   DateTime @default(now(), map: "DF__t_formula__Updat__2C496DC0") @db.DateTime
+  ID_ITEM     String?  @default(dbgenerated("newid()"), map: "DF_T_FORMULAS_ID_ITEM") @db.UniqueIdentifier
+  ID_MATPRIMA String?  @db.UniqueIdentifier
+  t_itens     t_itens? @relation(fields: [ID_ITEM], references: [ID], onDelete: NoAction, onUpdate: NoAction, map: "FK_T_FORMULAS_T_ITENS_ID_ITEM")
 
   @@index([cdemp, ID_ITEM], map: "IX_T_FORMULAS_CDEMP_ID_ITEM")
 }
@@ -2765,7 +2773,7 @@ model t_fpgto {
   cdfpgext  Int?
   CreatedAt DateTime  @default(now(), map: "DF__t_fpgto__Created__2D3D91F9") @db.DateTime
   UpdatedAt DateTime  @default(now(), map: "DF__t_fpgto__Updated__2E31B632") @db.DateTime
-  ID        String?   @default(dbgenerated("newid()"), map: "DF_T_FPGTO_ID") @db.UniqueIdentifier
+  ID        String    @default(dbgenerated("newid()"), map: "DF_T_FPGTO_ID") @db.UniqueIdentifier
   OnLineSN  String?   @db.Char(1)
 
   @@index([defpg], map: "IX_t_fpgto")
@@ -2779,6 +2787,8 @@ model t_fpgto2 {
   seqparc    Int      @default(autoincrement())
   CreatedAt  DateTime @default(now(), map: "DF__t_fpgto2__Create__2F25DA6B") @db.DateTime
   UpdatedAt  DateTime @default(now(), map: "DF__t_fpgto2__Update__3019FEA4") @db.DateTime
+  ID         String?  @default(dbgenerated("newid()"), map: "DF_T_FPGTO2_ID") @db.UniqueIdentifier
+  ID_FPGTO   String?  @db.UniqueIdentifier
 
   @@id([cdfpgto, diasvencto], map: "PK_t_fpgto2", clustered: false)
 }
@@ -4147,8 +4157,13 @@ model t_itsven {
   ID            String?   @default(dbgenerated("newid()"), map: "DF__t_itsven__ID__3DDE0E16") @db.UniqueIdentifier
   isdeleted     Boolean   @default(false, map: "DF_t_itsven_isdeleted")
   createdat     DateTime? @default(now(), map: "DF_T_ITSVEN_CreatedAt") @db.DateTime
-  updatedat     DateTime? @db.DateTime
+  updatedat     DateTime? @default(now(), map: "DF_T_ITSVEN_UpdatedAt") @db.DateTime
   ID_VENDA      String?   @db.UniqueIdentifier
+  ID_EMPRESA    String?   @db.UniqueIdentifier
+  ID_ITEM       String?   @db.UniqueIdentifier
+  ID_GRUPO      String?   @db.UniqueIdentifier
+  ID_CST        String?   @db.UniqueIdentifier
+  ID_VENDEDOR   String?   @db.UniqueIdentifier
 
   @@id([registro, empven], map: "PK_t_itsven")
   @@index([nrven_iv, cditem_iv], map: "IX_t_itsven")
@@ -4949,8 +4964,8 @@ model t_movest {
   compra    Decimal?  @db.Decimal(18, 4)
   ID        String?   @default(dbgenerated("newid()"), map: "DF__t_movest__ID__41AE9EFA") @db.UniqueIdentifier
   isdeleted Boolean   @default(false, map: "DF_t_movest_isdeleted")
-  createdat DateTime? @db.DateTime
-  updatedat DateTime? @db.DateTime
+  createdat DateTime? @default(now(), map: "DF_t_movest_createdat") @db.DateTime
+  updatedat DateTime? @default(now(), map: "DF_t_movest_updatedat") @db.DateTime
 
   @@id([nrlan, cdemp], map: "PK_t_movest")
   @@index([cditem], map: "IX_t_movest")
@@ -6045,8 +6060,10 @@ model t_receitas {
   adicesq   Decimal?  @db.Decimal(18, 2)
   CreatedAt DateTime  @default(now(), map: "DF__t_receita__Creat__16E43C86") @db.DateTime
   UpdatedAt DateTime  @default(now(), map: "DF__t_receita__Updat__17D860BF") @db.DateTime
+  ID        String?   @default(dbgenerated("newid()"), map: "DF_T_RECEITAS_ID") @db.UniqueIdentifier
 
   @@id([autocod, codcli], map: "PK_t_Receitas")
+  @@index([autocod], map: "IX_RECEITAS_AUTOCOD")
 }
 
 model t_recibo {
@@ -6445,6 +6462,7 @@ model t_sepcon {
   ativosn   String?   @db.Char(1)
   CreatedAt DateTime  @default(now(), map: "DF__t_sepcon__Create__42C2BEC4") @db.DateTime
   UpdatedAt DateTime  @default(now(), map: "DF__t_sepcon__Update__43B6E2FD") @db.DateTime
+  ID        String?   @default(dbgenerated("newid()"), map: "DF_T_SEPCON_ID") @db.UniqueIdentifier
 
   @@id([cdsep, cdemp], map: "PK_t_sepcon")
 }
@@ -6757,7 +6775,7 @@ model t_tpgto {
   PIX             String?   @db.Char(1)
   CreatedAt       DateTime  @default(now(), map: "DF__t_tpgto__Created__6AD0B01E") @db.DateTime
   UpdatedAt       DateTime  @default(now(), map: "DF__t_tpgto__Updated__6BC4D457") @db.DateTime
-  ID              String?   @default(dbgenerated("newid()"), map: "DF_T_TPGTO_ID") @db.UniqueIdentifier
+  ID              String    @default(dbgenerated("newid()"), map: "DF_T_TPGTO_ID") @db.UniqueIdentifier
   OnLineSN        String?   @db.Char(1)
 }
 
@@ -7029,10 +7047,17 @@ model t_vendas {
   ID                   String?   @default(dbgenerated("newid()"), map: "DF__t_vendas__ID__3A0D7D32") @db.UniqueIdentifier
   isdeleted            Boolean   @default(false, map: "DF_t_vendas_isdeleted")
   createdat            DateTime? @default(now(), map: "DF_T_VENDAS_CreatedAt") @db.DateTime
-  updatedat            DateTime? @db.DateTime
+  updatedat            DateTime? @default(now(), map: "DF_T_VENDAS_UpdatedAt") @db.DateTime
   ID_CLIENTE           String?   @db.UniqueIdentifier
   ID_FPGTO             String?   @db.UniqueIdentifier
   ID_TPGTO             String?   @db.UniqueIdentifier
+  ID_EMPRESA           String?   @db.UniqueIdentifier
+  ID_VENDEDOR          String?   @db.UniqueIdentifier
+  ID_USUARIO           String?   @db.UniqueIdentifier
+  ID_CONFERENTE        String?   @db.UniqueIdentifier
+  ID_SEPARADOR         String?   @db.UniqueIdentifier
+  ID_NEWVENDA          String?   @db.UniqueIdentifier
+  ID_RECEITA           String?   @db.UniqueIdentifier
   t_cli                t_cli?    @relation(fields: [ID_CLIENTE], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_T_VENDAS_T_CLI_ID_CLIENTE")
 
   @@id([autocod_v, nrven_v, cdemp_v], map: "PK_t_vendas", clustered: false)
@@ -7405,6 +7430,7 @@ model t_auditoriaEstoque {
   saldo_ant   Decimal  @db.Decimal(18, 4)
   saldo_atual Decimal  @db.Decimal(18, 4)
   origem      String?  @db.VarChar(50)
+  ID_MOVEST   String?  @db.UniqueIdentifier
 
   @@index([cdemp, cditem], map: "IX_t_auditoriaEstoque_cdemp_cditem")
   @@index([cditem], map: "IX_t_auditoriaEstoque_cditem")
@@ -7444,27 +7470,28 @@ model T_ItensCombo {
 }
 
 model T_ENDCLI {
-  AUTOCOD            Int      @default(autoincrement())
-  ID                 String   @id(map: "PK_T_ENDCLI") @default(dbgenerated("newsequentialid()"), map: "DF__T_ENDCLI__ID__4E89772B") @db.UniqueIdentifier
-  ID_CLIENTE         String   @db.UniqueIdentifier
-  CEP                String?  @db.VarChar(10)
-  LOGRADOURO         String?  @db.VarChar(100)
-  NUMERO             String?  @db.VarChar(20)
-  BAIRRO             String?  @db.VarChar(60)
-  CIDADE             String?  @db.VarChar(60)
-  UF                 String?  @db.Char(2)
-  COMPLEMENTO        String?  @db.VarChar(100)
-  PONTO_REFERENCIA   String?  @db.VarChar(255)
-  TIPO_LOCAL         String?  @db.VarChar(20)
-  INSTRUCOES_ENTREGA String?  @db.VarChar(Max)
-  LATITUDE           Decimal? @db.Decimal(10, 8)
-  LONGITUDE          Decimal? @db.Decimal(11, 8)
-  CDUSU              String?  @db.VarChar(15)
-  TIPO_ENDERECO      String?  @db.VarChar(3)
-  CREATEDAT          DateTime @default(now(), map: "DF__T_ENDCLI__CREATE__4F7D9B64") @db.DateTime
-  UPDATEDAT          DateTime @default(now(), map: "DF__T_ENDCLI__UPDATE__5071BF9D") @db.DateTime
-  ISDELETED          Boolean  @default(false, map: "DF__T_ENDCLI__ISDELE__5165E3D6")
-  t_cli              t_cli    @relation(fields: [ID_CLIENTE], references: [id], onUpdate: NoAction, map: "FK_T_ENDCLI_CLIENTE")
+  AUTOCOD            Int                       @default(autoincrement())
+  ID                 String                    @id(map: "PK_T_ENDCLI") @default(dbgenerated("newsequentialid()"), map: "DF__T_ENDCLI__ID__4E89772B") @db.UniqueIdentifier
+  ID_CLIENTE         String                    @db.UniqueIdentifier
+  CEP                String?                   @db.VarChar(10)
+  LOGRADOURO         String?                   @db.VarChar(100)
+  NUMERO             String?                   @db.VarChar(20)
+  BAIRRO             String?                   @db.VarChar(60)
+  CIDADE             String?                   @db.VarChar(60)
+  UF                 String?                   @db.Char(2)
+  COMPLEMENTO        String?                   @db.VarChar(100)
+  PONTO_REFERENCIA   String?                   @db.VarChar(255)
+  TIPO_LOCAL         String?                   @db.VarChar(20)
+  INSTRUCOES_ENTREGA String?                   @db.VarChar(Max)
+  LATITUDE           Decimal?                  @db.Decimal(10, 8)
+  LONGITUDE          Decimal?                  @db.Decimal(11, 8)
+  CDUSU              String?                   @db.VarChar(15)
+  TIPO_ENDERECO      String?                   @db.VarChar(3)
+  CREATEDAT          DateTime                  @default(now(), map: "DF__T_ENDCLI__CREATE__4F7D9B64") @db.DateTime
+  UPDATEDAT          DateTime                  @default(now(), map: "DF__T_ENDCLI__UPDATE__5071BF9D") @db.DateTime
+  ISDELETED          Boolean                   @default(false, map: "DF__T_ENDCLI__ISDELE__5165E3D6")
+  location           Unsupported("geography")?
+  t_cli              t_cli                     @relation(fields: [ID_CLIENTE], references: [id], onUpdate: NoAction, map: "FK_T_ENDCLI_CLIENTE")
 
   @@index([ID_CLIENTE, TIPO_ENDERECO], map: "IDX_ENDCLI_CLI_TIPO")
 }
@@ -7523,4 +7550,18 @@ model T_PedidosOnLineItens {
   @@index([ID_ITEM], map: "IX_T_PedidosOnLineItens_ITEM")
   @@index([ID_PEDIDO], map: "IX_T_PedidosOnLineItens_PEDIDO")
   @@index([ID_PEDIDO, ID_ITEM], map: "UX_T_PedidosOnLineItens_PEDIDO_ITEM")
+}
+
+model StoreHours {
+  id          String   @id(map: "PK__StoreHou__3213E83F39BFD7AA") @default(dbgenerated("newid()"), map: "DF__StoreHours__id__13F2C142") @db.UniqueIdentifier
+  store_id    String   @db.UniqueIdentifier
+  cdemp       Int
+  day_of_week Int
+  open_time   DateTime @db.Time
+  close_time  DateTime @db.Time
+  is_closed   Boolean? @default(false, map: "DF__StoreHour__is_cl__14E6E57B")
+  id_empresa  String?  @db.UniqueIdentifier
+  t_emp       t_emp    @relation(fields: [cdemp], references: [cdemp], onUpdate: NoAction, map: "FK_StoreHours_Store")
+
+  @@index([store_id, day_of_week], map: "IX_StoreHours_StoreDay")
 }

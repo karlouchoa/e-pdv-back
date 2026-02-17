@@ -1,45 +1,65 @@
-import { Injectable, NestMiddleware, Logger } from '@nestjs/common';
-import { Request, Response, NextFunction } from 'express';
+import { Injectable, Logger, NestMiddleware } from '@nestjs/common';
+import { NextFunction, Request, Response } from 'express';
 
 @Injectable()
 export class LoggerMiddleware implements NestMiddleware {
   private readonly logger = new Logger('RequestLogger');
 
-  // use(req: Request, res: Response, next: NextFunction) {
-  //   const fullUrl = req.originalUrl;
-  //   const payload = req.body;
-  //   const method = req.method;
-  //   this.logger.log(`
-  //     --- DADOS DA REQUISIÇÃO ---
-  //     Método: ${method}
-  //     URL: ${fullUrl}
-  //     Payload/Body: ${JSON.stringify(payload, null, 2)}
-  //     ---------------------------
-  //   `);
-  //   next();
-  // }
+  private sanitizeForLog(value: unknown): unknown {
+    const sensitiveKeys = new Set([
+      'senha',
+      'password',
+      'token',
+      'authorization',
+    ]);
 
-  use(req: Request, res: Response, next: NextFunction) {
-    // intercepta res.send para capturar a resposta
-    const originalSend = res.send.bind(res);
-    res.send = (body?: any) => {
-      res.locals.responseBody = body;
-      return originalSend(body);
-    };
+    if (Array.isArray(value)) {
+      return value.map((item) => this.sanitizeForLog(item));
+    }
 
-    // res.on('finish', () => {
-    //   this.logger.log(
-    //     [
-    //       '--- DADOS DA REQUISIÇÃO ---',
-    //       `Método: ${method}`,
-    //       `URL: ${fullUrl}`,
-    //       `Payload/Body: ${JSON.stringify(payload, null, 2)}`,
-    //       `Status: ${res.statusCode}`,
-    //       `Response: ${JSON.stringify(res.locals.responseBody, null, 2)}`,
-    //       '---------------------------',
-    //     ].join('\n'),
-    //   );
-    // });
+    if (!value || typeof value !== 'object') {
+      return value;
+    }
+
+    const record = value as Record<string, unknown>;
+    const sanitized: Record<string, unknown> = {};
+
+    Object.entries(record).forEach(([key, raw]) => {
+      if (sensitiveKeys.has(key.toLowerCase())) {
+        sanitized[key] = '***';
+        return;
+      }
+      sanitized[key] = this.sanitizeForLog(raw);
+    });
+
+    return sanitized;
+  }
+
+  private stringifyPayload(payload: unknown): string {
+    try {
+      return JSON.stringify(this.sanitizeForLog(payload));
+    } catch {
+      return '"[unserializable-payload]"';
+    }
+  }
+
+  use(req: Request, _res: Response, next: NextFunction) {
+    const method = req.method;
+    const endpoint = req.originalUrl || req.url;
+    const payload = req.body;
+    const hasPayload =
+      payload &&
+      typeof payload === 'object' &&
+      !Array.isArray(payload) &&
+      Object.keys(payload as Record<string, unknown>).length > 0;
+
+    if (hasPayload) {
+      this.logger.log(
+        `[${new Date().toISOString()}] ${method} ${endpoint} payload=${this.stringifyPayload(payload)}`,
+      );
+    } else {
+      this.logger.log(`[${new Date().toISOString()}] ${method} ${endpoint}`);
+    }
 
     next();
   }

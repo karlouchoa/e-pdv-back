@@ -8,6 +8,7 @@ import { PedidosOnlineConfirmService } from './pedidos-online-confirm.service';
 import { PedidosOnlineRepository } from './pedidos-online.repository';
 import { PedidosOnlineItensRepository } from './pedidos-online-itens.repository';
 import { PedidosOnlineComboRepository } from './pedidos-online-combo.repository';
+import { PedidosOnlineQueryService } from './pedidos-online-query.service';
 import { RolesGuard } from '../auth/roles.guard';
 
 @Module({
@@ -19,6 +20,7 @@ import { RolesGuard } from '../auth/roles.guard';
     PedidosOnlineRepository,
     PedidosOnlineItensRepository,
     PedidosOnlineComboRepository,
+    PedidosOnlineQueryService,
     PedidosOnlineConfirmService,
     RolesGuard,
   ],

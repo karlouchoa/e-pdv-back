@@ -10,7 +10,16 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3023
-      DATABASE_URL: "sqlserver://103.199.184.26:15453;database=acessos;user=srmobile;password=P90pO89o;encrypt=true;trustServerCertificate=true;"
+      DATABASE_URL: "sqlserver://sql2022:1433;database=acessos;user=srmobile;password=P90pO89o;encrypt=true;trustServerCertificate=true;"
+      DATABASE_ACESSOS: "sqlserver://sql2022:1433;database=acessos;user=srmobile;password=P90pO89o;encrypt=true;trustServerCertificate=true;"
+      DATABASE_MODELO: "sqlserver://sql2022:1433;database=goldpdv;user=srmobile;password=P90pO89o;encrypt=true;trustServerCertificate=true;"
+      TENANT_DATABASE_URL_TEMPLATE: "sqlserver://sql2022:1433;database={{TENANT}};user=srmobile;password=P90pO89o;encrypt=true;trustServerCertificate=true;"
+      DB_HOST: sql2022
+      DB_PORT: "1433"
+      DB_USER: srmobile
+      DB_PASS: P90pO89o
+      DB_ENCRYPT: "true"
+      DB_TRUST_SERVER_CERTIFICATE: "true"
     networks:
       - vpn_docker
          

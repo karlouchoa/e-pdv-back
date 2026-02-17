@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import type { PrismaClient as TenantClient } from '../../prisma/generated/client_tenant';
 import { PedidosOnlineComboRepository } from '../orders/pedidos-online-combo.repository';
@@ -14,6 +18,7 @@ type ItemRecord = {
   ID: string | null;
   cdemp: number;
   cditem: number;
+  cdgruit: number | null;
   deitem: string | null;
   undven: string | null;
   preco: unknown;
@@ -33,6 +38,12 @@ type NormalizedChoice = {
   quantity: number;
 };
 
+type ComboRule = {
+  ID_ITEM: string;
+  CDGRU: number;
+  QTDE: unknown;
+};
+
 type ItemSnapshot = {
   recordId: string;
   record: ItemRecord;
@@ -43,6 +54,8 @@ type ItemSnapshot = {
   isCombo: boolean;
   comboChoices: NormalizedChoice[];
 };
+
+type DeliveryMode = 'ENTREGA' | 'RETIRADA';
 
 @Injectable()
 export class PublicPedidosOnlineService {
@@ -103,6 +116,17 @@ export class PublicPedidosOnlineService {
     const trimmed = (value ?? '').toString().trim();
     if (!trimmed) return null;
     return trimmed.slice(0, maxLen);
+  }
+
+  private resolveDeliveryMode(
+    mode: string | undefined,
+    hasAddress: boolean,
+  ): DeliveryMode {
+    const normalized = (mode ?? '').toString().trim().toUpperCase();
+    if (normalized === 'ENTREGA' || normalized === 'RETIRADA') {
+      return normalized;
+    }
+    return hasAddress ? 'ENTREGA' : 'RETIRADA';
   }
 
   private ensureItemAvailable(item: {
@@ -190,14 +214,132 @@ export class PublicPedidosOnlineService {
     return Array.from(aggregated.values());
   }
 
+  private validateComboChoicesByRules(payload: {
+    comboItem: ItemRecord;
+    comboQuantity: number;
+    choices: NormalizedChoice[];
+    comboRules: ComboRule[];
+    itemMap: Map<string, ItemRecord>;
+  }) {
+    const { comboItem, comboQuantity, choices, comboRules, itemMap } = payload;
+
+    if (!comboRules.length) {
+      throw new BadRequestException(
+        `Item combo ${comboItem.cditem} sem regras cadastradas em T_ItensCombo.`,
+      );
+    }
+
+    const maxByGroup = new Map<number, number>();
+    for (const rule of comboRules) {
+      const group = this.toNumber(rule.CDGRU);
+      const ruleQty = this.roundQuantity(this.toNumber(rule.QTDE));
+      if (!Number.isInteger(group) || group <= 0) continue;
+      if (!Number.isFinite(ruleQty) || ruleQty <= 0) continue;
+
+      maxByGroup.set(group, this.roundQuantity(ruleQty * comboQuantity));
+    }
+
+    if (!maxByGroup.size) {
+      throw new BadRequestException(
+        `Item combo ${comboItem.cditem} sem quantidade valida em T_ItensCombo.`,
+      );
+    }
+
+    const selectedByGroup = new Map<number, number>();
+    for (const choice of choices) {
+      const choiceRecord = itemMap.get(choice.idItemEscolhido);
+      if (!choiceRecord) {
+        throw new BadRequestException(
+          `Item escolhido ${choice.idItemEscolhido} nao encontrado.`,
+        );
+      }
+
+      if (choiceRecord.cdgruit !== choice.cdgru) {
+        throw new BadRequestException(
+          `Item escolhido ${choiceRecord.cditem} nao pertence ao grupo ${choice.cdgru}.`,
+        );
+      }
+
+      if (!maxByGroup.has(choice.cdgru)) {
+        throw new BadRequestException(
+          `Grupo ${choice.cdgru} nao permitido para o combo ${comboItem.cditem}.`,
+        );
+      }
+
+      selectedByGroup.set(
+        choice.cdgru,
+        this.roundQuantity(
+          (selectedByGroup.get(choice.cdgru) ?? 0) + choice.quantity,
+        ),
+      );
+    }
+
+    for (const [group, selectedQty] of selectedByGroup.entries()) {
+      const maxQty = maxByGroup.get(group) ?? 0;
+      if (selectedQty > maxQty + Number.EPSILON) {
+        throw new BadRequestException(
+          `Quantidade escolhida no grupo ${group} excede o limite (${maxQty}) para o combo ${comboItem.cditem}.`,
+        );
+      }
+    }
+  }
+
   async createPedidoOnline(tenant: string, dto: CreatePublicPedidoOnlineDto) {
     if (!dto.items?.length) {
       throw new BadRequestException('Informe ao menos um item.');
     }
 
+    const deliveryMode = this.resolveDeliveryMode(
+      dto.tipoEntrega,
+      Boolean(dto.idEndereco),
+    );
+
+    if (deliveryMode === 'ENTREGA' && !dto.idEndereco) {
+      throw new BadRequestException(
+        'Pedidos de entrega precisam informar o endereco.',
+      );
+    }
+
+    if (!dto.idCliente && dto.idEndereco) {
+      throw new BadRequestException(
+        'Endereco informado sem cliente vinculado.',
+      );
+    }
+
     const prisma = await this.getPrisma(tenant);
 
     return prisma.$transaction(async (tx) => {
+      if (dto.idCliente) {
+        const clientExists = await tx.t_cli.findFirst({
+          where: {
+            id: dto.idCliente,
+            OR: [{ isdeleted: false }, { isdeleted: null }],
+          },
+          select: { id: true },
+        });
+
+        if (!clientExists) {
+          throw new BadRequestException('Cliente nao encontrado.');
+        }
+      }
+
+      if (deliveryMode === 'ENTREGA' && dto.idEndereco && dto.idCliente) {
+        const addressExists = await tx.t_ENDCLI.findFirst({
+          where: {
+            ID: dto.idEndereco,
+            ID_CLIENTE: dto.idCliente,
+            ISDELETED: false,
+          },
+          select: { ID: true },
+        });
+
+        if (!addressExists) {
+          throw new BadRequestException(
+            'Endereco informado nao pertence ao cliente.',
+          );
+        }
+      }
+
       const itemIds = new Set<string>();
       const allIds = new Set<string>();
 
@@ -224,6 +366,7 @@ export class PublicPedidosOnlineService {
           ID: true,
           cdemp: true,
           cditem: true,
+          cdgruit: true,
           deitem: true,
           undven: true,
           preco: true,
@@ -255,6 +398,28 @@ export class PublicPedidosOnlineService {
         return itemMap.get(itemId) as ItemRecord;
       });
       const cdemp = this.resolveCompanyId(recordsForCompany);
+
+      const comboRecordIds = Array.from(itemIds).filter((itemId) => {
+        const record = itemMap.get(itemId);
+        return this.normalizeFlag(record?.ComboSN) === COMBO_FLAG;
+      });
+
+      const comboRules = comboRecordIds.length
+        ? await tx.t_ItensCombo.findMany({
+            where: { ID_ITEM: { in: comboRecordIds } },
+            select: {
+              ID_ITEM: true,
+              CDGRU: true,
+              QTDE: true,
+            },
+          })
+        : [];
+      const comboRulesByItem = new Map<string, ComboRule[]>();
+      for (const rule of comboRules as ComboRule[]) {
+        const rules = comboRulesByItem.get(rule.ID_ITEM) ?? [];
+        rules.push(rule);
+        comboRulesByItem.set(rule.ID_ITEM, rules);
+      }
 
       const snapshots: ItemSnapshot[] = [];
 
@@ -307,6 +472,16 @@ export class PublicPedidosOnlineService {
           );
         }
 
+        if (isCombo) {
+          this.validateComboChoicesByRules({
+            comboItem: record,
+            comboQuantity: quantity,
+            choices: normalizedChoices,
+            comboRules: comboRulesByItem.get(recordId) ?? [],
+            itemMap,
+          });
+        }
+
         for (const choice of normalizedChoices) {
           const choiceRecord = itemMap.get(choice.idItemEscolhido);
           if (!choiceRecord) {
@@ -347,7 +522,10 @@ export class PublicPedidosOnlineService {
         snapshots.reduce((sum, item) => sum + item.lineTotal, 0),
       );
       const desconto = this.roundMoney(this.toNumber(dto.desconto ?? 0));
-      const taxaEntrega = this.roundMoney(this.toNumber(dto.taxaEntrega ?? 0));
+      const taxaEntrega =
+        deliveryMode === 'RETIRADA'
+          ? 0
+          : this.roundMoney(this.toNumber(dto.taxaEntrega ?? 0));
 
       if (!Number.isFinite(desconto) || desconto < 0) {
         throw new BadRequestException('Desconto invalido.');
@@ -367,8 +545,11 @@ export class PublicPedidosOnlineService {
         {
           cdemp,
           idCliente: dto.idCliente ?? null,
-          idEndereco: dto.idEndereco ?? null,
-          canal: this.normalizeText(dto.canal, 20) ?? undefined,
+          idEndereco:
+            deliveryMode === 'ENTREGA' ? (dto.idEndereco ?? null) : null,
+          canal:
+            this.normalizeText(dto.canal, 20) ??
+            (deliveryMode === 'ENTREGA' ? 'ENTREGA' : 'RETIRADA'),
           obs: this.normalizeText(dto.obs, 500),
           totals: {
             subtotal,
@@ -452,5 +633,154 @@ export class PublicPedidosOnlineService {
         excludeExtraneousValues: true,
       });
     });
+  }
+
+  async listPedidosByCliente(
+    tenant: string,
+    payload: { idCliente: string; limit: number },
+  ) {
+    const rows = await this.pedidosOnlineRepo.listByClient(tenant, payload);
+
+    return rows.map((row) => ({
+      id: row.ID,
+      cdemp: row.CDEMP ?? null,
+      idCliente: row.ID_CLIENTE ?? null,
+      idEndereco: row.ID_ENDERECO ?? null,
+      canal: row.CANAL ?? null,
+      status: row.STATUS,
+      dtPedido: row.DT_PEDIDO ?? null,
+      totals: {
+        subtotal: this.toNumber(row.TOTAL_BRUTO),
+        discount: this.toNumber(row.DESCONTO),
+        deliveryFee: this.toNumber(row.TAXA_ENTREGA),
+        total: this.toNumber(row.TOTAL_LIQ),
+      },
+      idVenda: row.ID_VENDA ?? null,
+      dtConfirmacao: row.DT_CONFIRMACAO ?? null,
+      confirmadoPor: row.CONFIRMADO_POR ?? null,
+      obs: row.OBS ?? null,
+      cliente: {
+        nome: row.CLIENTE_NOME ?? null,
+        telefone: row.CLIENTE_FONE ?? null,
+        email: row.CLIENTE_EMAIL ?? null,
+      },
+      itemsCount: this.toNumber(row.ITEMS_COUNT),
+    }));
+  }
+
+  async getPedidoPublic(tenant: string, id: string) {
+    const pedido = await this.pedidosOnlineRepo.findDetailsById(tenant, id);
+    if (!pedido) {
+      throw new NotFoundException('Pedido online nao encontrado.');
+    }
+
+    const [itens, prisma] = await Promise.all([
+      this.pedidosOnlineItensRepo.listItensByPedidoId(tenant, id),
+      this.getPrisma(tenant),
+    ]);
+
+    const choicesByPedidoItem = new Map<
+      string,
+      Awaited<
+        ReturnType<PedidosOnlineComboRepository['listEscolhasByPedidoItemId']>
+      >
+    >();
+    const allItemIds = new Set<string>();
+    itens.forEach((item) => allItemIds.add(item.ID_ITEM));
+
+    for (const item of itens) {
+      const isCombo = this.normalizeFlag(item.EH_COMBO) === COMBO_FLAG;
+      if (!isCombo) continue;
+
+      const choices =
+        await this.pedidosOnlineComboRepo.listEscolhasByPedidoItemId(
+          tenant,
+          item.ID,
+        );
+
+      choicesByPedidoItem.set(item.ID, choices);
+      choices.forEach((choice) => allItemIds.add(choice.ID_ITEM_ESCOLHIDO));
+    }
+
+    const itemRecords = allItemIds.size
+      ? await prisma.t_itens.findMany({
+          where: { ID: { in: Array.from(allItemIds) } },
+          select: {
+            ID: true,
+            cditem: true,
+            deitem: true,
+            locfotitem: true,
+          },
+        })
+      : [];
+
+    const itemMap = new Map(
+      itemRecords
+        .filter((record) => Boolean(record.ID))
+        .map((record) => [record.ID as string, record]),
+    );
+
+    return {
+      id: pedido.ID,
+      cdemp: pedido.CDEMP ?? null,
+      idCliente: pedido.ID_CLIENTE ?? null,
+      idEndereco: pedido.ID_ENDERECO ?? null,
+      canal: pedido.CANAL ?? null,
+      status: pedido.STATUS,
+      dtPedido: pedido.DT_PEDIDO ?? null,
+      totals: {
+        subtotal: this.toNumber(pedido.TOTAL_BRUTO),
+        discount: this.toNumber(pedido.DESCONTO),
+        deliveryFee: this.toNumber(pedido.TAXA_ENTREGA),
+        total: this.toNumber(pedido.TOTAL_LIQ),
+      },
+      idVenda: pedido.ID_VENDA ?? null,
+      dtConfirmacao: pedido.DT_CONFIRMACAO ?? null,
+      confirmadoPor: pedido.CONFIRMADO_POR ?? null,
+      obs: pedido.OBS ?? null,
+      cliente: {
+        nome: pedido.CLIENTE_NOME ?? null,
+        telefone: pedido.CLIENTE_FONE ?? null,
+        email: pedido.CLIENTE_EMAIL ?? null,
+      },
+      endereco: {
+        cep: pedido.END_CEP ?? null,
+        logradouro: pedido.END_LOGRADOURO ?? null,
+        numero: pedido.END_NUMERO ?? null,
+        bairro: pedido.END_BAIRRO ?? null,
+        cidade: pedido.END_CIDADE ?? null,
+        uf: pedido.END_UF ?? null,
+        complemento: pedido.END_COMPLEMENTO ?? null,
+        referencia: pedido.END_REFERENCIA ?? null,
+      },
+      itemsCount: this.toNumber(pedido.ITEMS_COUNT),
+      itens: itens.map((item) => {
+        const record = itemMap.get(item.ID_ITEM);
+        const choices = choicesByPedidoItem.get(item.ID) ?? [];
+        return {
+          id: item.ID,
+          idItem: item.ID_ITEM,
+          cditem: record?.cditem ?? null,
+          descricao: record?.deitem ?? null,
+          imagem: record?.locfotitem ?? null,
+          quantity: this.toNumber(item.QTDE),
+          unitPrice: this.toNumber(item.VLR_UNIT_CALC),
+          total: this.toNumber(item.VLR_TOTAL_CALC),
+          obs: item.OBS_ITEM ?? null,
+          isCombo: this.normalizeFlag(item.EH_COMBO) === COMBO_FLAG,
+          escolhas: choices.map((choice) => {
+            const choiceRecord = itemMap.get(choice.ID_ITEM_ESCOLHIDO);
+            return {
+              id: choice.ID,
+              idItemEscolhido: choice.ID_ITEM_ESCOLHIDO,
+              cdgru: choice.CDGRU ?? null,
+              quantity: this.toNumber(choice.QTDE),
+              cditem: choiceRecord?.cditem ?? null,
+              descricao: choiceRecord?.deitem ?? null,
+            };
+          }),
+        };
+      }),
+    };
   }
 }

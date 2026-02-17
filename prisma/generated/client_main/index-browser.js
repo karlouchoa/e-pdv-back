@@ -138,7 +138,8 @@ exports.Prisma.T_acessosScalarFieldEnum = {
   whatsapp: 'whatsapp',
   createdAt: 'createdAt',
   Empresa: 'Empresa',
-  logoUrl: 'logoUrl'
+  logoUrl: 'logoUrl',
+  imagem_capa: 'imagem_capa'
 };
 
 exports.Prisma.T_bancoScalarFieldEnum = {

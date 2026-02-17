@@ -1058,6 +1058,7 @@ export namespace Prisma {
     createdAt: Date | null
     Empresa: string | null
     logoUrl: string | null
+    imagem_capa: string | null
   }
 
   export type T_acessosMaxAggregateOutputType = {
@@ -1077,6 +1078,7 @@ export namespace Prisma {
     createdAt: Date | null
     Empresa: string | null
     logoUrl: string | null
+    imagem_capa: string | null
   }
 
   export type T_acessosCountAggregateOutputType = {
@@ -1096,6 +1098,7 @@ export namespace Prisma {
     createdAt: number
     Empresa: number
     logoUrl: number
+    imagem_capa: number
     _all: number
   }
 
@@ -1127,6 +1130,7 @@ export namespace Prisma {
     createdAt?: true
     Empresa?: true
     logoUrl?: true
+    imagem_capa?: true
   }
 
   export type T_acessosMaxAggregateInputType = {
@@ -1146,6 +1150,7 @@ export namespace Prisma {
     createdAt?: true
     Empresa?: true
     logoUrl?: true
+    imagem_capa?: true
   }
 
   export type T_acessosCountAggregateInputType = {
@@ -1165,6 +1170,7 @@ export namespace Prisma {
     createdAt?: true
     Empresa?: true
     logoUrl?: true
+    imagem_capa?: true
     _all?: true
   }
 
@@ -1271,6 +1277,7 @@ export namespace Prisma {
     createdAt: Date
     Empresa: string | null
     logoUrl: string | null
+    imagem_capa: string | null
     _count: T_acessosCountAggregateOutputType | null
     _avg: T_acessosAvgAggregateOutputType | null
     _sum: T_acessosSumAggregateOutputType | null
@@ -1309,6 +1316,7 @@ export namespace Prisma {
     createdAt?: boolean
     Empresa?: boolean
     logoUrl?: boolean
+    imagem_capa?: boolean
   }, ExtArgs["result"]["t_acessos"]>
 
 
@@ -1330,9 +1338,10 @@ export namespace Prisma {
     createdAt?: boolean
     Empresa?: boolean
     logoUrl?: boolean
+    imagem_capa?: boolean
   }
 
-  export type t_acessosOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "login" | "senha" | "nome" | "funcao" | "banco" | "adm" | "ativo" | "con" | "pwd" | "cnpj" | "ddd" | "whatsapp" | "createdAt" | "Empresa" | "logoUrl", ExtArgs["result"]["t_acessos"]>
+  export type t_acessosOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "login" | "senha" | "nome" | "funcao" | "banco" | "adm" | "ativo" | "con" | "pwd" | "cnpj" | "ddd" | "whatsapp" | "createdAt" | "Empresa" | "logoUrl" | "imagem_capa", ExtArgs["result"]["t_acessos"]>
 
   export type $t_acessosPayload<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     name: "t_acessos"
@@ -1354,6 +1363,7 @@ export namespace Prisma {
       createdAt: Date
       Empresa: string | null
       logoUrl: string | null
+      imagem_capa: string | null
     }, ExtArgs["result"]["t_acessos"]>
     composites: {}
   }
@@ -1739,6 +1749,7 @@ export namespace Prisma {
     readonly createdAt: FieldRef<"t_acessos", 'DateTime'>
     readonly Empresa: FieldRef<"t_acessos", 'String'>
     readonly logoUrl: FieldRef<"t_acessos", 'String'>
+    readonly imagem_capa: FieldRef<"t_acessos", 'String'>
   }
     
 
@@ -3931,7 +3942,8 @@ export namespace Prisma {
     whatsapp: 'whatsapp',
     createdAt: 'createdAt',
     Empresa: 'Empresa',
-    logoUrl: 'logoUrl'
+    logoUrl: 'logoUrl',
+    imagem_capa: 'imagem_capa'
   };
 
   export type T_acessosScalarFieldEnum = (typeof T_acessosScalarFieldEnum)[keyof typeof T_acessosScalarFieldEnum]
@@ -4032,6 +4044,7 @@ export namespace Prisma {
     createdAt?: DateTimeFilter<"t_acessos"> | Date | string
     Empresa?: StringNullableFilter<"t_acessos"> | string | null
     logoUrl?: StringNullableFilter<"t_acessos"> | string | null
+    imagem_capa?: StringNullableFilter<"t_acessos"> | string | null
   }
 
   export type t_acessosOrderByWithRelationInput = {
@@ -4051,6 +4064,7 @@ export namespace Prisma {
     createdAt?: SortOrder
     Empresa?: SortOrderInput | SortOrder
     logoUrl?: SortOrderInput | SortOrder
+    imagem_capa?: SortOrderInput | SortOrder
   }
 
   export type t_acessosWhereUniqueInput = Prisma.AtLeast<{
@@ -4073,6 +4087,7 @@ export namespace Prisma {
     createdAt?: DateTimeFilter<"t_acessos"> | Date | string
     Empresa?: StringNullableFilter<"t_acessos"> | string | null
     logoUrl?: StringNullableFilter<"t_acessos"> | string | null
+    imagem_capa?: StringNullableFilter<"t_acessos"> | string | null
   }, "id">
 
   export type t_acessosOrderByWithAggregationInput = {
@@ -4092,6 +4107,7 @@ export namespace Prisma {
     createdAt?: SortOrder
     Empresa?: SortOrderInput | SortOrder
     logoUrl?: SortOrderInput | SortOrder
+    imagem_capa?: SortOrderInput | SortOrder
     _count?: t_acessosCountOrderByAggregateInput
     _avg?: t_acessosAvgOrderByAggregateInput
     _max?: t_acessosMaxOrderByAggregateInput
@@ -4119,6 +4135,7 @@ export namespace Prisma {
     createdAt?: DateTimeWithAggregatesFilter<"t_acessos"> | Date | string
     Empresa?: StringNullableWithAggregatesFilter<"t_acessos"> | string | null
     logoUrl?: StringNullableWithAggregatesFilter<"t_acessos"> | string | null
+    imagem_capa?: StringNullableWithAggregatesFilter<"t_acessos"> | string | null
   }
 
   export type t_bancoWhereInput = {
@@ -4250,6 +4267,7 @@ export namespace Prisma {
     createdAt?: Date | string
     Empresa?: string | null
     logoUrl?: string | null
+    imagem_capa?: string | null
   }
 
   export type t_acessosUncheckedCreateInput = {
@@ -4269,6 +4287,7 @@ export namespace Prisma {
     createdAt?: Date | string
     Empresa?: string | null
     logoUrl?: string | null
+    imagem_capa?: string | null
   }
 
   export type t_acessosUpdateInput = {
@@ -4287,6 +4306,7 @@ export namespace Prisma {
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     Empresa?: NullableStringFieldUpdateOperationsInput | string | null
     logoUrl?: NullableStringFieldUpdateOperationsInput | string | null
+    imagem_capa?: NullableStringFieldUpdateOperationsInput | string | null
   }
 
   export type t_acessosUncheckedUpdateInput = {
@@ -4306,6 +4326,7 @@ export namespace Prisma {
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     Empresa?: NullableStringFieldUpdateOperationsInput | string | null
     logoUrl?: NullableStringFieldUpdateOperationsInput | string | null
+    imagem_capa?: NullableStringFieldUpdateOperationsInput | string | null
   }
 
   export type t_acessosCreateManyInput = {
@@ -4324,6 +4345,7 @@ export namespace Prisma {
     createdAt?: Date | string
     Empresa?: string | null
     logoUrl?: string | null
+    imagem_capa?: string | null
   }
 
   export type t_acessosUpdateManyMutationInput = {
@@ -4342,6 +4364,7 @@ export namespace Prisma {
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     Empresa?: NullableStringFieldUpdateOperationsInput | string | null
     logoUrl?: NullableStringFieldUpdateOperationsInput | string | null
+    imagem_capa?: NullableStringFieldUpdateOperationsInput | string | null
   }
 
   export type t_acessosUncheckedUpdateManyInput = {
@@ -4361,6 +4384,7 @@ export namespace Prisma {
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     Empresa?: NullableStringFieldUpdateOperationsInput | string | null
     logoUrl?: NullableStringFieldUpdateOperationsInput | string | null
+    imagem_capa?: NullableStringFieldUpdateOperationsInput | string | null
   }
 
   export type t_bancoCreateInput = {
@@ -4543,6 +4567,7 @@ export namespace Prisma {
     createdAt?: SortOrder
     Empresa?: SortOrder
     logoUrl?: SortOrder
+    imagem_capa?: SortOrder
   }
 
   export type t_acessosAvgOrderByAggregateInput = {
@@ -4567,6 +4592,7 @@ export namespace Prisma {
     createdAt?: SortOrder
     Empresa?: SortOrder
     logoUrl?: SortOrder
+    imagem_capa?: SortOrder
   }
 
   export type t_acessosMinOrderByAggregateInput = {
@@ -4586,6 +4612,7 @@ export namespace Prisma {
     createdAt?: SortOrder
     Empresa?: SortOrder
     logoUrl?: SortOrder
+    imagem_capa?: SortOrder
   }
 
   export type t_acessosSumOrderByAggregateInput = {

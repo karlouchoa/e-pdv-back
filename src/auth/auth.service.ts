@@ -67,7 +67,7 @@ export class AuthService {
     });
   }
 
-  async login(login: string, senha: string, requestTenant?: string | null) {
+  async login(login: string, senha: string, _requestTenant?: string | null) {
     const identifier = login?.trim();
     if (!identifier) {
       throw new Error('Login nao informado.');
@@ -78,21 +78,8 @@ export class AuthService {
       logoUrl,
       companyName,
     } = await this.tenantDbService.getTenantMetadataByIdentifier(identifier);
-    const tenantFromRequest = requestTenant?.trim();
-    console.log('[AUTH][login]', {
-      identifier,
-      tenantFromRequest,
-      tenantSlug,
-    });
-    if (
-      tenantFromRequest &&
-      tenantFromRequest.toLowerCase() !== tenantSlug.toLowerCase()
-    ) {
-      throw new BadRequestException(
-        'Tenant informado na requisicao nao corresponde ao login.',
-      );
-    }
-    const resolvedTenant = tenantFromRequest ?? tenantSlug;
+    // Tenant database is always resolved from t_acessos.login -> t_acessos.banco.
+    const resolvedTenant = tenantSlug;
 
     const prisma = await this.tenantDbService.getTenantClient(resolvedTenant);
     const passwordInput = senha?.trim() ?? '';

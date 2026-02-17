@@ -19,7 +19,7 @@ import { TENANT_TABLE_CONFIGS, TenantTableConfig } from './tenant-table.config';
 import { GenericTenantService } from './generic-tenant.service';
 
 interface TenantRequest extends Request {
-  user?: { tenant?: string };
+  user?: { tenant?: string; email?: string | null; sub?: string | null };
 }
 
 const getServiceToken = (config: TenantTableConfig) =>
@@ -55,7 +55,10 @@ const createController = (config: TenantTableConfig) => {
     @UseGuards(TenantJwtGuard)
     @Post()
     create(@Req() req: TenantRequest, @Body() dto: Record<string, any>) {
-      return this.service.create(this.getTenant(req), dto);
+      return this.service.create(this.getTenant(req), dto, {
+        userEmail: req.user?.email ?? null,
+        userIdentifier: req.user?.sub ?? null,
+      });
     }
 
     @UseGuards(TenantJwtGuard)
@@ -80,7 +83,10 @@ const createController = (config: TenantTableConfig) => {
       @Param() params: Record<string, string>,
       @Body() dto: Record<string, any>,
     ) {
-      return this.service.update(this.getTenant(req), params, dto);
+      return this.service.update(this.getTenant(req), params, dto, {
+        userEmail: req.user?.email ?? null,
+        userIdentifier: req.user?.sub ?? null,
+      });
     }
 
     @UseGuards(TenantJwtGuard)

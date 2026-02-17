@@ -2,6 +2,7 @@ import { Transform, Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
+  IsIn,
   IsNumber,
   IsOptional,
   IsString,
@@ -23,6 +24,15 @@ export class CreatePublicPedidoOnlineDto {
   @IsOptional()
   @IsUUID()
   idEndereco?: string;
+
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === undefined || value === null
+      ? undefined
+      : String(value).trim().toUpperCase(),
+  )
+  @IsIn(['ENTREGA', 'RETIRADA'])
+  tipoEntrega?: 'ENTREGA' | 'RETIRADA';
 
   @IsOptional()
   @IsString()

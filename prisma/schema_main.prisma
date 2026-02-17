@@ -9,22 +9,23 @@ datasource db {
 }
 
 model t_acessos {
-  id        Int      @id(map: "PK_t_acessos") @default(autoincrement())
-  login     String?  @db.VarChar(60)
-  senha     String?  @db.VarChar(15)
-  nome      String?  @db.VarChar(30)
-  funcao    String?  @db.VarChar(30)
-  banco     String?  @db.VarChar(100)
-  adm       String?  @db.Char(1)
-  ativo     String?  @db.Char(1)
-  con       Int?
-  pwd       String?  @db.Char(1)
-  cnpj      String?  @db.VarChar(18)
-  ddd       String?  @db.VarChar(2)
-  whatsapp  String?  @db.VarChar(10)
-  createdAt DateTime @default(now(), map: "DF_t_acessos_createdAt") @db.DateTime
-  Empresa   String?  @db.VarChar(100)
-  logoUrl   String?  @db.VarChar(Max)
+  id          Int      @id(map: "PK_t_acessos") @default(autoincrement())
+  login       String?  @db.VarChar(60)
+  senha       String?  @db.VarChar(15)
+  nome        String?  @db.VarChar(30)
+  funcao      String?  @db.VarChar(30)
+  banco       String?  @db.VarChar(100)
+  adm         String?  @db.Char(1)
+  ativo       String?  @db.Char(1)
+  con         Int?
+  pwd         String?  @db.Char(1)
+  cnpj        String?  @db.VarChar(18)
+  ddd         String?  @db.VarChar(2)
+  whatsapp    String?  @db.VarChar(10)
+  createdAt   DateTime @default(now(), map: "DF_t_acessos_createdAt") @db.DateTime
+  Empresa     String?  @db.VarChar(100)
+  logoUrl     String?  @db.VarChar(Max)
+  imagem_capa String?  @db.VarChar(255)
 
   @@map("t_acessos")
 }
