@@ -76,11 +76,50 @@ export class AdminOperationsService {
   private toOptionalNumber(value: unknown): number | null {
     if (value === null || value === undefined || value === '') return null;
 
+    const normalizeNumericText = (raw: string) => {
+      const trimmed = raw.trim();
+      if (!trimmed) return Number.NaN;
+
+      const sanitized = trimmed.replace(/\s+/g, '').replace(/[^\d.,-]/g, '');
+      if (!sanitized) return Number.NaN;
+
+      const hasComma = sanitized.includes(',');
+      const hasDot = sanitized.includes('.');
+      if (hasComma && hasDot) {
+        const lastComma = sanitized.lastIndexOf(',');
+        const lastDot = sanitized.lastIndexOf('.');
+        if (lastComma > lastDot) {
+          return Number(sanitized.replace(/\./g, '').replace(',', '.'));
+        }
+        return Number(sanitized.replace(/,/g, ''));
+      }
+      if (hasComma) {
+        return Number(sanitized.replace(',', '.'));
+      }
+      return Number(sanitized);
+    };
+
     const parsed = (() => {
       if (typeof value === 'number') return value;
       if (typeof value === 'bigint') return Number(value);
-      if (typeof value === 'string') {
-        return Number(value.trim().replace(',', '.'));
+      if (typeof value === 'string') return normalizeNumericText(value);
+      if (typeof value === 'object') {
+        const decimalLike = value as {
+          toNumber?: () => number;
+          toString?: () => string;
+          valueOf?: () => unknown;
+        };
+        if (typeof decimalLike.toNumber === 'function') {
+          return decimalLike.toNumber();
+        }
+        if (typeof decimalLike.valueOf === 'function') {
+          const primitive = decimalLike.valueOf();
+          if (typeof primitive === 'number') return primitive;
+          if (typeof primitive === 'string') return normalizeNumericText(primitive);
+        }
+        if (typeof decimalLike.toString === 'function') {
+          return normalizeNumericText(decimalLike.toString());
+        }
       }
       return Number.NaN;
     })();
