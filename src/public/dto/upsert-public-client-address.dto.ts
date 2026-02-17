@@ -84,4 +84,3 @@ export class UpsertPublicClientAddressDto {
   @MaxLength(3)
   tipoEndereco?: string;
 }
-

@@ -7,21 +7,21 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import type { Request } from 'express';
+import { Public } from './decorators/public.decorator';
 import { TenantJwtGuard } from './tenant-jwt.guard';
 import type { JwtPayload } from './types/jwt-payload.type';
-import { resolveTenantFromRequest } from '../public/tenant-resolver';
 
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('login')
-  async login(
-    @Req() req: Request,
-    @Body() body: { login: string; senha: string },
-  ) {
+  async login(@Body() body: { login: string; senha: string }) {
     const identifier = body.login?.trim();
     const password = body.senha?.trim();
 
@@ -33,8 +33,7 @@ export class AuthController {
       throw new BadRequestException('Senha nao foi informada.');
     }
 
-    const tenant = resolveTenantFromRequest(req, { optional: true });
-    return this.authService.login(identifier, password, tenant);
+    return this.authService.login(identifier, password);
   }
 
   @Get('me')

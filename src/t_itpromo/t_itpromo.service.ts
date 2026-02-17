@@ -73,6 +73,12 @@ export class TItpromoService {
     return this.tenantDbService.getTenantClient(tenant);
   }
 
+  private async getPublicPrismaBySubdomain(
+    subdomain: string,
+  ): Promise<TenantClient> {
+    return this.tenantDbService.getTenantClientBySubdomain(subdomain);
+  }
+
   private toPublicResponse(records: TItpromoPublicDto[]) {
     return records.map((record) => this.normalizePublicRecord(record));
   }
@@ -159,7 +165,6 @@ export class TItpromoService {
     `;
   }
 
-
   private async resolvePromoKeys(
     tx: { $queryRaw: TenantClient['$queryRaw'] },
     dto: CreateTItpromoDto,
@@ -202,7 +207,15 @@ export class TItpromoService {
 
   async findPublic(tenant: string) {
     const prisma = await this.getPrisma(tenant);
+    return this.findPublicWithPrisma(prisma);
+  }
 
+  async findPublicBySubdomain(subdomain: string) {
+    const prisma = await this.getPublicPrismaBySubdomain(subdomain);
+    return this.findPublicWithPrisma(prisma);
+  }
+
+  private async findPublicWithPrisma(prisma: TenantClient) {
     const records = await prisma.$queryRaw<TItpromoPublicDto[]>`
       SELECT
         T_ITPROMO.EMPROMO AS EMPROMO,

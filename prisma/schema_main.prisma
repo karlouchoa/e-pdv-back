@@ -26,6 +26,7 @@ model t_acessos {
   Empresa     String?  @db.VarChar(100)
   logoUrl     String?  @db.VarChar(Max)
   imagem_capa String?  @db.VarChar(255)
+  subdominio  String?  @db.VarChar(60)
 
   @@map("t_acessos")
 }

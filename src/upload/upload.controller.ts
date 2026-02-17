@@ -8,15 +8,14 @@ import {
   Req,
 } from '@nestjs/common';
 import type { Request } from 'express';
+import { Throttle } from '@nestjs/throttler';
 import { UploadService } from './upload.service';
 import { TenantJwtGuard } from '../auth/tenant-jwt.guard';
-import { resolveTenantFromRequest } from '../public/tenant-resolver';
 import type { JwtPayload } from '../auth/types/jwt-payload.type';
 import { RequestPresignedUrlDto } from './dto/request-presigned-url.dto';
 
 interface TenantRequest extends Request {
   user?: JwtPayload;
-  tenant?: { slug?: string };
 }
 
 const MAX_UPLOAD_SIZE_BYTES = 5 * 1024 * 1024;
@@ -33,7 +32,7 @@ const ALLOWED_MIME_TYPES = new Set([
 export class UploadController {
   constructor(private readonly uploadService: UploadService) {}
 
-  // TODO(rate-limit): aplicar throttling quando houver infra de rate limiting.
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @Post('presigned')
   async getPresignedUrl(
     @Body() body: RequestPresignedUrlDto,
@@ -45,14 +44,9 @@ export class UploadController {
       );
     }
 
-    const tenant = req.tenant?.slug ?? resolveTenantFromRequest(req);
-    if (!req.user?.tenant) {
+    const tenant = req.user?.tenant?.trim();
+    if (!tenant) {
       throw new BadRequestException('Tenant nao encontrado no token JWT.');
-    }
-    if (req.user.tenant.toLowerCase() !== tenant.toLowerCase()) {
-      throw new ForbiddenException(
-        'Tenant do token nao corresponde ao tenant da requisicao.',
-      );
     }
     const fileType = body.fileType.trim().toLowerCase();
     if (!fileType || !ALLOWED_MIME_TYPES.has(fileType)) {

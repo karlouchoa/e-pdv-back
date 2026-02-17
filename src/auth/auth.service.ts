@@ -1,7 +1,21 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { TenantDbService } from '../tenant-db/tenant-db.service';
+
+type TenantClient = Awaited<ReturnType<TenantDbService['getTenantClient']>>;
+
+interface TenantUserLoginRow {
+  cdusu: string | null;
+  deusu: string | null;
+  senha: string | null;
+  adm: string | null;
+  email: string | null;
+}
 
 @Injectable()
 export class AuthService {
@@ -11,6 +25,27 @@ export class AuthService {
     private readonly tenantDbService: TenantDbService,
     private readonly jwtService: JwtService,
   ) {}
+
+  private async findActiveTenantUserByEmail(
+    prisma: TenantClient,
+    email: string,
+  ): Promise<TenantUserLoginRow | null> {
+    const normalizedEmail = email?.trim();
+    if (!normalizedEmail) {
+      return null;
+    }
+
+    const users = await prisma.$queryRaw<TenantUserLoginRow[]>`
+      SELECT TOP 1 cdusu, deusu, senha, adm, email
+      FROM t_users
+      WHERE ISNULL(isdeleted, 0) = 0
+        AND ISNULL(ativo, 'N') = 'S'
+        AND UPPER(LTRIM(RTRIM(email))) = UPPER(LTRIM(RTRIM(${normalizedEmail})))
+      ORDER BY codigo DESC
+    `;
+
+    return users[0] ?? null;
+  }
 
   async listUserCompanies(tenant: string, userCode: string) {
     const cdusu = userCode?.trim();
@@ -67,10 +102,15 @@ export class AuthService {
     });
   }
 
-  async login(login: string, senha: string, _requestTenant?: string | null) {
+  async login(login: string, senha: string) {
     const identifier = login?.trim();
     if (!identifier) {
-      throw new Error('Login nao informado.');
+      throw new BadRequestException('Login nao informado.');
+    }
+
+    const passwordInput = senha?.trim();
+    if (!passwordInput) {
+      throw new BadRequestException('Senha nao informada.');
     }
 
     const {
@@ -82,23 +122,15 @@ export class AuthService {
     const resolvedTenant = tenantSlug;
 
     const prisma = await this.tenantDbService.getTenantClient(resolvedTenant);
-    const passwordInput = senha?.trim() ?? '';
-
-    const user = await prisma.t_users.findFirst({
-      where: {
-        ativo: 'S',
-        OR: [{ email: identifier }, { cdusu: identifier }],
-      },
-    });
+    const user = await this.findActiveTenantUserByEmail(prisma, identifier);
 
     if (!user) {
-      throw new Error('Usuario nao encontrado ou inativo.');
+      throw new UnauthorizedException('Credenciais invalidas.');
     }
 
     const storedPassword = user.senha?.trim() ?? '';
     const plainMatches =
-      storedPassword.length > 0 &&
-      storedPassword.toLowerCase() === passwordInput.toLowerCase();
+      storedPassword.length > 0 && storedPassword === passwordInput;
 
     let hashedMatches = false;
     if (!plainMatches && storedPassword.startsWith('$2')) {
@@ -110,10 +142,14 @@ export class AuthService {
     }
 
     if (!plainMatches && !hashedMatches) {
-      throw new Error('Senha incorreta.');
+      throw new UnauthorizedException('Credenciais invalidas.');
     }
 
     const userCode = user.cdusu?.trim() ?? '';
+    if (!userCode) {
+      throw new UnauthorizedException('Credenciais invalidas.');
+    }
+
     const userName = user.deusu?.trim() ?? '';
     const userEmail = user.email?.trim() ?? null;
     const isAdmin = user.adm === 'S';
@@ -124,6 +160,8 @@ export class AuthService {
       email: userEmail,
       admin: isAdmin,
       tenant: resolvedTenant,
+      tenantSlug: resolvedTenant,
+      banco: resolvedTenant,
     };
 
     const token = await this.jwtService.signAsync(payload);
@@ -138,6 +176,7 @@ export class AuthService {
       email: userEmail,
       empresa: companyName ?? resolvedTenant,
       tenant: resolvedTenant,
+      banco: resolvedTenant,
       logoUrl,
       mensagem: 'Login efetuado com sucesso',
     };

@@ -113,7 +113,11 @@ export class AdminOperationsService {
     prisma: TenantClient,
     preferredCdemp?: number | null,
   ): Promise<number> {
-    if (preferredCdemp && Number.isFinite(preferredCdemp) && preferredCdemp > 0) {
+    if (
+      preferredCdemp &&
+      Number.isFinite(preferredCdemp) &&
+      preferredCdemp > 0
+    ) {
       return preferredCdemp;
     }
 
@@ -605,7 +609,11 @@ export class AdminOperationsService {
     };
   }
 
-  private fitText(value: string, width: number, align: 'left' | 'right' = 'left') {
+  private fitText(
+    value: string,
+    width: number,
+    align: 'left' | 'right' = 'left',
+  ) {
     const raw = value.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     const sliced = raw.slice(0, width);
     if (align === 'right') return sliced.padStart(width, ' ');
@@ -648,7 +656,9 @@ export class AdminOperationsService {
 
     const lines: string[] = [];
     lines.push(center(payload.companyName || 'LOJA'));
-    lines.push(center(`PEDIDO ${String(payload.orderNumber).padStart(6, '0')}`));
+    lines.push(
+      center(`PEDIDO ${String(payload.orderNumber).padStart(6, '0')}`),
+    );
     lines.push(
       `${this.fitText(
         payload.date.toLocaleDateString('pt-BR'),
@@ -705,7 +715,9 @@ export class AdminOperationsService {
   private async sendToPrinter(printerLocal: string, content: string) {
     const target = printerLocal.trim();
     if (!target) {
-      throw new BadRequestException('Impressora sem caminho de rede configurado.');
+      throw new BadRequestException(
+        'Impressora sem caminho de rede configurado.',
+      );
     }
 
     const hasExtension = /\.[a-z0-9]{2,5}$/i.test(target);
@@ -768,14 +780,12 @@ export class AdminOperationsService {
         : null,
     ]);
 
-    let printInfo:
-      | {
-          printer: { autocod: number; descricao: string | null; local: string };
-          outputPath: string | null;
-          warning: string | null;
-          receiptText: string;
-        }
-      | null = null;
+    let printInfo: {
+      printer: { autocod: number; descricao: string | null; local: string };
+      outputPath: string | null;
+      warning: string | null;
+      receiptText: string;
+    } | null = null;
 
     if (dto.printerAutocod !== undefined) {
       const printer = await prisma.t_printers.findFirst({
@@ -784,7 +794,9 @@ export class AdminOperationsService {
       });
 
       if (!printer) {
-        throw new NotFoundException('Impressora nao encontrada para a empresa.');
+        throw new NotFoundException(
+          'Impressora nao encontrada para a empresa.',
+        );
       }
 
       const company = await prisma.t_emp.findFirst({
@@ -942,10 +954,12 @@ export class AdminOperationsService {
         })
       : [];
     const addressCountMap = new Map(
-      addresses.map((entry: { ID_CLIENTE: string; _count: { _all: number } }) => [
-        entry.ID_CLIENTE,
-        entry._count._all,
-      ]),
+      addresses.map(
+        (entry: { ID_CLIENTE: string; _count: { _all: number } }) => [
+          entry.ID_CLIENTE,
+          entry._count._all,
+        ],
+      ),
     );
 
     return {
@@ -959,7 +973,11 @@ export class AdminOperationsService {
     };
   }
 
-  async getCustomer(tenant: string, preferredCdemp: number | null, customerId: string) {
+  async getCustomer(
+    tenant: string,
+    preferredCdemp: number | null,
+    customerId: string,
+  ) {
     const prisma = await this.getPrisma(tenant);
     const cdemp = await this.resolveCdemp(prisma, preferredCdemp);
     await this.ensureCustomerBelongsToCompany(prisma, cdemp, customerId);
@@ -1398,9 +1416,7 @@ export class AdminOperationsService {
       codigoBarras: row.barcodeit,
       preco: this.toNumber(row.preco),
       imagem:
-        row.t_imgitens?.[0]?.URL?.trim() ||
-        row.locfotitem?.trim() ||
-        null,
+        row.t_imgitens?.[0]?.URL?.trim() || row.locfotitem?.trim() || null,
     }));
   }
 
@@ -1617,7 +1633,9 @@ export class AdminOperationsService {
         idItem: item.idItem.trim(),
         quantity: this.toNumber(item.quantity),
         unitPrice:
-          item.unitPrice !== undefined ? this.toNumber(item.unitPrice) : undefined,
+          item.unitPrice !== undefined
+            ? this.toNumber(item.unitPrice)
+            : undefined,
       }))
       .filter((item) => item.idItem && item.quantity > 0);
   }
@@ -1663,7 +1681,9 @@ export class AdminOperationsService {
         });
 
         if (!sale) {
-          throw new NotFoundException('Venda em aberto nao encontrada para importar.');
+          throw new NotFoundException(
+            'Venda em aberto nao encontrada para importar.',
+          );
         }
 
         const saleTotal = this.roundMoney(this.toNumber(sale.totven_v));
@@ -1750,7 +1770,9 @@ export class AdminOperationsService {
       }
 
       const byId = new Map(records.map((record) => [record.ID, record]));
-      const byCditem = new Map(records.map((record) => [record.cditem, record]));
+      const byCditem = new Map(
+        records.map((record) => [record.cditem, record]),
+      );
 
       const lines = items.map((item) => {
         const direct = byId.get(item.idItem);
@@ -1759,7 +1781,10 @@ export class AdminOperationsService {
         if (!record) {
           throw new BadRequestException(`Item ${item.idItem} nao encontrado.`);
         }
-        if ((record.ativosn ?? '').trim().toUpperCase() !== 'S' || record.isdeleted) {
+        if (
+          (record.ativosn ?? '').trim().toUpperCase() !== 'S' ||
+          record.isdeleted
+        ) {
           throw new BadRequestException(
             `Item ${record.cditem} nao esta ativo para venda.`,
           );
@@ -1792,7 +1817,8 @@ export class AdminOperationsService {
       }
 
       const nrven = await this.getNextSaleNumber(tx, cdemp);
-      const pdesc = subtotal > 0 ? this.roundMoney((discount / subtotal) * 100) : 0;
+      const pdesc =
+        subtotal > 0 ? this.roundMoney((discount / subtotal) * 100) : 0;
 
       const venda = await tx.t_vendas.create({
         data: {

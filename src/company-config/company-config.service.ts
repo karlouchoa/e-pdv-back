@@ -152,6 +152,14 @@ export class CompanyConfigService {
     return this.tenantDbService.getTenantClient(tenant);
   }
 
+  private async resolveTenantFromPublicSubdomain(
+    tenantSubdomain: string,
+  ): Promise<string> {
+    return this.tenantDbService.resolveTenantDatabaseNameBySubdomain(
+      tenantSubdomain,
+    );
+  }
+
   private toRecord(value: unknown): AnyRecord {
     return (value ?? {}) as AnyRecord;
   }
@@ -214,9 +222,13 @@ export class CompanyConfigService {
     const columnRef = this.rawColumn(column);
 
     if (
-      ['time', 'datetime', 'datetime2', 'smalldatetime', 'datetimeoffset'].includes(
-        dataType,
-      )
+      [
+        'time',
+        'datetime',
+        'datetime2',
+        'smalldatetime',
+        'datetimeoffset',
+      ].includes(dataType)
     ) {
       // Normalize to HH:mm:ss to avoid timezone/date conversion side-effects.
       return TenantPrisma.sql`CONVERT(varchar(8), ${columnRef}, 108) AS ${aliasRef}`;
@@ -289,7 +301,9 @@ export class CompanyConfigService {
   }
 
   private toSeconds(time: string): number {
-    const [hours, minutes, seconds] = time.split(':').map((chunk) => Number(chunk));
+    const [hours, minutes, seconds] = time
+      .split(':')
+      .map((chunk) => Number(chunk));
     return hours * 3600 + minutes * 60 + seconds;
   }
 
@@ -307,10 +321,12 @@ export class CompanyConfigService {
       );
     }
 
-    if (hasOpen && hasClose && this.toSeconds(openTime!) >= this.toSeconds(closeTime!)) {
-      throw new BadRequestException(
-        'openTime deve ser menor que closeTime.',
-      );
+    if (
+      hasOpen &&
+      hasClose &&
+      this.toSeconds(openTime) >= this.toSeconds(closeTime)
+    ) {
+      throw new BadRequestException('openTime deve ser menor que closeTime.');
     }
   }
 
@@ -320,7 +336,9 @@ export class CompanyConfigService {
     const explicitClose = normalized.closeTime ?? undefined;
 
     if (explicitOpen !== undefined || explicitClose !== undefined) {
-      this.validateTimeInterval(explicitOpen, explicitClose, { requirePair: true });
+      this.validateTimeInterval(explicitOpen, explicitClose, {
+        requirePair: true,
+      });
       return {
         isClosed,
         openTime: explicitOpen ?? null,
@@ -810,6 +828,14 @@ export class CompanyConfigService {
     return rows.map((row) => this.mapStoreHourRow(this.toRecord(row)));
   }
 
+  async listStoreHoursPublicBySubdomain(
+    tenantSubdomain: string,
+    query: StoreHoursQueryDto,
+  ) {
+    const tenant = await this.resolveTenantFromPublicSubdomain(tenantSubdomain);
+    return this.listStoreHours(tenant, query);
+  }
+
   async findStoreHourById(tenant: string, id: string) {
     const prisma = await this.getPrisma(tenant);
     const metadata = await this.resolveStoreHoursMetadata(tenant);
@@ -837,6 +863,14 @@ export class CompanyConfigService {
     }
 
     return this.mapStoreHourRow(this.toRecord(record));
+  }
+
+  async findStoreHourByIdPublicBySubdomain(
+    tenantSubdomain: string,
+    id: string,
+  ) {
+    const tenant = await this.resolveTenantFromPublicSubdomain(tenantSubdomain);
+    return this.findStoreHourById(tenant, id);
   }
 
   async createOrReplaceStoreHours(tenant: string, payload: unknown) {
@@ -989,7 +1023,8 @@ export class CompanyConfigService {
     const select = this.buildStoreHourSelectFields(metadata);
     const normalized = this.normalizeStoreHourInput(dto, true);
 
-    const { isClosed, openTime, closeTime } = this.resolveCreateTimes(normalized);
+    const { isClosed, openTime, closeTime } =
+      this.resolveCreateTimes(normalized);
 
     const entries: Array<{ column: string; value: unknown; raw?: boolean }> =
       [];

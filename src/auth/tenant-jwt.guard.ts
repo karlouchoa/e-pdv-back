@@ -9,7 +9,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { IS_PUBLIC_KEY } from './decorators/public.decorator';
 
 type TenantRequest = {
-  user?: { tenant?: string; tenantSlug?: string };
+  user?: { tenant?: string; tenantSlug?: string; banco?: string };
   tenant?: { slug?: string };
   headers?: { 'x-tenant'?: string | string[] };
 };
@@ -38,7 +38,9 @@ export class TenantJwtGuard extends AuthGuard('jwt') {
     const req = context.switchToHttp().getRequest<TenantRequest>();
 
     const tokenTenant =
-      req?.user?.tenant?.trim() ?? req?.user?.tenantSlug?.trim();
+      req?.user?.tenant?.trim() ??
+      req?.user?.tenantSlug?.trim() ??
+      req?.user?.banco?.trim();
     if (!tokenTenant) {
       throw new BadRequestException('Tenant nao encontrado no token JWT.');
     }
@@ -52,10 +54,18 @@ export class TenantJwtGuard extends AuthGuard('jwt') {
       headerTenant &&
       headerTenant.toLowerCase() !== tokenTenant.toLowerCase()
     ) {
-      throw new ForbiddenException('Tenant do header nao corresponde ao token.');
+      throw new ForbiddenException(
+        'Tenant do header nao corresponde ao token.',
+      );
     }
 
     // For protected routes, tenant source of truth is always the token.
+    req.user = {
+      ...(req.user ?? {}),
+      tenant: tokenTenant,
+      tenantSlug: tokenTenant,
+      banco: tokenTenant,
+    };
     req.tenant = { ...(req.tenant ?? {}), slug: tokenTenant };
 
     return true;

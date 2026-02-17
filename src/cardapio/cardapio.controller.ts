@@ -2,7 +2,7 @@ import { Controller, Get, NotFoundException, Param, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { Public } from '../auth/decorators/public.decorator';
 import { TenantDbService } from '../tenant-db/tenant-db.service';
-import { resolveTenantFromRequest } from '../public/tenant-resolver';
+import { resolvePublicSubdomainFromRequest } from '../public/tenant-resolver';
 
 type CardapioItemRecord = {
   ID: string | null;
@@ -110,22 +110,13 @@ export class CardapioController {
   }
 
   private async resolveTenantProfile(
-    tenant: string,
+    subdomain: string,
     prisma: Awaited<ReturnType<TenantDbService['getTenantClient']>>,
   ): Promise<TenantCompanyProfile> {
-    const main = this.tenantDbService.getMainClient();
+    const accessProfile =
+      await this.tenantDbService.getAccessProfileBySubdomain(subdomain);
     const [acesso, company] = await Promise.all([
-      main.t_acessos.findFirst({
-        where: {
-          ativo: 'S',
-          banco: tenant,
-        },
-        select: {
-          Empresa: true,
-          logoUrl: true,
-          imagem_capa: true,
-        },
-      }),
+      Promise.resolve(accessProfile),
       prisma.t_emp.findFirst({
         where: { matriz: 'S' },
         select: {
@@ -157,8 +148,8 @@ export class CardapioController {
     const name =
       company?.fantemp?.trim() ||
       company?.deemp?.trim() ||
-      acesso?.Empresa?.trim() ||
-      tenant;
+      acesso?.companyName?.trim() ||
+      subdomain;
 
     const street = this.normalizeText(company?.endemp, 80);
     const number = this.normalizeText(company?.numemp, 20);
@@ -187,8 +178,7 @@ export class CardapioController {
           : null,
       companyId: this.normalizeText(company?.ID, 64),
       logoUrl: logoFromCompany ?? this.normalizeText(acesso?.logoUrl, 1000),
-      coverUrl:
-        coverFromCompany ?? this.normalizeText(acesso?.imagem_capa, 255),
+      coverUrl: coverFromCompany ?? this.normalizeText(acesso?.coverUrl, 255),
       phone,
       whatsapp: phone,
       email: this.normalizeText(company?.emailemp, 120),
@@ -347,9 +337,9 @@ export class CardapioController {
         ? Math.floor(parsedPage)
         : 1;
     const skip = (page - 1) * pageSize;
-    const tenant = resolveTenantFromRequest(req);
-
-    const prisma = await this.tenantDbService.getTenantClient(tenant);
+    const tenantSubdomain = resolvePublicSubdomainFromRequest(req);
+    const prisma =
+      await this.tenantDbService.getTenantClientBySubdomain(tenantSubdomain);
 
     const where = { ativosn: 'S' };
     const total = await prisma.t_itens.count({ where });
@@ -361,7 +351,10 @@ export class CardapioController {
     })) as CardapioItemRecord[];
 
     const itemsWithImages = await this.mapCardapioItems(prisma, items);
-    const tenantProfile = await this.resolveTenantProfile(tenant, prisma);
+    const tenantProfile = await this.resolveTenantProfile(
+      tenantSubdomain,
+      prisma,
+    );
 
     return {
       tenant: tenantProfile,
@@ -376,16 +369,18 @@ export class CardapioController {
   @Public()
   @Get('empresa')
   async obterEmpresa(@Req() req: Request) {
-    const tenant = resolveTenantFromRequest(req);
-    const prisma = await this.tenantDbService.getTenantClient(tenant);
-    return this.resolveTenantProfile(tenant, prisma);
+    const tenantSubdomain = resolvePublicSubdomainFromRequest(req);
+    const prisma =
+      await this.tenantDbService.getTenantClientBySubdomain(tenantSubdomain);
+    return this.resolveTenantProfile(tenantSubdomain, prisma);
   }
 
   @Public()
   @Get('produtos/:id')
   async obterProduto(@Req() req: Request, @Param('id') id: string) {
-    const tenant = resolveTenantFromRequest(req);
-    const prisma = await this.tenantDbService.getTenantClient(tenant);
+    const tenantSubdomain = resolvePublicSubdomainFromRequest(req);
+    const prisma =
+      await this.tenantDbService.getTenantClientBySubdomain(tenantSubdomain);
 
     const trimmed = id.trim();
     const cditem = Number(trimmed);

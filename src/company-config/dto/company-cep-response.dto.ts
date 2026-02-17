@@ -8,4 +8,3 @@ export class CompanyCepResponseDto {
   longitude: string | null = null;
   source = '';
 }
-

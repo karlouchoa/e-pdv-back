@@ -36,7 +36,7 @@ export class PublicCustomersService {
   constructor(private readonly tenantDbService: TenantDbService) {}
 
   private async getPrisma(tenant: string): Promise<TenantClient> {
-    return this.tenantDbService.getTenantClient(tenant);
+    return this.tenantDbService.getTenantClientBySubdomain(tenant);
   }
 
   private normalizeText(value: unknown, maxLen: number): string | null {
@@ -49,11 +49,12 @@ export class PublicCustomersService {
     return (value ?? '').toString().replace(/\D/g, '');
   }
 
-  private splitPhoneDigits(phoneDigits: string): { ddd: string; phone: string } {
+  private splitPhoneDigits(phoneDigits: string): {
+    ddd: string;
+    phone: string;
+  } {
     if (phoneDigits.length < 10 || phoneDigits.length > 11) {
-      throw new BadRequestException(
-        'Telefone invalido. Informe DDD + numero.',
-      );
+      throw new BadRequestException('Telefone invalido. Informe DDD + numero.');
     }
 
     return {
@@ -304,7 +305,9 @@ export class PublicCustomersService {
           });
 
           if (!existingAddress) {
-            throw new NotFoundException('Endereco nao encontrado para o cliente.');
+            throw new NotFoundException(
+              'Endereco nao encontrado para o cliente.',
+            );
           }
 
           const updatedAddress = await tx.t_ENDCLI.update({
@@ -387,8 +390,7 @@ export class PublicCustomersService {
       const enderecos = await this.listAddresses(tx, client.id);
       return {
         client: this.toPublicClient(client, enderecos),
-        selectedAddressId:
-          selectedAddressId ?? (enderecos[0]?.id ?? null),
+        selectedAddressId: selectedAddressId ?? enderecos[0]?.id ?? null,
       };
     });
   }

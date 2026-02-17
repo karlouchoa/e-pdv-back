@@ -1,5 +1,12 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, MaxLength, Min, Max } from 'class-validator';
+import {
+  IsInt,
+  IsOptional,
+  IsString,
+  MaxLength,
+  Min,
+  Max,
+} from 'class-validator';
 
 export class StoreHoursQueryDto {
   @IsOptional()
@@ -24,4 +31,3 @@ export class StoreHoursQueryDto {
   @Max(6)
   dayOfWeek?: number;
 }
-

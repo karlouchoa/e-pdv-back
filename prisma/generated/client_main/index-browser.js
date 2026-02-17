@@ -139,7 +139,8 @@ exports.Prisma.T_acessosScalarFieldEnum = {
   createdAt: 'createdAt',
   Empresa: 'Empresa',
   logoUrl: 'logoUrl',
-  imagem_capa: 'imagem_capa'
+  imagem_capa: 'imagem_capa',
+  subdominio: 'subdominio'
 };
 
 exports.Prisma.T_bancoScalarFieldEnum = {

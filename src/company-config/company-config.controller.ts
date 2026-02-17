@@ -14,7 +14,7 @@ import {
 import type { Request } from 'express';
 import { TenantJwtGuard } from '../auth/tenant-jwt.guard';
 import { Public } from '../auth/decorators/public.decorator';
-import { resolveTenantFromRequest } from '../public/tenant-resolver';
+import { resolvePublicSubdomainFromRequest } from '../public/tenant-resolver';
 import { CompanyConfigService } from './company-config.service';
 import { LookupCepParamsDto } from './dto/lookup-cep-params.dto';
 import { LookupCnpjParamsDto } from './dto/lookup-cnpj-params.dto';
@@ -23,7 +23,6 @@ import { UpdateStoreHourDto } from './dto/update-store-hour.dto';
 
 interface TenantRequest extends Request {
   user?: { tenant?: string };
-  tenant?: { slug?: string };
 }
 
 const getTenantFromRequest = (req: TenantRequest) => {
@@ -37,11 +36,7 @@ const getTenantFromRequest = (req: TenantRequest) => {
 const resolveTenantForReadOnlyRequest = (req: TenantRequest) => {
   const tenantFromJwt = req.user?.tenant?.trim();
   if (tenantFromJwt) return tenantFromJwt;
-
-  const tenantFromMiddleware = req.tenant?.slug?.trim();
-  if (tenantFromMiddleware) return tenantFromMiddleware;
-
-  return resolveTenantFromRequest(req);
+  return resolvePublicSubdomainFromRequest(req);
 };
 
 @Controller('company-config')
@@ -78,7 +73,7 @@ export class StoreHoursController {
   @Public()
   @Get('public')
   listPublic(@Req() req: TenantRequest, @Query() query: StoreHoursQueryDto) {
-    return this.companyConfigService.listStoreHours(
+    return this.companyConfigService.listStoreHoursPublicBySubdomain(
       resolveTenantForReadOnlyRequest(req),
       query,
     );
@@ -87,7 +82,7 @@ export class StoreHoursController {
   @Public()
   @Get('public/:id')
   findOnePublic(@Req() req: TenantRequest, @Param('id') id: string) {
-    return this.companyConfigService.findStoreHourById(
+    return this.companyConfigService.findStoreHourByIdPublicBySubdomain(
       resolveTenantForReadOnlyRequest(req),
       id,
     );

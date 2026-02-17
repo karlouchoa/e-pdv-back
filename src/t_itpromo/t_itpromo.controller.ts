@@ -13,7 +13,7 @@ import {
 import type { Request } from 'express';
 import { Public } from '../auth/decorators/public.decorator';
 import { TenantJwtGuard } from '../auth/tenant-jwt.guard';
-import { resolveTenantFromRequest } from '../public/tenant-resolver';
+import { resolvePublicSubdomainFromRequest } from '../public/tenant-resolver';
 import { CreateTItpromoBatchDto } from './dto/create-t_itpromo-batch.dto';
 import { CreateTItpromoDto } from './dto/create-t_itpromo.dto';
 import { UpdateTItpromoDto } from './dto/update-t_itpromo.dto';
@@ -31,8 +31,8 @@ export class TItpromoController {
   @Public()
   @Get()
   findPublic(@Req() req: Request) {
-    const tenant = resolveTenantFromRequest(req);
-    return this.tItpromoService.findPublic(tenant);
+    const subdomain = resolvePublicSubdomainFromRequest(req);
+    return this.tItpromoService.findPublicBySubdomain(subdomain);
   }
 
   @Post()

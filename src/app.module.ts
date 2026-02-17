@@ -1,8 +1,11 @@
 import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
+import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { TItensModule } from './t_itens/t_itens.module';
 import { TFormulasModule } from './t_formulas/t_formulas.module';
 import { TGritensModule } from './t_gritens/t_gritens.module';
@@ -24,6 +27,13 @@ import { AdminOperationsModule } from './admin-operations/admin-operations.modul
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    ThrottlerModule.forRoot([
+      {
+        name: 'default',
+        ttl: 60_000,
+        limit: 120,
+      },
+    ]),
     AuthModule,
     TItensModule,
     TFormulasModule,
@@ -42,7 +52,17 @@ import { AdminOperationsModule } from './admin-operations/admin-operations.modul
     AdminOperationsModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: JwtAuthGuard,
+    },
+  ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

@@ -5,4 +5,3 @@ export class LookupCnpjParamsDto {
   @MaxLength(32)
   cnpj!: string;
 }
-

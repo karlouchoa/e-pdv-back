@@ -505,32 +505,33 @@ export class PedidosOnlineConfirmService {
         ),
       );
 
-      const matprimaRecords = matprimaCodes.length || matprimaIds.length
-        ? await tx.t_itens.findMany({
-            where: {
-              cdemp,
-              OR: [
-                ...(matprimaIds.length ? [{ ID: { in: matprimaIds } }] : []),
-                ...(matprimaCodes.length
-                  ? [{ cditem: { in: matprimaCodes } }]
-                  : []),
-              ],
-            },
-            select: {
-              ID: true,
-              cditem: true,
-              deitem: true,
-              undven: true,
-              precomin: true,
-              custo: true,
-              ativosn: true,
-              dispven: true,
-              ativoprod: true,
-              isdeleted: true,
-              cdgruit: true,
-            },
-          })
-        : [];
+      const matprimaRecords =
+        matprimaCodes.length || matprimaIds.length
+          ? await tx.t_itens.findMany({
+              where: {
+                cdemp,
+                OR: [
+                  ...(matprimaIds.length ? [{ ID: { in: matprimaIds } }] : []),
+                  ...(matprimaCodes.length
+                    ? [{ cditem: { in: matprimaCodes } }]
+                    : []),
+                ],
+              },
+              select: {
+                ID: true,
+                cditem: true,
+                deitem: true,
+                undven: true,
+                precomin: true,
+                custo: true,
+                ativosn: true,
+                dispven: true,
+                ativoprod: true,
+                isdeleted: true,
+                cdgruit: true,
+              },
+            })
+          : [];
 
       const matprimaMapByCode = new Map(
         matprimaRecords.map((record) => [record.cditem, record]),
@@ -639,7 +640,11 @@ export class PedidosOnlineConfirmService {
             formulasByItem.get(snapshot.record.ID ?? '') ?? [];
           const aggregated = new Map<
             string,
-            { quantity: number; matprimaCode: number; matprimaId: string | null }
+            {
+              quantity: number;
+              matprimaCode: number;
+              matprimaId: string | null;
+            }
           >();
 
           for (const formula of formulasForItem) {
@@ -682,8 +687,8 @@ export class PedidosOnlineConfirmService {
             }
 
             const record = entry.matprimaId
-              ? matprimaMapById.get(entry.matprimaId) ??
-                matprimaMapByCode.get(entry.matprimaCode)
+              ? (matprimaMapById.get(entry.matprimaId) ??
+                matprimaMapByCode.get(entry.matprimaCode))
               : matprimaMapByCode.get(entry.matprimaCode);
             if (!record) {
               throw new BadRequestException(

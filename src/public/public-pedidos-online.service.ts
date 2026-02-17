@@ -68,8 +68,16 @@ export class PublicPedidosOnlineService {
     private readonly pedidosOnlineComboRepo: PedidosOnlineComboRepository,
   ) {}
 
-  private async getPrisma(tenant: string): Promise<TenantClient> {
-    return this.tenantDbService.getTenantClient(tenant);
+  private async resolvePublicTenantDatabase(
+    tenantSubdomain: string,
+  ): Promise<string> {
+    return this.tenantDbService.resolveTenantDatabaseNameBySubdomain(
+      tenantSubdomain,
+    );
+  }
+
+  private async getPrisma(tenantDatabase: string): Promise<TenantClient> {
+    return this.tenantDbService.getTenantClient(tenantDatabase);
   }
 
   private normalizeFlag(value?: string | null) {
@@ -306,7 +314,8 @@ export class PublicPedidosOnlineService {
       );
     }
 
-    const prisma = await this.getPrisma(tenant);
+    const tenantDatabase = await this.resolvePublicTenantDatabase(tenant);
+    const prisma = await this.getPrisma(tenantDatabase);
 
     return prisma.$transaction(async (tx) => {
       if (dto.idCliente) {
@@ -541,7 +550,7 @@ export class PublicPedidosOnlineService {
       }
 
       const pedido = await this.pedidosOnlineRepo.create(
-        tenant,
+        tenantDatabase,
         {
           cdemp,
           idCliente: dto.idCliente ?? null,
@@ -575,7 +584,7 @@ export class PublicPedidosOnlineService {
 
       for (const snapshot of snapshots) {
         const pedidoItem = await this.pedidosOnlineItensRepo.createItem(
-          tenant,
+          tenantDatabase,
           {
             pedidoId: pedido.ID,
             itemId: snapshot.recordId,
@@ -590,7 +599,7 @@ export class PublicPedidosOnlineService {
 
         for (const choice of snapshot.comboChoices) {
           await this.pedidosOnlineComboRepo.createChoice(
-            tenant,
+            tenantDatabase,
             {
               pedidoItemId: pedidoItem.ID,
               idItemEscolhido: choice.idItemEscolhido,
@@ -639,7 +648,11 @@ export class PublicPedidosOnlineService {
     tenant: string,
     payload: { idCliente: string; limit: number },
   ) {
-    const rows = await this.pedidosOnlineRepo.listByClient(tenant, payload);
+    const tenantDatabase = await this.resolvePublicTenantDatabase(tenant);
+    const rows = await this.pedidosOnlineRepo.listByClient(
+      tenantDatabase,
+      payload,
+    );
 
     return rows.map((row) => ({
       id: row.ID,
@@ -669,14 +682,18 @@ export class PublicPedidosOnlineService {
   }
 
   async getPedidoPublic(tenant: string, id: string) {
-    const pedido = await this.pedidosOnlineRepo.findDetailsById(tenant, id);
+    const tenantDatabase = await this.resolvePublicTenantDatabase(tenant);
+    const pedido = await this.pedidosOnlineRepo.findDetailsById(
+      tenantDatabase,
+      id,
+    );
     if (!pedido) {
       throw new NotFoundException('Pedido online nao encontrado.');
     }
 
     const [itens, prisma] = await Promise.all([
-      this.pedidosOnlineItensRepo.listItensByPedidoId(tenant, id),
-      this.getPrisma(tenant),
+      this.pedidosOnlineItensRepo.listItensByPedidoId(tenantDatabase, id),
+      this.getPrisma(tenantDatabase),
     ]);
 
     const choicesByPedidoItem = new Map<
@@ -694,7 +711,7 @@ export class PublicPedidosOnlineService {
 
       const choices =
         await this.pedidosOnlineComboRepo.listEscolhasByPedidoItemId(
-          tenant,
+          tenantDatabase,
           item.ID,
         );
 

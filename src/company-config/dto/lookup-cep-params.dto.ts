@@ -5,4 +5,3 @@ export class LookupCepParamsDto {
   @MaxLength(16)
   cep!: string;
 }
-

@@ -292,7 +292,10 @@ export class AdminOperationsController {
   }
 
   @Get('caixa/itens')
-  searchCashierItems(@Req() req: TenantRequest, @Query() query: CashItemSearchDto) {
+  searchCashierItems(
+    @Req() req: TenantRequest,
+    @Query() query: CashItemSearchDto,
+  ) {
     return this.adminOpsService.searchCashierItems(
       this.getTenant(req),
       this.getWarehouse(req),
@@ -309,7 +312,10 @@ export class AdminOperationsController {
   }
 
   @Get('caixa/pedidos-abertos/:id')
-  getOpenSaleForCashier(@Req() req: TenantRequest, @Param('id') saleId: string) {
+  getOpenSaleForCashier(
+    @Req() req: TenantRequest,
+    @Param('id') saleId: string,
+  ) {
     return this.adminOpsService.getOpenSaleForCashier(
       this.getTenant(req),
       this.getWarehouse(req),

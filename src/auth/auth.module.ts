@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import type ms from 'ms';
@@ -9,17 +10,27 @@ import { JwtStrategy } from './jwt.strategy';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { TenantJwtGuard } from './tenant-jwt.guard';
 
-const jwtSecret = process.env.JWT_SECRET ?? 'change-me';
-const jwtExpiresIn: ms.StringValue | number = (process.env.JWT_EXPIRES_IN ??
-  '1h') as ms.StringValue;
-
 @Module({
   imports: [
     PassportModule,
-    JwtModule.register({
-      global: true,
-      secret: jwtSecret,
-      signOptions: { expiresIn: jwtExpiresIn },
+    JwtModule.registerAsync({
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => {
+        const jwtSecret = configService.get<string>('JWT_SECRET')?.trim();
+        if (!jwtSecret) {
+          throw new Error('JWT_SECRET nao configurado no ambiente.');
+        }
+
+        const jwtExpiresIn: ms.StringValue | number =
+          (configService.get<string>('JWT_EXPIRES_IN') ??
+            '1h') as ms.StringValue;
+
+        return {
+          global: true,
+          secret: jwtSecret,
+          signOptions: { expiresIn: jwtExpiresIn },
+        };
+      },
     }),
   ],
   controllers: [AuthController],

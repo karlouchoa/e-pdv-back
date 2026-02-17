@@ -11,4 +11,3 @@ export class CompanyCnpjResponseDto {
   cep: string | null = null;
   source = '';
 }
-

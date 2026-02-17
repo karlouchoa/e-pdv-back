@@ -11,4 +11,3 @@ import { TenantDbService } from '../tenant-db/tenant-db.service';
   providers: [CompanyConfigService, TenantDbService],
 })
 export class CompanyConfigModule {}
-

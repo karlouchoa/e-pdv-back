@@ -2,7 +2,6 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { json, urlencoded } from 'express';
-import type { Request, Response, NextFunction } from 'express';
 
 declare global {
   interface BigInt {
@@ -18,20 +17,6 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.use(json({ limit: '2mb' }));
   app.use(urlencoded({ extended: true, limit: '2mb' }));
-  app.use((req: Request, _res: Response, next: NextFunction) => {
-    let payload = '';
-    if (req.body !== undefined) {
-      try {
-        payload = JSON.stringify(req.body);
-      } catch {
-        payload = '[unserializable]';
-      }
-    }
-    console.log(
-      `[${new Date().toISOString()}] ${req.method} ${req.originalUrl} payload=${payload}`,
-    );
-    next();
-  });
 
   // Lista de domínios fixos (domínios principais sem subdomínios)
   const allowedFixedOrigins = [
@@ -104,8 +89,8 @@ async function bootstrap() {
   app.useGlobalPipes(
     new ValidationPipe({
       transform: true,
-      whitelist: false,
-      forbidNonWhitelisted: false,
+      whitelist: true,
+      forbidNonWhitelisted: true,
     }),
   );
 

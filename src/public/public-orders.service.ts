@@ -46,7 +46,7 @@ export class PublicOrdersService {
   constructor(private readonly tenantDbService: TenantDbService) {}
 
   private async getPrisma(tenant: string): Promise<TenantClient> {
-    return this.tenantDbService.getTenantClient(tenant);
+    return this.tenantDbService.getTenantClientBySubdomain(tenant);
   }
 
   private toVendaResponse(record: TvendasModel) {

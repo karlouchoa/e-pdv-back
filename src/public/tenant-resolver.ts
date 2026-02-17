@@ -57,11 +57,7 @@ const extractTenantFromHost = (host: string | null) => {
   const subdomain = hostParts[0];
   const hasSubdomain = hostParts.length > 1;
 
-  if (
-    !subdomain ||
-    RESERVED_TENANTS.has(subdomain) ||
-    !hasSubdomain
-  ) {
+  if (!subdomain || RESERVED_TENANTS.has(subdomain) || !hasSubdomain) {
     return null;
   }
 
@@ -96,6 +92,30 @@ export function resolveTenantFromRequest(
 
   if (tenantFromCandidates) {
     return tenantFromCandidates;
+  }
+
+  if (options?.optional) {
+    return null;
+  }
+
+  throw new NotFoundException('Estabelecimento nao identificado.');
+}
+
+export function resolvePublicSubdomainFromRequest(req: Request): string;
+export function resolvePublicSubdomainFromRequest(
+  req: Request,
+  options: { optional: true },
+): string | null;
+export function resolvePublicSubdomainFromRequest(
+  req: Request,
+  options?: { optional?: boolean },
+): string | null {
+  const tenantFromHost = extractTenantFromHost(
+    normalizeHost(firstHeaderValue(req.headers.host)),
+  );
+
+  if (tenantFromHost) {
+    return tenantFromHost;
   }
 
   if (options?.optional) {

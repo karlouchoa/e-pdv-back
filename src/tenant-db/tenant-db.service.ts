@@ -109,7 +109,9 @@ export class TenantDbService implements OnModuleDestroy {
   }
 
   private describeConnectionEndpoint(connectionString: string): string {
-    const hostMatch = connectionString.match(/^sqlserver:\/\/([^;:/?]+)(?::(\d+))?/i);
+    const hostMatch = connectionString.match(
+      /^sqlserver:\/\/([^;:/?]+)(?::(\d+))?/i,
+    );
     const dbMatch = connectionString.match(/database=([^;]+)/i);
     const host = hostMatch?.[1] ?? 'unknown-host';
     const port = hostMatch?.[2] ?? 'default-port';
@@ -176,6 +178,175 @@ export class TenantDbService implements OnModuleDestroy {
     return undefined;
   }
 
+  private async findActiveAccessByTenantKey(tenantKey: string): Promise<{
+    banco: string;
+    subdominio: string | null;
+    companyName: string | null;
+    logoUrl: string | null;
+    coverUrl: string | null;
+  } | null> {
+    const normalizedKey = tenantKey?.trim();
+    if (!normalizedKey) {
+      return null;
+    }
+
+    const rows = await this.main.$queryRaw<
+      Array<{
+        banco: string | null;
+        subdominio: string | null;
+        Empresa: string | null;
+        logoUrl: string | null;
+        imagem_capa: string | null;
+      }>
+    >`
+      SELECT TOP 1 banco, subdominio, Empresa, logoUrl, imagem_capa
+      FROM t_acessos
+      WHERE ISNULL(ativo, 'N') = 'S'
+        AND (
+          UPPER(LTRIM(RTRIM(banco))) = UPPER(LTRIM(RTRIM(${normalizedKey})))
+          OR UPPER(LTRIM(RTRIM(subdominio))) = UPPER(LTRIM(RTRIM(${normalizedKey})))
+        )
+      ORDER BY
+        CASE
+          WHEN UPPER(LTRIM(RTRIM(banco))) = UPPER(LTRIM(RTRIM(${normalizedKey}))) THEN 0
+          WHEN UPPER(LTRIM(RTRIM(subdominio))) = UPPER(LTRIM(RTRIM(${normalizedKey}))) THEN 1
+          ELSE 2
+        END,
+        id DESC
+    `;
+
+    const access = rows[0];
+    if (!access) {
+      return null;
+    }
+
+    const banco = access.banco?.trim();
+    if (!banco) {
+      return null;
+    }
+
+    return {
+      banco,
+      subdominio: access.subdominio?.trim() || null,
+      companyName: access.Empresa?.trim() || null,
+      logoUrl: access.logoUrl?.trim() || null,
+      coverUrl: access.imagem_capa?.trim() || null,
+    };
+  }
+
+  private async findActiveAccessBySubdomain(subdomain: string): Promise<{
+    banco: string;
+    subdominio: string | null;
+    companyName: string | null;
+    logoUrl: string | null;
+    coverUrl: string | null;
+  } | null> {
+    const normalizedSubdomain = subdomain?.trim();
+    if (!normalizedSubdomain) {
+      return null;
+    }
+
+    const rows = await this.main.$queryRaw<
+      Array<{
+        banco: string | null;
+        subdominio: string | null;
+        Empresa: string | null;
+        logoUrl: string | null;
+        imagem_capa: string | null;
+      }>
+    >`
+      SELECT TOP 1 banco, subdominio, Empresa, logoUrl, imagem_capa
+      FROM t_acessos
+      WHERE ISNULL(ativo, 'N') = 'S'
+        AND UPPER(LTRIM(RTRIM(subdominio))) = UPPER(LTRIM(RTRIM(${normalizedSubdomain})))
+      ORDER BY id DESC
+    `;
+
+    const access = rows[0];
+    if (!access) {
+      return null;
+    }
+
+    const banco = access.banco?.trim();
+    if (!banco) {
+      return null;
+    }
+
+    return {
+      banco,
+      subdominio: access.subdominio?.trim() || null,
+      companyName: access.Empresa?.trim() || null,
+      logoUrl: access.logoUrl?.trim() || null,
+      coverUrl: access.imagem_capa?.trim() || null,
+    };
+  }
+
+  private getOrCreateTenantClient(
+    tenantLabel: string,
+    databaseName: string,
+  ): TenantClient {
+    const connectionString = this.buildTenantConnectionString(databaseName);
+
+    // Reuse existing tenant connection when available.
+    if (!this.connections.has(connectionString)) {
+      this.logger.log(
+        `Creating Prisma tenant connection for: ${tenantLabel} -> ${databaseName} at ${this.describeConnectionEndpoint(connectionString)}`,
+      );
+
+      const client = new TenantPrismaClient({
+        datasources: { db: { url: connectionString } },
+      });
+
+      this.connections.set(connectionString, client);
+    }
+
+    return this.connections.get(connectionString)!;
+  }
+
+  async resolveTenantDatabaseName(tenantKey: string): Promise<string> {
+    const access = await this.findActiveAccessByTenantKey(tenantKey);
+    if (!access) {
+      throw new Error(
+        `Tenant '${tenantKey}' not found or inactive in t_acessos (banco/subdominio).`,
+      );
+    }
+
+    return access.banco;
+  }
+
+  async resolveTenantDatabaseNameBySubdomain(
+    subdomain: string,
+  ): Promise<string> {
+    const access = await this.findActiveAccessBySubdomain(subdomain);
+    if (!access) {
+      throw new Error(
+        `Tenant '${subdomain}' not found or inactive in t_acessos (subdominio).`,
+      );
+    }
+
+    return access.banco;
+  }
+
+  async getAccessProfileByTenantKey(tenantKey: string): Promise<{
+    banco: string;
+    subdominio: string | null;
+    companyName: string | null;
+    logoUrl: string | null;
+    coverUrl: string | null;
+  } | null> {
+    return this.findActiveAccessByTenantKey(tenantKey);
+  }
+
+  async getAccessProfileBySubdomain(subdomain: string): Promise<{
+    banco: string;
+    subdominio: string | null;
+    companyName: string | null;
+    logoUrl: string | null;
+    coverUrl: string | null;
+  } | null> {
+    return this.findActiveAccessBySubdomain(subdomain);
+  }
+
   /**
    * Return tenant metadata based on e-mail/login in t_acessos.
    * Source of truth for tenant database is t_acessos.banco.
@@ -227,39 +398,25 @@ export class TenantDbService implements OnModuleDestroy {
    * Return Prisma client for tenant-specific queries.
    */
   async getTenantClient(tenantSlug: string): Promise<TenantClient> {
-    const tenant = await this.main.t_acessos.findFirst({
-      where: { ativo: 'S', banco: tenantSlug },
-    });
-
+    const tenant = await this.findActiveAccessByTenantKey(tenantSlug);
     if (!tenant) {
       throw new Error(
-        `Tenant '${tenantSlug}' not found or inactive in t_acessos.`,
+        `Tenant '${tenantSlug}' not found or inactive in t_acessos (banco/subdominio).`,
       );
     }
 
-    const databaseName = tenant.banco?.trim();
-    if (!databaseName) {
+    return this.getOrCreateTenantClient(tenantSlug, tenant.banco);
+  }
+
+  async getTenantClientBySubdomain(subdomain: string): Promise<TenantClient> {
+    const tenant = await this.findActiveAccessBySubdomain(subdomain);
+    if (!tenant) {
       throw new Error(
-        `Tenant '${tenantSlug}' found, but field "banco" is empty.`,
+        `Tenant '${subdomain}' not found or inactive in t_acessos (subdominio).`,
       );
     }
 
-    const connectionString = this.buildTenantConnectionString(databaseName);
-
-    // Reuse existing tenant connection when available.
-    if (!this.connections.has(connectionString)) {
-      this.logger.log(
-        `Creating Prisma tenant connection for: ${tenantSlug} at ${this.describeConnectionEndpoint(connectionString)}`,
-      );
-
-      const client = new TenantPrismaClient({
-        datasources: { db: { url: connectionString } },
-      });
-
-      this.connections.set(connectionString, client);
-    }
-
-    return this.connections.get(connectionString)!;
+    return this.getOrCreateTenantClient(subdomain, tenant.banco);
   }
 
   getMainClient(): MainClient {

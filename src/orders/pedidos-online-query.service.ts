@@ -44,9 +44,7 @@ export class PedidosOnlineQueryService {
   ) {
     const normalizedStatus = (payload.status ?? '').trim().toUpperCase();
     const status =
-      !normalizedStatus || normalizedStatus === 'ALL'
-        ? null
-        : normalizedStatus;
+      !normalizedStatus || normalizedStatus === 'ALL' ? null : normalizedStatus;
 
     const rows = await this.pedidosOnlineRepo.listAdminQueue(tenant, {
       status,
@@ -101,16 +99,20 @@ export class PedidosOnlineQueryService {
     >();
     const allChoiceItemIds = new Set<string>();
     for (const item of itens) {
-      const isCombo = (item.EH_COMBO ?? '').toString().trim().toUpperCase() === 'S';
+      const isCombo =
+        (item.EH_COMBO ?? '').toString().trim().toUpperCase() === 'S';
       if (!isCombo) continue;
 
-      const choices = await this.pedidosOnlineComboRepo.listEscolhasByPedidoItemId(
-        tenant,
-        item.ID,
-      );
+      const choices =
+        await this.pedidosOnlineComboRepo.listEscolhasByPedidoItemId(
+          tenant,
+          item.ID,
+        );
 
       choicesByPedidoItem.set(item.ID, choices);
-      choices.forEach((choice) => allChoiceItemIds.add(choice.ID_ITEM_ESCOLHIDO));
+      choices.forEach((choice) =>
+        allChoiceItemIds.add(choice.ID_ITEM_ESCOLHIDO),
+      );
     }
 
     const allItemIds = new Set<string>();

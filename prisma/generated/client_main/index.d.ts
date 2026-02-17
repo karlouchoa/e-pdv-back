@@ -1059,6 +1059,7 @@ export namespace Prisma {
     Empresa: string | null
     logoUrl: string | null
     imagem_capa: string | null
+    subdominio: string | null
   }
 
   export type T_acessosMaxAggregateOutputType = {
@@ -1079,6 +1080,7 @@ export namespace Prisma {
     Empresa: string | null
     logoUrl: string | null
     imagem_capa: string | null
+    subdominio: string | null
   }
 
   export type T_acessosCountAggregateOutputType = {
@@ -1099,6 +1101,7 @@ export namespace Prisma {
     Empresa: number
     logoUrl: number
     imagem_capa: number
+    subdominio: number
     _all: number
   }
 
@@ -1131,6 +1134,7 @@ export namespace Prisma {
     Empresa?: true
     logoUrl?: true
     imagem_capa?: true
+    subdominio?: true
   }
 
   export type T_acessosMaxAggregateInputType = {
@@ -1151,6 +1155,7 @@ export namespace Prisma {
     Empresa?: true
     logoUrl?: true
     imagem_capa?: true
+    subdominio?: true
   }
 
   export type T_acessosCountAggregateInputType = {
@@ -1171,6 +1176,7 @@ export namespace Prisma {
     Empresa?: true
     logoUrl?: true
     imagem_capa?: true
+    subdominio?: true
     _all?: true
   }
 
@@ -1278,6 +1284,7 @@ export namespace Prisma {
     Empresa: string | null
     logoUrl: string | null
     imagem_capa: string | null
+    subdominio: string | null
     _count: T_acessosCountAggregateOutputType | null
     _avg: T_acessosAvgAggregateOutputType | null
     _sum: T_acessosSumAggregateOutputType | null
@@ -1317,6 +1324,7 @@ export namespace Prisma {
     Empresa?: boolean
     logoUrl?: boolean
     imagem_capa?: boolean
+    subdominio?: boolean
   }, ExtArgs["result"]["t_acessos"]>
 
 
@@ -1339,9 +1347,10 @@ export namespace Prisma {
     Empresa?: boolean
     logoUrl?: boolean
     imagem_capa?: boolean
+    subdominio?: boolean
   }
 
-  export type t_acessosOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "login" | "senha" | "nome" | "funcao" | "banco" | "adm" | "ativo" | "con" | "pwd" | "cnpj" | "ddd" | "whatsapp" | "createdAt" | "Empresa" | "logoUrl" | "imagem_capa", ExtArgs["result"]["t_acessos"]>
+  export type t_acessosOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "login" | "senha" | "nome" | "funcao" | "banco" | "adm" | "ativo" | "con" | "pwd" | "cnpj" | "ddd" | "whatsapp" | "createdAt" | "Empresa" | "logoUrl" | "imagem_capa" | "subdominio", ExtArgs["result"]["t_acessos"]>
 
   export type $t_acessosPayload<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     name: "t_acessos"
@@ -1364,6 +1373,7 @@ export namespace Prisma {
       Empresa: string | null
       logoUrl: string | null
       imagem_capa: string | null
+      subdominio: string | null
     }, ExtArgs["result"]["t_acessos"]>
     composites: {}
   }
@@ -1750,6 +1760,7 @@ export namespace Prisma {
     readonly Empresa: FieldRef<"t_acessos", 'String'>
     readonly logoUrl: FieldRef<"t_acessos", 'String'>
     readonly imagem_capa: FieldRef<"t_acessos", 'String'>
+    readonly subdominio: FieldRef<"t_acessos", 'String'>
   }
     
 
@@ -3943,7 +3954,8 @@ export namespace Prisma {
     createdAt: 'createdAt',
     Empresa: 'Empresa',
     logoUrl: 'logoUrl',
-    imagem_capa: 'imagem_capa'
+    imagem_capa: 'imagem_capa',
+    subdominio: 'subdominio'
   };
 
   export type T_acessosScalarFieldEnum = (typeof T_acessosScalarFieldEnum)[keyof typeof T_acessosScalarFieldEnum]
@@ -4045,6 +4057,7 @@ export namespace Prisma {
     Empresa?: StringNullableFilter<"t_acessos"> | string | null
     logoUrl?: StringNullableFilter<"t_acessos"> | string | null
     imagem_capa?: StringNullableFilter<"t_acessos"> | string | null
+    subdominio?: StringNullableFilter<"t_acessos"> | string | null
   }
 
   export type t_acessosOrderByWithRelationInput = {
@@ -4065,6 +4078,7 @@ export namespace Prisma {
     Empresa?: SortOrderInput | SortOrder
     logoUrl?: SortOrderInput | SortOrder
     imagem_capa?: SortOrderInput | SortOrder
+    subdominio?: SortOrderInput | SortOrder
   }
 
   export type t_acessosWhereUniqueInput = Prisma.AtLeast<{
@@ -4088,6 +4102,7 @@ export namespace Prisma {
     Empresa?: StringNullableFilter<"t_acessos"> | string | null
     logoUrl?: StringNullableFilter<"t_acessos"> | string | null
     imagem_capa?: StringNullableFilter<"t_acessos"> | string | null
+    subdominio?: StringNullableFilter<"t_acessos"> | string | null
   }, "id">
 
   export type t_acessosOrderByWithAggregationInput = {
@@ -4108,6 +4123,7 @@ export namespace Prisma {
     Empresa?: SortOrderInput | SortOrder
     logoUrl?: SortOrderInput | SortOrder
     imagem_capa?: SortOrderInput | SortOrder
+    subdominio?: SortOrderInput | SortOrder
     _count?: t_acessosCountOrderByAggregateInput
     _avg?: t_acessosAvgOrderByAggregateInput
     _max?: t_acessosMaxOrderByAggregateInput
@@ -4136,6 +4152,7 @@ export namespace Prisma {
     Empresa?: StringNullableWithAggregatesFilter<"t_acessos"> | string | null
     logoUrl?: StringNullableWithAggregatesFilter<"t_acessos"> | string | null
     imagem_capa?: StringNullableWithAggregatesFilter<"t_acessos"> | string | null
+    subdominio?: StringNullableWithAggregatesFilter<"t_acessos"> | string | null
   }
 
   export type t_bancoWhereInput = {
@@ -4268,6 +4285,7 @@ export namespace Prisma {
     Empresa?: string | null
     logoUrl?: string | null
     imagem_capa?: string | null
+    subdominio?: string | null
   }
 
   export type t_acessosUncheckedCreateInput = {
@@ -4288,6 +4306,7 @@ export namespace Prisma {
     Empresa?: string | null
     logoUrl?: string | null
     imagem_capa?: string | null
+    subdominio?: string | null
   }
 
   export type t_acessosUpdateInput = {
@@ -4307,6 +4326,7 @@ export namespace Prisma {
     Empresa?: NullableStringFieldUpdateOperationsInput | string | null
     logoUrl?: NullableStringFieldUpdateOperationsInput | string | null
     imagem_capa?: NullableStringFieldUpdateOperationsInput | string | null
+    subdominio?: NullableStringFieldUpdateOperationsInput | string | null
   }
 
   export type t_acessosUncheckedUpdateInput = {
@@ -4327,6 +4347,7 @@ export namespace Prisma {
     Empresa?: NullableStringFieldUpdateOperationsInput | string | null
     logoUrl?: NullableStringFieldUpdateOperationsInput | string | null
     imagem_capa?: NullableStringFieldUpdateOperationsInput | string | null
+    subdominio?: NullableStringFieldUpdateOperationsInput | string | null
   }
 
   export type t_acessosCreateManyInput = {
@@ -4346,6 +4367,7 @@ export namespace Prisma {
     Empresa?: string | null
     logoUrl?: string | null
     imagem_capa?: string | null
+    subdominio?: string | null
   }
 
   export type t_acessosUpdateManyMutationInput = {
@@ -4365,6 +4387,7 @@ export namespace Prisma {
     Empresa?: NullableStringFieldUpdateOperationsInput | string | null
     logoUrl?: NullableStringFieldUpdateOperationsInput | string | null
     imagem_capa?: NullableStringFieldUpdateOperationsInput | string | null
+    subdominio?: NullableStringFieldUpdateOperationsInput | string | null
   }
 
   export type t_acessosUncheckedUpdateManyInput = {
@@ -4385,6 +4408,7 @@ export namespace Prisma {
     Empresa?: NullableStringFieldUpdateOperationsInput | string | null
     logoUrl?: NullableStringFieldUpdateOperationsInput | string | null
     imagem_capa?: NullableStringFieldUpdateOperationsInput | string | null
+    subdominio?: NullableStringFieldUpdateOperationsInput | string | null
   }
 
   export type t_bancoCreateInput = {
@@ -4568,6 +4592,7 @@ export namespace Prisma {
     Empresa?: SortOrder
     logoUrl?: SortOrder
     imagem_capa?: SortOrder
+    subdominio?: SortOrder
   }
 
   export type t_acessosAvgOrderByAggregateInput = {
@@ -4593,6 +4618,7 @@ export namespace Prisma {
     Empresa?: SortOrder
     logoUrl?: SortOrder
     imagem_capa?: SortOrder
+    subdominio?: SortOrder
   }
 
   export type t_acessosMinOrderByAggregateInput = {
@@ -4613,6 +4639,7 @@ export namespace Prisma {
     Empresa?: SortOrder
     logoUrl?: SortOrder
     imagem_capa?: SortOrder
+    subdominio?: SortOrder
   }
 
   export type t_acessosSumOrderByAggregateInput = {
