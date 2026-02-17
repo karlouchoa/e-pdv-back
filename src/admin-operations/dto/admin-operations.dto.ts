@@ -322,6 +322,18 @@ export class CloseCashierDto {
   closingBalance?: number;
 }
 
+export class CashierReportQueryDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  codabe?: number;
+
+  @IsOptional()
+  @IsDateString()
+  referenceDate?: string;
+}
+
 export class CashItemSearchDto {
   @IsString()
   @MaxLength(120)

@@ -11,11 +11,21 @@ import type {
   PrismaClient as TenantClient,
 } from '../../prisma/generated/client_tenant';
 import { TenantDbService } from '../tenant-db/tenant-db.service';
+import { CashierReportsPdfService } from './cashier-reports-pdf.service';
+import type {
+  CashierAnalyticOrderRow,
+  CashierAnalyticPaymentRow,
+  CashierAnalyticReportData,
+  CashierReportMeta,
+  CashierSyntheticReportData,
+  CashierSyntheticRow,
+} from './cashier-reports.types';
 import type {
   CashFinalizeDto,
   CashFinalizeItemDto,
   CashItemSearchDto,
   CashPaymentDto,
+  CashierReportQueryDto,
   CloseCashierDto,
   CourierQueryDto,
   CustomersQueryDto,
@@ -33,7 +43,10 @@ type SalesWhere = Prisma.t_vendasWhereInput;
 export class AdminOperationsService {
   private readonly defaultCompanyId = 1;
 
-  constructor(private readonly tenantDbService: TenantDbService) {}
+  constructor(
+    private readonly tenantDbService: TenantDbService,
+    private readonly cashierReportsPdfService: CashierReportsPdfService,
+  ) {}
 
   private async getPrisma(tenant: string): Promise<TenantClient> {
     return this.tenantDbService.getTenantClient(tenant);
@@ -41,7 +54,21 @@ export class AdminOperationsService {
 
   private trim(value: unknown, maxLen = 255): string | null {
     if (value === null || value === undefined) return null;
-    const text = String(value).trim();
+
+    let text: string;
+    if (typeof value === 'string') {
+      text = value;
+    } else if (
+      typeof value === 'number' ||
+      typeof value === 'bigint' ||
+      typeof value === 'boolean'
+    ) {
+      text = value.toString();
+    } else {
+      return null;
+    }
+
+    text = text.trim();
     if (!text) return null;
     return text.slice(0, maxLen);
   }
@@ -49,10 +76,15 @@ export class AdminOperationsService {
   private toOptionalNumber(value: unknown): number | null {
     if (value === null || value === undefined || value === '') return null;
 
-    const parsed =
-      typeof value === 'number'
-        ? value
-        : Number(String(value).trim().replace(',', '.'));
+    const parsed = (() => {
+      if (typeof value === 'number') return value;
+      if (typeof value === 'bigint') return Number(value);
+      if (typeof value === 'string') {
+        return Number(value.trim().replace(',', '.'));
+      }
+      return Number.NaN;
+    })();
+
     if (!Number.isFinite(parsed)) return null;
     return parsed;
   }
@@ -77,6 +109,28 @@ export class AdminOperationsService {
     const copy = new Date(date);
     copy.setHours(23, 59, 59, 999);
     return copy;
+  }
+
+  private startOfDay(date: Date): Date {
+    const copy = new Date(date);
+    copy.setHours(0, 0, 0, 0);
+    return copy;
+  }
+
+  private startOfMonth(date: Date): Date {
+    return new Date(date.getFullYear(), date.getMonth(), 1, 0, 0, 0, 0);
+  }
+
+  private endOfMonth(date: Date): Date {
+    return new Date(
+      date.getFullYear(),
+      date.getMonth() + 1,
+      0,
+      23,
+      59,
+      59,
+      999,
+    );
   }
 
   private startOfToday(): Date {
@@ -1339,6 +1393,550 @@ export class AdminOperationsService {
       codemp: cdemp,
       datfec: now,
     };
+  }
+
+  private normalizeReferenceDate(value?: string): Date {
+    if (!value) return new Date();
+    const normalized = value.trim();
+    if (!normalized) return new Date();
+
+    const parsed = /^\d{4}-\d{2}-\d{2}$/.test(normalized)
+      ? new Date(`${normalized}T12:00:00`)
+      : new Date(normalized);
+
+    if (Number.isNaN(parsed.getTime())) {
+      throw new BadRequestException('Data de referencia invalida.');
+    }
+
+    return parsed;
+  }
+
+  private async resolveCashierForReport(
+    prisma: TenantClient,
+    cdemp: number,
+    userCode: string,
+    codabe?: number,
+  ) {
+    if (codabe && Number.isFinite(codabe) && codabe > 0) {
+      const cashier = await prisma.t_cxabe.findFirst({
+        where: {
+          codemp: cdemp,
+          codabe,
+          codusu: userCode,
+        },
+      });
+      if (!cashier) {
+        throw new NotFoundException('Caixa informado nao encontrado.');
+      }
+      return cashier;
+    }
+
+    const openCashier = await this.getOpenCashier(prisma, cdemp, userCode);
+    if (openCashier) return openCashier;
+
+    const latestCashier = await prisma.t_cxabe.findFirst({
+      where: {
+        codemp: cdemp,
+        codusu: userCode,
+      },
+      orderBy: [{ databe: 'desc' }, { codabe: 'desc' }],
+    });
+
+    if (!latestCashier) {
+      throw new NotFoundException(
+        'Nenhum caixa encontrado para o usuario informado.',
+      );
+    }
+
+    return latestCashier;
+  }
+
+  private toGroupedPaymentMap(
+    rows: Array<{ cdtpg: number; _sum: { valor: Prisma.Decimal | null } }>,
+  ): Map<number, number> {
+    return new Map(
+      rows.map((row) => [
+        row.cdtpg,
+        this.roundMoney(this.toNumber(row._sum.valor)),
+      ]),
+    );
+  }
+
+  private async resolveCompanyName(prisma: TenantClient, cdemp: number) {
+    const company = await prisma.t_emp.findFirst({
+      where: { cdemp },
+      select: {
+        deemp: true,
+        apelido: true,
+        fantemp: true,
+      },
+    });
+
+    return (
+      company?.fantemp?.trim() ||
+      company?.apelido?.trim() ||
+      company?.deemp?.trim() ||
+      `Empresa ${cdemp}`
+    );
+  }
+
+  private buildReportMeta(payload: {
+    tenant: string;
+    companyId: number;
+    companyName: string;
+    cashierId: number;
+    cashierUserCode: string;
+    openedAt: Date | null;
+    closedAt: Date | null;
+    generatedAt: Date;
+    referenceDate: Date;
+    monthStart: Date;
+    monthEnd: Date;
+  }): CashierReportMeta {
+    return {
+      tenant: payload.tenant,
+      companyId: payload.companyId,
+      companyName: payload.companyName,
+      cashierId: payload.cashierId,
+      cashierUserCode: payload.cashierUserCode,
+      openedAt: payload.openedAt,
+      closedAt: payload.closedAt,
+      generatedAt: payload.generatedAt,
+      referenceDate: payload.referenceDate,
+      monthStart: payload.monthStart,
+      monthEnd: payload.monthEnd,
+    };
+  }
+
+  private buildPdfFileName(
+    prefix: string,
+    cashierId: number,
+    generatedAt: Date,
+  ) {
+    const year = generatedAt.getFullYear();
+    const month = String(generatedAt.getMonth() + 1).padStart(2, '0');
+    const day = String(generatedAt.getDate()).padStart(2, '0');
+    const hour = String(generatedAt.getHours()).padStart(2, '0');
+    const minute = String(generatedAt.getMinutes()).padStart(2, '0');
+    const second = String(generatedAt.getSeconds()).padStart(2, '0');
+    return `${prefix}-cx${cashierId}-${year}${month}${day}-${hour}${minute}${second}.pdf`;
+  }
+
+  async getCashierSyntheticReport(
+    tenant: string,
+    preferredCdemp: number | null,
+    userIdentifier: string,
+    query: CashierReportQueryDto,
+    canViewSensitiveTotals: boolean,
+  ): Promise<CashierSyntheticReportData> {
+    const prisma = await this.getPrisma(tenant);
+    const cdemp = await this.resolveCdemp(prisma, preferredCdemp);
+    const userCode = this.normalizeUserCode(userIdentifier);
+    const referenceDate = this.normalizeReferenceDate(query.referenceDate);
+
+    const cashier = await this.resolveCashierForReport(
+      prisma,
+      cdemp,
+      userCode,
+      query.codabe,
+    );
+
+    const reportUserCode = this.normalizeUserCode(cashier.codusu ?? userCode);
+    const generatedAt = new Date();
+    const dayStart = this.startOfDay(referenceDate);
+    const dayEnd = this.endOfDay(referenceDate);
+    const monthStart = this.startOfMonth(referenceDate);
+    const monthEnd = this.endOfMonth(referenceDate);
+
+    const [
+      cashRows,
+      todayRows,
+      accumulatedRows,
+      untilYesterdayRows,
+      config,
+      docsByStatus,
+      salesAggregate,
+      companyName,
+    ] = await Promise.all([
+      prisma.t_pgcaixa.groupBy({
+        by: ['cdtpg'],
+        where: {
+          cdemp,
+          nrcx: cashier.codabe,
+        },
+        _sum: { valor: true },
+      }),
+      prisma.t_pgcaixa.groupBy({
+        by: ['cdtpg'],
+        where: {
+          cdemp,
+          cdusu: reportUserCode,
+          data: { gte: dayStart, lte: dayEnd },
+        },
+        _sum: { valor: true },
+      }),
+      prisma.t_pgcaixa.groupBy({
+        by: ['cdtpg'],
+        where: {
+          cdemp,
+          cdusu: reportUserCode,
+          data: { gte: monthStart, lte: dayEnd },
+        },
+        _sum: { valor: true },
+      }),
+      dayStart.getTime() <= monthStart.getTime()
+        ? Promise.resolve(
+            [] as Array<{
+              cdtpg: number;
+              _sum: { valor: Prisma.Decimal | null };
+            }>,
+          )
+        : prisma.t_pgcaixa.groupBy({
+            by: ['cdtpg'],
+            where: {
+              cdemp,
+              cdusu: reportUserCode,
+              data: { gte: monthStart, lt: dayStart },
+            },
+            _sum: { valor: true },
+          }),
+      prisma.t_config.findFirst({
+        orderBy: { autocod: 'desc' },
+        select: { coddin: true },
+      }),
+      prisma.$queryRaw<Array<{ status: string | null; total: unknown }>>`
+        SELECT UPPER(LTRIM(RTRIM(ISNULL(status, '')))) AS status,
+               SUM(ISNULL(valor, 0)) AS total
+        FROM t_cxdoc
+        WHERE cdemp = ${cdemp}
+          AND codcx = ${cashier.codabe}
+        GROUP BY UPPER(LTRIM(RTRIM(ISNULL(status, ''))))
+      `,
+      prisma.t_vendas.aggregate({
+        where: {
+          cdemp_v: cdemp,
+          codcx: cashier.codabe,
+          status_v: 'E',
+          isdeleted: false,
+        },
+        _sum: { totven_v: true },
+      }),
+      this.resolveCompanyName(prisma, cdemp),
+    ]);
+
+    const cashMap = this.toGroupedPaymentMap(cashRows);
+    const untilYesterdayMap = this.toGroupedPaymentMap(untilYesterdayRows);
+    const todayMap = this.toGroupedPaymentMap(todayRows);
+    const accumulatedMap = this.toGroupedPaymentMap(accumulatedRows);
+
+    const paymentTypeIds = Array.from(
+      new Set([
+        ...cashMap.keys(),
+        ...untilYesterdayMap.keys(),
+        ...todayMap.keys(),
+        ...accumulatedMap.keys(),
+      ]),
+    );
+
+    const paymentTypeRows = paymentTypeIds.length
+      ? await prisma.t_tpgto.findMany({
+          where: { cdtpg: { in: paymentTypeIds } },
+          select: { cdtpg: true, detpg: true },
+        })
+      : [];
+    const paymentTypeMap = new Map(
+      paymentTypeRows.map((row) => [
+        row.cdtpg,
+        row.detpg?.trim() || `Tipo ${row.cdtpg}`,
+      ]),
+    );
+
+    const rows: CashierSyntheticRow[] = paymentTypeIds
+      .map((cdtpg) => {
+        const totalUntilPreviousDay = this.roundMoney(
+          untilYesterdayMap.get(cdtpg) ?? 0,
+        );
+        const totalAccumulated = this.roundMoney(
+          accumulatedMap.get(cdtpg) ?? 0,
+        );
+
+        return {
+          cdtpg,
+          paymentType: paymentTypeMap.get(cdtpg) ?? `Tipo ${cdtpg}`,
+          totalCashier: this.roundMoney(cashMap.get(cdtpg) ?? 0),
+          totalUntilPreviousDay: canViewSensitiveTotals
+            ? totalUntilPreviousDay
+            : null,
+          totalToday: this.roundMoney(todayMap.get(cdtpg) ?? 0),
+          totalAccumulated: canViewSensitiveTotals ? totalAccumulated : null,
+        };
+      })
+      .sort((a, b) => a.paymentType.localeCompare(b.paymentType, 'pt-BR'));
+
+    const openingBalance = this.roundMoney(this.toNumber(cashier.salabe));
+    const totalSales = this.roundMoney(
+      this.toNumber(salesAggregate._sum?.totven_v),
+    );
+
+    let withdrawalsTotal = 0;
+    let suppliesTotal = 0;
+    for (const row of docsByStatus) {
+      const status = (row.status ?? '').trim().toUpperCase();
+      const total = this.roundMoney(this.toNumber(row.total));
+      if (status === 'D') withdrawalsTotal += total;
+      if (status === 'C') suppliesTotal += total;
+    }
+
+    withdrawalsTotal = this.roundMoney(withdrawalsTotal);
+    suppliesTotal = this.roundMoney(suppliesTotal);
+
+    const moneyTypeId =
+      config?.coddin && Number.isFinite(config.coddin) ? config.coddin : null;
+    const cashSalesTotal = this.roundMoney(
+      moneyTypeId ? (cashMap.get(moneyTypeId) ?? 0) : 0,
+    );
+
+    const cashInDrawerTotal = this.roundMoney(
+      cashSalesTotal + openingBalance + suppliesTotal - withdrawalsTotal,
+    );
+    const closingBalance = this.roundMoney(
+      totalSales + openingBalance + suppliesTotal - withdrawalsTotal,
+    );
+
+    const sumTotalCashier = this.roundMoney(
+      rows.reduce((sum, row) => sum + row.totalCashier, 0),
+    );
+    const sumTotalToday = this.roundMoney(
+      rows.reduce((sum, row) => sum + row.totalToday, 0),
+    );
+    const sumTotalUntilPreviousDay = canViewSensitiveTotals
+      ? this.roundMoney(
+          rows.reduce((sum, row) => sum + (row.totalUntilPreviousDay ?? 0), 0),
+        )
+      : null;
+    const sumTotalAccumulated = canViewSensitiveTotals
+      ? this.roundMoney(
+          rows.reduce((sum, row) => sum + (row.totalAccumulated ?? 0), 0),
+        )
+      : null;
+
+    return {
+      meta: this.buildReportMeta({
+        tenant,
+        companyId: cdemp,
+        companyName,
+        cashierId: cashier.codabe,
+        cashierUserCode: reportUserCode,
+        openedAt: cashier.databe ?? null,
+        closedAt: cashier.datfec ?? null,
+        generatedAt,
+        referenceDate: dayStart,
+        monthStart,
+        monthEnd,
+      }),
+      permissions: {
+        canViewSensitiveTotals,
+        restrictedColumnsHidden: !canViewSensitiveTotals,
+      },
+      rows,
+      footer: {
+        sumTotalCashier,
+        sumTotalUntilPreviousDay,
+        sumTotalToday,
+        sumTotalAccumulated,
+        openingBalance,
+        withdrawalsTotal,
+        suppliesTotal,
+        cashSalesTotal,
+        cashInDrawerTotal,
+        totalSales,
+        closingBalance,
+      },
+    };
+  }
+
+  async getCashierSyntheticReportPdf(
+    tenant: string,
+    preferredCdemp: number | null,
+    userIdentifier: string,
+    query: CashierReportQueryDto,
+    canViewSensitiveTotals: boolean,
+  ) {
+    const report = await this.getCashierSyntheticReport(
+      tenant,
+      preferredCdemp,
+      userIdentifier,
+      query,
+      canViewSensitiveTotals,
+    );
+    const file = await this.cashierReportsPdfService.createSyntheticPdf(report);
+    const filename = this.buildPdfFileName(
+      'relatorio-sintetico-caixa',
+      report.meta.cashierId,
+      report.meta.generatedAt,
+    );
+    return { filename, file };
+  }
+
+  async getCashierAnalyticReport(
+    tenant: string,
+    preferredCdemp: number | null,
+    userIdentifier: string,
+    query: CashierReportQueryDto,
+  ): Promise<CashierAnalyticReportData> {
+    const prisma = await this.getPrisma(tenant);
+    const cdemp = await this.resolveCdemp(prisma, preferredCdemp);
+    const userCode = this.normalizeUserCode(userIdentifier);
+    const referenceDate = this.normalizeReferenceDate(query.referenceDate);
+
+    const cashier = await this.resolveCashierForReport(
+      prisma,
+      cdemp,
+      userCode,
+      query.codabe,
+    );
+
+    const reportUserCode = this.normalizeUserCode(cashier.codusu ?? userCode);
+    const generatedAt = new Date();
+    const monthStart = this.startOfMonth(referenceDate);
+    const monthEnd = this.endOfMonth(referenceDate);
+
+    const [sales, companyName] = await Promise.all([
+      prisma.t_vendas.findMany({
+        where: {
+          cdemp_v: cdemp,
+          codcx: cashier.codabe,
+          status_v: 'E',
+          isdeleted: false,
+        },
+        orderBy: [{ nrven_v: 'asc' }],
+        select: {
+          ID: true,
+          nrven_v: true,
+          emisven_v: true,
+          horaven_v: true,
+          totven_v: true,
+          t_cli: {
+            select: {
+              decli: true,
+            },
+          },
+        },
+      }),
+      this.resolveCompanyName(prisma, cdemp),
+    ]);
+
+    const nrvens = sales.map((sale) => sale.nrven_v);
+
+    const paymentRows = nrvens.length
+      ? await prisma.t_pgcaixa.findMany({
+          where: {
+            cdemp,
+            nrcx: cashier.codabe,
+            nrven: { in: nrvens },
+          },
+          orderBy: [{ nrven: 'asc' }, { registro: 'asc' }],
+          select: {
+            nrven: true,
+            cdtpg: true,
+            valor: true,
+          },
+        })
+      : [];
+
+    const paymentTypeIds = Array.from(
+      new Set(paymentRows.map((row) => row.cdtpg)),
+    );
+    const paymentTypes = paymentTypeIds.length
+      ? await prisma.t_tpgto.findMany({
+          where: { cdtpg: { in: paymentTypeIds } },
+          select: { cdtpg: true, detpg: true },
+        })
+      : [];
+    const paymentTypeMap = new Map(
+      paymentTypes.map((row) => [
+        row.cdtpg,
+        row.detpg?.trim() || `Tipo ${row.cdtpg}`,
+      ]),
+    );
+
+    const paymentsByOrder = new Map<number, CashierAnalyticPaymentRow[]>();
+    for (const row of paymentRows) {
+      const current = paymentsByOrder.get(row.nrven) ?? [];
+      current.push({
+        cdtpg: row.cdtpg,
+        paymentType: paymentTypeMap.get(row.cdtpg) ?? `Tipo ${row.cdtpg}`,
+        value: this.roundMoney(this.toNumber(row.valor)),
+      });
+      paymentsByOrder.set(row.nrven, current);
+    }
+
+    const orders: CashierAnalyticOrderRow[] = sales.map((sale) => {
+      const payments = paymentsByOrder.get(sale.nrven_v) ?? [];
+      const totalPaid = this.roundMoney(
+        payments.reduce((sum, payment) => sum + payment.value, 0),
+      );
+
+      return {
+        nrven: sale.nrven_v,
+        saleId: sale.ID?.trim() ?? null,
+        issuedAt: sale.emisven_v ?? null,
+        saleHour: sale.horaven_v ?? null,
+        customerName: sale.t_cli?.decli?.trim() ?? null,
+        totalSale: this.roundMoney(this.toNumber(sale.totven_v)),
+        totalPaid,
+        payments,
+      };
+    });
+
+    const summary = {
+      ordersCount: orders.length,
+      totalSale: this.roundMoney(
+        orders.reduce((sum, order) => sum + order.totalSale, 0),
+      ),
+      totalPaid: this.roundMoney(
+        orders.reduce((sum, order) => sum + order.totalPaid, 0),
+      ),
+    };
+
+    return {
+      meta: this.buildReportMeta({
+        tenant,
+        companyId: cdemp,
+        companyName,
+        cashierId: cashier.codabe,
+        cashierUserCode: reportUserCode,
+        openedAt: cashier.databe ?? null,
+        closedAt: cashier.datfec ?? null,
+        generatedAt,
+        referenceDate: this.startOfDay(referenceDate),
+        monthStart,
+        monthEnd,
+      }),
+      summary,
+      orders,
+    };
+  }
+
+  async getCashierAnalyticReportPdf(
+    tenant: string,
+    preferredCdemp: number | null,
+    userIdentifier: string,
+    query: CashierReportQueryDto,
+  ) {
+    const report = await this.getCashierAnalyticReport(
+      tenant,
+      preferredCdemp,
+      userIdentifier,
+      query,
+    );
+    const file = await this.cashierReportsPdfService.createAnalyticPdf(report);
+    const filename = this.buildPdfFileName(
+      'relatorio-analitico-caixa',
+      report.meta.cashierId,
+      report.meta.generatedAt,
+    );
+    return { filename, file };
   }
 
   async listCashierPaymentMethods(tenant: string) {

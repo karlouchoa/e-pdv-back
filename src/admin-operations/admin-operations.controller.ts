@@ -10,14 +10,16 @@ import {
   Post,
   Query,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { TenantJwtGuard } from '../auth/tenant-jwt.guard';
 import type { JwtPayload } from '../auth/types/jwt-payload.type';
 import { RolesGuard } from '../auth/roles.guard';
 import {
+  CashierReportQueryDto,
   CashFinalizeDto,
   CashItemSearchDto,
   CloseCashierDto,
@@ -65,6 +67,10 @@ export class AdminOperationsController {
       throw new ForbiddenException('Usuario nao identificado no token.');
     }
     return String(value).trim();
+  }
+
+  private canViewSensitiveCashierTotals(req: TenantRequest): boolean {
+    return Boolean(req.user?.admin);
   }
 
   @Get('entregadores')
@@ -284,6 +290,74 @@ export class AdminOperationsController {
       this.getUserIdentifier(req),
       dto,
     );
+  }
+
+  @Get('caixa/relatorios/sintetico')
+  getCashierSyntheticReport(
+    @Req() req: TenantRequest,
+    @Query() query: CashierReportQueryDto,
+  ) {
+    return this.adminOpsService.getCashierSyntheticReport(
+      this.getTenant(req),
+      this.getWarehouse(req),
+      this.getUserIdentifier(req),
+      query,
+      this.canViewSensitiveCashierTotals(req),
+    );
+  }
+
+  @Get('caixa/relatorios/sintetico/pdf')
+  async downloadCashierSyntheticReportPdf(
+    @Req() req: TenantRequest,
+    @Query() query: CashierReportQueryDto,
+    @Res() res: Response,
+  ) {
+    const { filename, file } =
+      await this.adminOpsService.getCashierSyntheticReportPdf(
+        this.getTenant(req),
+        this.getWarehouse(req),
+        this.getUserIdentifier(req),
+        query,
+        this.canViewSensitiveCashierTotals(req),
+      );
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', file.length.toString());
+    return res.send(file);
+  }
+
+  @Get('caixa/relatorios/analitico')
+  getCashierAnalyticReport(
+    @Req() req: TenantRequest,
+    @Query() query: CashierReportQueryDto,
+  ) {
+    return this.adminOpsService.getCashierAnalyticReport(
+      this.getTenant(req),
+      this.getWarehouse(req),
+      this.getUserIdentifier(req),
+      query,
+    );
+  }
+
+  @Get('caixa/relatorios/analitico/pdf')
+  async downloadCashierAnalyticReportPdf(
+    @Req() req: TenantRequest,
+    @Query() query: CashierReportQueryDto,
+    @Res() res: Response,
+  ) {
+    const { filename, file } =
+      await this.adminOpsService.getCashierAnalyticReportPdf(
+        this.getTenant(req),
+        this.getWarehouse(req),
+        this.getUserIdentifier(req),
+        query,
+      );
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', file.length.toString());
+    return res.send(file);
   }
 
   @Get('caixa/formas-pagamento')
