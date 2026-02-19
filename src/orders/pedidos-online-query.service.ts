@@ -54,11 +54,14 @@ export class PedidosOnlineQueryService {
 
     return rows.map((row) => ({
       id: row.ID,
+      pedido: this.toNumber(row.PEDIDO),
       cdemp: row.CDEMP ?? null,
       idCliente: row.ID_CLIENTE ?? null,
       idEndereco: row.ID_ENDERECO ?? null,
       canal: row.CANAL ?? null,
       status: row.STATUS,
+      tipoPagto: row.TipoPagto ?? null,
+      trocoPara: this.toNumber(row.TrocoPara),
       dtPedido: row.DT_PEDIDO ?? null,
       totals: {
         subtotal: this.toNumber(row.TOTAL_BRUTO),
@@ -171,11 +174,14 @@ export class PedidosOnlineQueryService {
 
     return {
       id: pedido.ID,
+      pedido: this.toNumber(pedido.PEDIDO),
       cdemp: pedido.CDEMP ?? null,
       idCliente: pedido.ID_CLIENTE ?? null,
       idEndereco: pedido.ID_ENDERECO ?? null,
       canal: pedido.CANAL ?? null,
       status: pedido.STATUS,
+      tipoPagto: pedido.TipoPagto ?? null,
+      trocoPara: this.toNumber(pedido.TrocoPara),
       dtPedido: pedido.DT_PEDIDO ?? null,
       totals: {
         subtotal: this.toNumber(pedido.TOTAL_BRUTO),

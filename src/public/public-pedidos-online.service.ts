@@ -56,6 +56,7 @@ type ItemSnapshot = {
 };
 
 type DeliveryMode = 'ENTREGA' | 'RETIRADA';
+type PaymentType = 'DINHEIRO' | 'C. CREDITO' | 'C. DEBITO' | 'PIX';
 
 @Injectable()
 export class PublicPedidosOnlineService {
@@ -137,6 +138,28 @@ export class PublicPedidosOnlineService {
     return hasAddress ? 'ENTREGA' : 'RETIRADA';
   }
 
+  private normalizePaymentType(value: string | undefined): PaymentType {
+    const normalized = (value ?? '')
+      .toString()
+      .trim()
+      .toUpperCase()
+      .replace(/\s+/g, '')
+      .replace(/\./g, '');
+
+    if (normalized === 'DINHEIRO') return 'DINHEIRO';
+    if (normalized === 'PIX') return 'PIX';
+    if (normalized === 'CCREDITO' || normalized === 'CREDITO') {
+      return 'C. CREDITO';
+    }
+    if (normalized === 'CDEBITO' || normalized === 'DEBITO') {
+      return 'C. DEBITO';
+    }
+
+    throw new BadRequestException(
+      'Tipo de pagamento invalido. Use DINHEIRO, C. CREDITO, C. DEBITO ou PIX.',
+    );
+  }
+
   private ensureItemAvailable(item: {
     cditem: number;
     deitem: string | null;
@@ -192,6 +215,7 @@ export class PublicPedidosOnlineService {
     const aggregated = new Map<string, NormalizedChoice>();
 
     for (const choice of choices) {
+      const choiceId = choice.idItemEscolhido.trim();
       const cdgru = this.toNumber(choice.cdgru);
       if (!Number.isFinite(cdgru) || !Number.isInteger(cdgru) || cdgru <= 0) {
         throw new BadRequestException(
@@ -206,13 +230,13 @@ export class PublicPedidosOnlineService {
         );
       }
 
-      const key = `${choice.idItemEscolhido}:${cdgru}`;
+      const key = `${choiceId}:${cdgru}`;
       const existing = aggregated.get(key);
       if (existing) {
         existing.quantity = this.roundQuantity(existing.quantity + quantity);
       } else {
         aggregated.set(key, {
-          idItemEscolhido: choice.idItemEscolhido,
+          idItemEscolhido: choiceId,
           cdgru,
           quantity,
         });
@@ -296,21 +320,26 @@ export class PublicPedidosOnlineService {
     if (!dto.items?.length) {
       throw new BadRequestException('Informe ao menos um item.');
     }
+    if (!dto.idCliente) {
+      throw new BadRequestException(
+        'Defina o cliente antes de finalizar o pedido.',
+      );
+    }
 
     const deliveryMode = this.resolveDeliveryMode(
       dto.tipoEntrega,
       Boolean(dto.idEndereco),
     );
+    const tipoPagto = this.normalizePaymentType(dto.tipoPagto);
+    const trocoParaSolicitado = this.roundMoney(this.toNumber(dto.trocoPara ?? 0));
+    if (!Number.isFinite(trocoParaSolicitado) || trocoParaSolicitado < 0) {
+      throw new BadRequestException('Troco para invalido.');
+    }
+    const trocoPara = tipoPagto === 'DINHEIRO' ? trocoParaSolicitado : 0;
 
     if (deliveryMode === 'ENTREGA' && !dto.idEndereco) {
       throw new BadRequestException(
         'Pedidos de entrega precisam informar o endereco.',
-      );
-    }
-
-    if (!dto.idCliente && dto.idEndereco) {
-      throw new BadRequestException(
-        'Endereco informado sem cliente vinculado.',
       );
     }
 
@@ -353,18 +382,13 @@ export class PublicPedidosOnlineService {
       const allIds = new Set<string>();
 
       for (const item of dto.items) {
-        if (itemIds.has(item.idItem)) {
-          throw new BadRequestException(
-            `Item duplicado no pedido: ${item.idItem}.`,
-          );
-        }
-
-        itemIds.add(item.idItem);
-        allIds.add(item.idItem);
+        const itemId = item.idItem.trim();
+        itemIds.add(itemId);
+        allIds.add(itemId);
 
         if (item.comboChoices?.length) {
           for (const choice of item.comboChoices) {
-            allIds.add(choice.idItemEscolhido);
+            allIds.add(choice.idItemEscolhido.trim());
           }
         }
       }
@@ -433,7 +457,8 @@ export class PublicPedidosOnlineService {
       const snapshots: ItemSnapshot[] = [];
 
       for (const item of dto.items) {
-        const record = itemMap.get(item.idItem);
+        const itemId = item.idItem.trim();
+        const record = itemMap.get(itemId);
         if (!record) {
           throw new BadRequestException(`Item ${item.idItem} nao encontrado.`);
         }
@@ -465,7 +490,7 @@ export class PublicPedidosOnlineService {
 
         const isCombo = this.normalizeFlag(record.ComboSN) === COMBO_FLAG;
         const normalizedChoices = this.normalizeChoices(
-          item.idItem,
+          itemId,
           item.comboChoices,
         );
 
@@ -560,6 +585,8 @@ export class PublicPedidosOnlineService {
             this.normalizeText(dto.canal, 20) ??
             (deliveryMode === 'ENTREGA' ? 'ENTREGA' : 'RETIRADA'),
           obs: this.normalizeText(dto.obs, 500),
+          trocoPara,
+          tipoPagto,
           totals: {
             subtotal,
             desconto,
@@ -627,8 +654,11 @@ export class PublicPedidosOnlineService {
 
       const response = {
         idPedidoOnline: pedido.ID,
+        pedido: this.toNumber(pedido.PEDIDO),
         status: pedido.STATUS,
         publicToken: pedido.PUBLIC_TOKEN ?? null,
+        tipoPagto: this.normalizeText(pedido.TipoPagto, 15) ?? tipoPagto,
+        trocoPara: this.toNumber(pedido.TrocoPara ?? trocoPara),
         totals: {
           subtotal,
           discount: desconto,
@@ -656,11 +686,14 @@ export class PublicPedidosOnlineService {
 
     return rows.map((row) => ({
       id: row.ID,
+      pedido: this.toNumber(row.PEDIDO),
       cdemp: row.CDEMP ?? null,
       idCliente: row.ID_CLIENTE ?? null,
       idEndereco: row.ID_ENDERECO ?? null,
       canal: row.CANAL ?? null,
       status: row.STATUS,
+      tipoPagto: row.TipoPagto ?? null,
+      trocoPara: this.toNumber(row.TrocoPara),
       dtPedido: row.DT_PEDIDO ?? null,
       totals: {
         subtotal: this.toNumber(row.TOTAL_BRUTO),
@@ -739,11 +772,14 @@ export class PublicPedidosOnlineService {
 
     return {
       id: pedido.ID,
+      pedido: this.toNumber(pedido.PEDIDO),
       cdemp: pedido.CDEMP ?? null,
       idCliente: pedido.ID_CLIENTE ?? null,
       idEndereco: pedido.ID_ENDERECO ?? null,
       canal: pedido.CANAL ?? null,
       status: pedido.STATUS,
+      tipoPagto: pedido.TipoPagto ?? null,
+      trocoPara: this.toNumber(pedido.TrocoPara),
       dtPedido: pedido.DT_PEDIDO ?? null,
       totals: {
         subtotal: this.toNumber(pedido.TOTAL_BRUTO),

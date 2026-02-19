@@ -289,6 +289,18 @@ export class PublicCustomersService {
       let selectedAddressId: string | null = null;
 
       if (dto.endereco) {
+        const cep = this.normalizeText(dto.endereco.cep, 10);
+        const logradouro = this.normalizeText(dto.endereco.logradouro, 100);
+        const numero = this.normalizeText(dto.endereco.numero, 20);
+        const bairro = this.normalizeText(dto.endereco.bairro, 60);
+        const cidade = this.normalizeText(dto.endereco.cidade, 60);
+        const uf = this.normalizeUf(dto.endereco.uf);
+        if (!cep || !numero || !bairro || !cidade) {
+          throw new BadRequestException(
+            'Endereco incompleto. Informe CEP, numero (ou S/N), bairro e cidade.',
+          );
+        }
+
         const latitude =
           dto.endereco.latitude === undefined ? null : dto.endereco.latitude;
         const longitude =
@@ -313,12 +325,12 @@ export class PublicCustomersService {
           const updatedAddress = await tx.t_ENDCLI.update({
             where: { ID: existingAddress.ID },
             data: {
-              CEP: this.normalizeText(dto.endereco.cep, 10),
-              LOGRADOURO: this.normalizeText(dto.endereco.logradouro, 100),
-              NUMERO: this.normalizeText(dto.endereco.numero, 20),
-              BAIRRO: this.normalizeText(dto.endereco.bairro, 60),
-              CIDADE: this.normalizeText(dto.endereco.cidade, 60),
-              UF: this.normalizeUf(dto.endereco.uf),
+              CEP: cep,
+              LOGRADOURO: logradouro,
+              NUMERO: numero,
+              BAIRRO: bairro,
+              CIDADE: cidade,
+              UF: uf,
               COMPLEMENTO: this.normalizeText(dto.endereco.complemento, 100),
               PONTO_REFERENCIA: this.normalizeText(
                 dto.endereco.pontoReferencia,
@@ -350,12 +362,12 @@ export class PublicCustomersService {
           const createdAddress = await tx.t_ENDCLI.create({
             data: {
               ID_CLIENTE: client.id,
-              CEP: this.normalizeText(dto.endereco.cep, 10),
-              LOGRADOURO: this.normalizeText(dto.endereco.logradouro, 100),
-              NUMERO: this.normalizeText(dto.endereco.numero, 20),
-              BAIRRO: this.normalizeText(dto.endereco.bairro, 60),
-              CIDADE: this.normalizeText(dto.endereco.cidade, 60),
-              UF: this.normalizeUf(dto.endereco.uf),
+              CEP: cep,
+              LOGRADOURO: logradouro,
+              NUMERO: numero,
+              BAIRRO: bairro,
+              CIDADE: cidade,
+              UF: uf,
               COMPLEMENTO: this.normalizeText(dto.endereco.complemento, 100),
               PONTO_REFERENCIA: this.normalizeText(
                 dto.endereco.pontoReferencia,

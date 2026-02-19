@@ -2191,6 +2191,7 @@ model t_emp {
   location               Unsupported("geography")?
   latitude               Decimal?                  @db.Decimal(10, 8)
   longitude              Decimal?                  @db.Decimal(10, 8)
+  Taxa_Entrega           Decimal?                  @db.Decimal(9, 2)
   StoreHours             StoreHours[]
 }
 
@@ -7516,6 +7517,9 @@ model T_PedidosOnLine {
   DT_CANCELAMENTO      DateTime?
   CANCELADO_POR        String?                @db.VarChar(50)
   MOTIVO_CANCEL        String?                @db.VarChar(200)
+  Pedido               Int                    @default(autoincrement())
+  TrocoPara            Decimal?               @db.Decimal(9, 2)
+  TipoPagto            String?                @db.VarChar(15)
   T_PedidosOnLineItens T_PedidosOnLineItens[]
 
   @@index([ID_CLIENTE, DT_PEDIDO], map: "IX_T_PedidosOnLine_CLIENTE_DTPEDIDO")

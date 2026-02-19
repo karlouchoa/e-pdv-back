@@ -8,6 +8,7 @@ import { TenantDbService } from '../tenant-db/tenant-db.service';
 
 export type PedidoOnlineRow = {
   ID: string;
+  PEDIDO?: number | null;
   CDEMP: number | null;
   ID_CLIENTE: string | null;
   ID_ENDERECO?: string | null;
@@ -23,6 +24,8 @@ export type PedidoOnlineRow = {
   ID_VENDA?: string | null;
   DT_CONFIRMACAO?: Date | null;
   CONFIRMADO_POR?: string | null;
+  TrocoPara?: unknown;
+  TipoPagto?: string | null;
 };
 
 export type PedidoOnlineListRow = PedidoOnlineRow & {
@@ -65,6 +68,7 @@ export class PedidosOnlineRepository {
       TenantPrisma.sql`
         SELECT
           ID,
+          Pedido AS PEDIDO,
           CDEMP,
           ID_CLIENTE,
           ID_ENDERECO,
@@ -78,7 +82,9 @@ export class PedidosOnlineRepository {
           OBS,
           ID_VENDA,
           DT_CONFIRMACAO,
-          CONFIRMADO_POR
+          CONFIRMADO_POR,
+          TrocoPara,
+          TipoPagto
         FROM T_PedidosOnLine
         WHERE ID = ${id}
       `,
@@ -119,6 +125,7 @@ export class PedidosOnlineRepository {
           TOTAL_LIQ = ${payload.totals.total}
         OUTPUT
           INSERTED.ID,
+          INSERTED.Pedido AS PEDIDO,
           INSERTED.CDEMP,
           INSERTED.ID_CLIENTE,
           INSERTED.ID_ENDERECO,
@@ -132,7 +139,9 @@ export class PedidosOnlineRepository {
           INSERTED.OBS,
           INSERTED.ID_VENDA,
           INSERTED.DT_CONFIRMACAO,
-          INSERTED.CONFIRMADO_POR
+          INSERTED.CONFIRMADO_POR,
+          INSERTED.TrocoPara,
+          INSERTED.TipoPagto
         WHERE ID = ${payload.id}
           AND STATUS = 'ABERTO'
       `,
@@ -150,6 +159,8 @@ export class PedidosOnlineRepository {
       idEndereco?: string | null;
       canal?: string | null;
       obs?: string | null;
+      trocoPara?: number | null;
+      tipoPagto?: string | null;
       totals: {
         subtotal: number;
         desconto: number;
@@ -173,10 +184,13 @@ export class PedidosOnlineRepository {
           DESCONTO,
           TAXA_ENTREGA,
           TOTAL_LIQ,
-          OBS
+          OBS,
+          TrocoPara,
+          TipoPagto
         )
         OUTPUT
           INSERTED.ID,
+          INSERTED.Pedido AS PEDIDO,
           INSERTED.CDEMP,
           INSERTED.ID_CLIENTE,
           INSERTED.ID_ENDERECO,
@@ -188,7 +202,9 @@ export class PedidosOnlineRepository {
           INSERTED.DESCONTO,
           INSERTED.TAXA_ENTREGA,
           INSERTED.TOTAL_LIQ,
-          INSERTED.OBS
+          INSERTED.OBS,
+          INSERTED.TrocoPara,
+          INSERTED.TipoPagto
         VALUES (
           ${payload.cdemp},
           ${payload.idCliente ?? null},
@@ -199,7 +215,9 @@ export class PedidosOnlineRepository {
           ${payload.totals.desconto},
           ${payload.totals.taxaEntrega},
           ${payload.totals.total},
-          ${payload.obs ?? null}
+          ${payload.obs ?? null},
+          ${payload.trocoPara ?? null},
+          ${payload.tipoPagto ?? null}
         )
       `,
     );
@@ -221,6 +239,7 @@ export class PedidosOnlineRepository {
       TenantPrisma.sql`
         SELECT
           p.ID,
+          p.Pedido AS PEDIDO,
           p.CDEMP,
           p.ID_CLIENTE,
           p.ID_ENDERECO,
@@ -235,6 +254,8 @@ export class PedidosOnlineRepository {
           p.ID_VENDA,
           p.DT_CONFIRMACAO,
           p.CONFIRMADO_POR,
+          p.TrocoPara,
+          p.TipoPagto,
           c.decli AS CLIENTE_NOME,
           CONCAT(ISNULL(c.dddcli, ''), ISNULL(COALESCE(NULLIF(c.celcli, ''), c.fonecli), '')) AS CLIENTE_FONE,
           c.emailcli AS CLIENTE_EMAIL,
@@ -268,6 +289,7 @@ export class PedidosOnlineRepository {
       TenantPrisma.sql`
         SELECT
           p.ID,
+          p.Pedido AS PEDIDO,
           p.CDEMP,
           p.ID_CLIENTE,
           p.ID_ENDERECO,
@@ -282,6 +304,8 @@ export class PedidosOnlineRepository {
           p.ID_VENDA,
           p.DT_CONFIRMACAO,
           p.CONFIRMADO_POR,
+          p.TrocoPara,
+          p.TipoPagto,
           c.decli AS CLIENTE_NOME,
           CONCAT(ISNULL(c.dddcli, ''), ISNULL(COALESCE(NULLIF(c.celcli, ''), c.fonecli), '')) AS CLIENTE_FONE,
           c.emailcli AS CLIENTE_EMAIL,
@@ -312,6 +336,7 @@ export class PedidosOnlineRepository {
       TenantPrisma.sql`
         SELECT TOP 1
           p.ID,
+          p.Pedido AS PEDIDO,
           p.CDEMP,
           p.ID_CLIENTE,
           p.ID_ENDERECO,
@@ -326,6 +351,8 @@ export class PedidosOnlineRepository {
           p.ID_VENDA,
           p.DT_CONFIRMACAO,
           p.CONFIRMADO_POR,
+          p.TrocoPara,
+          p.TipoPagto,
           c.decli AS CLIENTE_NOME,
           CONCAT(ISNULL(c.dddcli, ''), ISNULL(COALESCE(NULLIF(c.celcli, ''), c.fonecli), '')) AS CLIENTE_FONE,
           c.emailcli AS CLIENTE_EMAIL,

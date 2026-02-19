@@ -60,10 +60,19 @@ export class PublicPedidoOnlineResponseDto {
   idPedidoOnline!: string;
 
   @Expose()
+  pedido!: number;
+
+  @Expose()
   status!: string;
 
   @Expose()
   publicToken?: string | null;
+
+  @Expose()
+  tipoPagto?: string | null;
+
+  @Expose()
+  trocoPara?: number;
 
   @Expose()
   @Type(() => PublicPedidoOnlineTotalsDto)

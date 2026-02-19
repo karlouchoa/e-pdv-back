@@ -18,7 +18,24 @@ export class TenantDbService implements OnModuleDestroy {
   /**
    * Main database connection (t_acessos, etc).
    */
-  private readonly main: MainClient = new MainPrismaClient();
+  private readonly main: MainClient;
+
+  constructor() {
+    const mainConnectionString = this.buildMainConnectionString();
+    this.main = mainConnectionString
+      ? new MainPrismaClient({
+          datasources: { db: { url: mainConnectionString } },
+        })
+      : new MainPrismaClient();
+  }
+
+  private buildMainConnectionString(): string | null {
+    const base =
+      process.env.DATABASE_ACESSOS?.trim() || process.env.DATABASE_URL?.trim();
+
+    if (!base) return null;
+    return this.applyConnectionRuntimeOverrides(base);
+  }
 
   /**
    * Build tenant connection string dynamically from environment variables.
@@ -46,7 +63,7 @@ export class TenantDbService implements OnModuleDestroy {
       connectionString = this.buildTenantConnectionFromDbVars(dbName);
     }
 
-    return this.applyTlsOverrides(connectionString);
+    return this.applyConnectionRuntimeOverrides(connectionString);
   }
 
   private buildTenantConnectionFromDbVars(dbName: string): string {
@@ -122,6 +139,30 @@ export class TenantDbService implements OnModuleDestroy {
   /**
    * Optional TLS overrides from DB_ENCRYPT / DB_TRUST_SERVER_CERTIFICATE.
    */
+  private applyConnectionRuntimeOverrides(connectionString: string): string {
+    let next = this.applyHostPortOverrides(connectionString);
+    next = this.applyTlsOverrides(next);
+    next = this.applyPoolOverrides(next);
+    return next;
+  }
+
+  private applyHostPortOverrides(connectionString: string): string {
+    const host = process.env.DB_HOST?.trim();
+    const port = process.env.DB_PORT?.trim();
+    if (!host && !port) {
+      return connectionString;
+    }
+
+    return connectionString.replace(
+      /^sqlserver:\/\/([^;:/?]+)(?::(\d+))?/i,
+      (_match, currentHost: string, currentPort?: string) => {
+        const nextHost = host || currentHost;
+        const nextPort = port || currentPort || '';
+        return `sqlserver://${nextHost}${nextPort ? `:${nextPort}` : ''}`;
+      },
+    );
+  }
+
   private applyTlsOverrides(connectionString: string): string {
     let next = connectionString.endsWith(';')
       ? connectionString
@@ -141,6 +182,28 @@ export class TenantDbService implements OnModuleDestroy {
         'trustServerCertificate',
         String(trustServerCertificate),
       );
+    }
+
+    return next;
+  }
+
+  private applyPoolOverrides(connectionString: string): string {
+    let next = connectionString.endsWith(';')
+      ? connectionString
+      : `${connectionString};`;
+
+    const connectionLimit = this.readIntegerEnv('DB_CONNECTION_LIMIT');
+    if (connectionLimit !== undefined) {
+      next = this.upsertConnectionParam(
+        next,
+        'connection_limit',
+        String(connectionLimit),
+      );
+    }
+
+    const poolTimeout = this.readIntegerEnv('DB_POOL_TIMEOUT');
+    if (poolTimeout !== undefined) {
+      next = this.upsertConnectionParam(next, 'pool_timeout', String(poolTimeout));
     }
 
     return next;
@@ -174,6 +237,23 @@ export class TenantDbService implements OnModuleDestroy {
 
     this.logger.warn(
       `Ignoring invalid boolean value for ${name}: "${raw}". Use true/false.`,
+    );
+    return undefined;
+  }
+
+  private readIntegerEnv(name: string): number | undefined {
+    const raw = process.env[name];
+    if (raw === undefined || raw.trim() === '') {
+      return undefined;
+    }
+
+    const parsed = Number(raw);
+    if (Number.isInteger(parsed) && parsed > 0) {
+      return parsed;
+    }
+
+    this.logger.warn(
+      `Ignoring invalid integer value for ${name}: "${raw}". Use a positive integer.`,
     );
     return undefined;
   }

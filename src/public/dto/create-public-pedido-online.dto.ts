@@ -34,6 +34,23 @@ export class CreatePublicPedidoOnlineDto {
   @IsIn(['ENTREGA', 'RETIRADA'])
   tipoEntrega?: 'ENTREGA' | 'RETIRADA';
 
+  @Transform(({ value }: { value: unknown }) =>
+    value === undefined || value === null
+      ? undefined
+      : String(value).trim().toUpperCase(),
+  )
+  @IsIn([
+    'DINHEIRO',
+    'PIX',
+    'C. CREDITO',
+    'C.CREDITO',
+    'CREDITO',
+    'C. DEBITO',
+    'C.DEBITO',
+    'DEBITO',
+  ])
+  tipoPagto!: string;
+
   @IsOptional()
   @IsString()
   @MaxLength(20)
@@ -55,6 +72,12 @@ export class CreatePublicPedidoOnlineDto {
   @IsNumber()
   @Min(0)
   taxaEntrega?: number;
+
+  @IsOptional()
+  @Transform(toNumber)
+  @IsNumber()
+  @Min(0)
+  trocoPara?: number;
 
   @IsArray()
   @ArrayMinSize(1)

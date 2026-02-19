@@ -39,6 +39,7 @@ type TenantCompanyProfile = {
   name: string;
   companyCode: number | null;
   companyId: string | null;
+  taxaEntrega: number | null;
   logoUrl: string | null;
   coverUrl: string | null;
   phone: string | null;
@@ -140,6 +141,7 @@ export class CardapioController {
           imagem_capa: true,
           latitude: true,
           longitude: true,
+          Taxa_Entrega: true,
         },
         orderBy: { cdemp: 'asc' },
       }),
@@ -177,6 +179,7 @@ export class CardapioController {
           ? company.cdemp
           : null,
       companyId: this.normalizeText(company?.ID, 64),
+      taxaEntrega: this.toNumber(company?.Taxa_Entrega),
       logoUrl: logoFromCompany ?? this.normalizeText(acesso?.logoUrl, 1000),
       coverUrl: coverFromCompany ?? this.normalizeText(acesso?.coverUrl, 255),
       phone,

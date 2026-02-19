@@ -1669,7 +1669,8 @@ exports.Prisma.T_empScalarFieldEnum = {
   ambiente_nfe: 'ambiente_nfe',
   imagem_capa: 'imagem_capa',
   latitude: 'latitude',
-  longitude: 'longitude'
+  longitude: 'longitude',
+  Taxa_Entrega: 'Taxa_Entrega'
 };
 
 exports.Prisma.T_encargocalculoScalarFieldEnum = {
@@ -5574,7 +5575,10 @@ exports.Prisma.T_PedidosOnLineScalarFieldEnum = {
   CONFIRMADO_POR: 'CONFIRMADO_POR',
   DT_CANCELAMENTO: 'DT_CANCELAMENTO',
   CANCELADO_POR: 'CANCELADO_POR',
-  MOTIVO_CANCEL: 'MOTIVO_CANCEL'
+  MOTIVO_CANCEL: 'MOTIVO_CANCEL',
+  Pedido: 'Pedido',
+  TrocoPara: 'TrocoPara',
+  TipoPagto: 'TipoPagto'
 };
 
 exports.Prisma.T_PedidosOnLineComboEscolhasScalarFieldEnum = {

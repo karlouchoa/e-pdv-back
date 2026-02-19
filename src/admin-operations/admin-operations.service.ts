@@ -115,7 +115,8 @@ export class AdminOperationsService {
         if (typeof decimalLike.valueOf === 'function') {
           const primitive = decimalLike.valueOf();
           if (typeof primitive === 'number') return primitive;
-          if (typeof primitive === 'string') return normalizeNumericText(primitive);
+          if (typeof primitive === 'string')
+            return normalizeNumericText(primitive);
         }
         if (typeof decimalLike.toString === 'function') {
           return normalizeNumericText(decimalLike.toString());
@@ -479,52 +480,52 @@ export class AdminOperationsService {
 
     const where = this.buildSalesWhere(cdemp, query);
 
-    const [rows, total, summaryByStatus, aggregateTotal] = await Promise.all([
-      prisma.t_vendas.findMany({
-        where,
-        orderBy: [{ emisven_v: 'desc' }, { nrven_v: 'desc' }],
-        skip: (page - 1) * limit,
-        take: limit,
-        select: {
-          ID: true,
-          nrven_v: true,
-          emisven_v: true,
-          horaven_v: true,
-          totpro_v: true,
-          pdesc_v: true,
-          totven_v: true,
-          status_v: true,
-          dtsainf_v: true,
-          hrsainf_v: true,
-          codconf_v: true,
-          vlfrete_v: true,
-          vlrtroco: true,
-          t_cli: {
-            select: {
-              decli: true,
-              T_ENDCLI: {
-                where: { ISDELETED: false },
-                orderBy: { UPDATEDAT: 'desc' },
-                take: 1,
-                select: { BAIRRO: true, CIDADE: true },
-              },
+    const rows = await prisma.t_vendas.findMany({
+      where,
+      orderBy: [{ emisven_v: 'desc' }, { nrven_v: 'desc' }],
+      skip: (page - 1) * limit,
+      take: limit,
+      select: {
+        ID: true,
+        nrven_v: true,
+        emisven_v: true,
+        horaven_v: true,
+        tpent: true,
+        totpro_v: true,
+        pdesc_v: true,
+        totven_v: true,
+        status_v: true,
+        dtsainf_v: true,
+        hrsainf_v: true,
+        codconf_v: true,
+        vlfrete_v: true,
+        vlrtroco: true,
+        t_cli: {
+          select: {
+            decli: true,
+            T_ENDCLI: {
+              where: { ISDELETED: false },
+              orderBy: { UPDATEDAT: 'desc' },
+              take: 1,
+              select: { BAIRRO: true, CIDADE: true },
             },
           },
         },
-      }),
-      prisma.t_vendas.count({ where }),
-      prisma.t_vendas.groupBy({
-        by: ['status_v'],
-        where,
-        _count: { _all: true },
-        _sum: { totven_v: true },
-      }),
-      prisma.t_vendas.aggregate({
-        where,
-        _count: { _all: true },
-        _sum: { totven_v: true, totpro_v: true },
-      }),
-    ]);
+      },
+    });
+
+    const total = await prisma.t_vendas.count({ where });
+    const summaryByStatus = await prisma.t_vendas.groupBy({
+      by: ['status_v'],
+      where,
+      _count: { _all: true },
+      _sum: { totven_v: true },
+    });
+    const aggregateTotal = await prisma.t_vendas.aggregate({
+      where,
+      _count: { _all: true },
+      _sum: { totven_v: true, totpro_v: true },
+    });
 
     const driverCodes = Array.from(
       new Set(
@@ -586,6 +587,7 @@ export class AdminOperationsService {
           pedido: row.nrven_v,
           data: dtPedido,
           horarioPedido: row.horaven_v ?? null,
+          tipoEntrega: row.tpent ?? null,
           cliente: row.t_cli?.decli ?? null,
           totalProduto: this.toNumber(row.totpro_v),
           descontoPerc: this.toNumber(row.pdesc_v),
@@ -662,6 +664,7 @@ export class AdminOperationsService {
       pedido: sale.nrven_v,
       data: sale.emisven_v ?? null,
       horarioPedido: sale.horaven_v ?? null,
+      tipoEntrega: sale.tpent ?? null,
       horarioSaidaEntrega: sale.hrsainf_v ?? null,
       dataSaidaEntrega: sale.dtsainf_v ?? null,
       minutosDesdeSaida: this.minutesSince(sale.dtsainf_v),

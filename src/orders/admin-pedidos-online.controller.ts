@@ -31,6 +31,14 @@ export class AdminPedidosOnlineController {
     private readonly pedidosOnlineQueryService: PedidosOnlineQueryService,
   ) {}
 
+  private getWarehouse(req: TenantRequest): number | null {
+    const raw = req.headers?.['x-warehouse'];
+    const candidate = Array.isArray(raw) ? raw[0] : raw;
+    if (!candidate) return null;
+    const parsed = Number(candidate);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }
+
   @Get()
   list(
     @Req() req: TenantRequest,
@@ -45,8 +53,11 @@ export class AdminPedidosOnlineController {
 
     const parsedCdemp = Number(cdempRaw);
     const parsedLimit = Number(limitRaw);
+    const warehouseCdemp = this.getWarehouse(req);
     const cdemp =
-      Number.isInteger(parsedCdemp) && parsedCdemp > 0 ? parsedCdemp : null;
+      Number.isInteger(parsedCdemp) && parsedCdemp > 0
+        ? parsedCdemp
+        : warehouseCdemp;
     const limit =
       Number.isInteger(parsedLimit) && parsedLimit > 0
         ? Math.min(parsedLimit, 200)
@@ -88,6 +99,7 @@ export class AdminPedidosOnlineController {
       tenant,
       id,
       userIdentifier,
+      this.getWarehouse(req),
     );
   }
 }

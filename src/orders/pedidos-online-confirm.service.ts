@@ -119,7 +119,22 @@ export class PedidosOnlineConfirmService {
     prisma: TenantClientLike,
     pedido: PedidoOnlineRow,
     itemRecords: Array<{ cdemp: number }>,
+    preferredCdemp?: number | null,
   ): Promise<number> {
+    if (
+      preferredCdemp &&
+      Number.isFinite(preferredCdemp) &&
+      preferredCdemp > 0
+    ) {
+      const uniqueCompanies = new Set(itemRecords.map((item) => item.cdemp));
+      if (uniqueCompanies.size && !uniqueCompanies.has(preferredCdemp)) {
+        throw new BadRequestException(
+          'Pedido contem itens de outra empresa diferente da selecionada.',
+        );
+      }
+      return preferredCdemp;
+    }
+
     if (typeof pedido.CDEMP === 'number') {
       return pedido.CDEMP;
     }
@@ -142,6 +157,18 @@ export class PedidosOnlineConfirmService {
     });
 
     return matriz?.cdemp ?? this.defaultCompanyId;
+  }
+
+  private formatHour(value: Date): string {
+    return value.toTimeString().slice(0, 8);
+  }
+
+  private resolveDeliveryType(canal?: string | null): 'E' | 'V' {
+    const normalized = this.normalizeFlag(canal);
+    if (normalized === 'RETIRADA') {
+      return 'V';
+    }
+    return 'E';
   }
 
   private async getNextSaleNumber(
@@ -169,33 +196,102 @@ export class PedidosOnlineConfirmService {
     nrven: number,
     userCode: string,
     now: Date,
+    payload: {
+      pedidoNumero: number;
+      tipoEntrega: 'E' | 'V';
+      cdcli: number | null;
+      cdfpg: number | null;
+      cdtpg: number | null;
+      cdven: number | null;
+      userId: string | null;
+      userEmail: string | null;
+      customerId: string | null;
+      customerCompany: number | null;
+      companyId: string | null;
+      fpgtoId: string | null;
+      tpgtoId: string | null;
+      vendedorId: string | null;
+      trocoPara: number;
+      vlrAcresc: number;
+      vlrPgDinheiro: number;
+      vlrTroco: number;
+      comissaoCliente: number;
+      comissaoVendedor: number;
+    },
   ): Prisma.t_vendasUncheckedCreateInput {
+    const descontoPerc =
+      totals.subtotal > 0
+        ? this.roundMoney((totals.desconto / totals.subtotal) * 100)
+        : 0;
+
     return {
       nrven_v: nrven,
       cdemp_v: cdemp,
       codusu_v: userCode,
       emisven_v: now,
+      horaven_v: this.formatHour(now),
+      cdcli_v: payload.cdcli ?? undefined,
+      cdfpg_v: payload.cdfpg ?? undefined,
+      cdtpg_v: payload.cdtpg ?? undefined,
+      txfin_v: 0,
+      restringe_v: 'S',
+      cdven_v: payload.cdven ?? undefined,
+      nrpedcli_v:
+        payload.pedidoNumero > 0 ? String(payload.pedidoNumero) : undefined,
+      tpent: payload.tipoEntrega,
+      cdmid: 4,
       totpro_v: totals.subtotal,
-      totven_v: totals.total,
+      pdesc_v: descontoPerc,
       vdesc_v: totals.desconto,
-      pdesc_v:
-        totals.subtotal > 0
-          ? this.roundMoney((totals.desconto / totals.subtotal) * 100)
-          : 0,
-      obsven_v: pedido.OBS ?? undefined,
-      ID_CLIENTE: pedido.ID_CLIENTE ?? undefined,
+      vlfrete_v: totals.taxaEntrega,
+      totven_v: totals.total,
+      tpven_v: 'BOL',
+      obsven_v:
+        (pedido.OBS ?? '').toString().trim().slice(0, 200) || undefined,
+      status_v: 'A',
+      dtstat_v: now,
+      qtdimpres: 0,
+      trocreq: 'N',
+      pednum: payload.pedidoNumero > 0 ? payload.pedidoNumero : undefined,
+      comcli_v: payload.comissaoCliente,
+      comven_v: payload.comissaoVendedor,
+      empcli: payload.customerCompany ?? undefined,
+      userrest:
+        (payload.userEmail?.trim() || payload.userId?.trim() || '').slice(
+          0,
+          15,
+        ) || undefined,
+      vlr_acresc: payload.vlrAcresc,
+      vlrpgdinh: payload.vlrPgDinheiro,
+      vlrtroco: payload.vlrTroco,
+      ID_CLIENTE: payload.customerId ?? pedido.ID_CLIENTE ?? undefined,
+      ID_FPGTO: payload.fpgtoId ?? undefined,
+      ID_TPGTO: payload.tpgtoId ?? undefined,
+      ID_EMPRESA: payload.companyId ?? undefined,
+      ID_VENDEDOR: payload.vendedorId ?? undefined,
+      ID_USUARIO: payload.userId ?? undefined,
     };
   }
 
   private buildItsvenData(payload: {
     cdemp: number;
     nrven: number;
+    autocodVenda?: number | null;
     item: {
       ID?: string | null;
       cditem: number;
       deitem: string | null;
       undven: string | null;
       cdgruit: number | null;
+      mrcitem?: string | null;
+      codcst?: string | null;
+      pesolq?: unknown;
+      valcmp?: unknown;
+      itprodsn?: string | null;
+      groupPct?: unknown;
+      groupId?: string | null;
+      cstRate?: unknown;
+      cstId?: string | null;
       precomin: unknown;
       custo: unknown;
     };
@@ -204,32 +300,101 @@ export class PedidosOnlineConfirmService {
     mp: 'S' | 'N';
     emisven: Date;
     vendaId: string;
+    perdes: number;
+    status: string;
+    cdven: number | null;
+    conferente?: number | null;
+    companyTaxRates: {
+      custoper: number;
+      impstven: number;
+      piscofins: number;
+    };
+    vendedorPct: number;
+    obs?: string | null;
+    idEmpresa?: string | null;
+    idVendedor?: string | null;
   }): Prisma.t_itsvenUncheckedCreateInput {
     const minPrice =
       payload.mp === 'S'
         ? 0
         : this.roundMoney(this.toNumber(payload.item.precomin));
     const cost = this.roundDecimal(this.toNumber(payload.item.custo), 4);
+    const purchaseCost = this.roundDecimal(this.toNumber(payload.item.valcmp), 4);
+    const pesolq = this.roundDecimal(this.toNumber(payload.item.pesolq), 4);
+    const lineGross = this.roundMoney(payload.unitPrice * payload.quantity);
+    const lineDiscount = this.roundMoney(lineGross * (payload.perdes / 100));
+    const lineNet = this.roundMoney(lineGross - lineDiscount);
+    const custop = this.roundMoney(
+      lineNet * (payload.companyTaxRates.custoper / 100),
+    );
+    const tribfed = this.roundMoney(
+      lineNet * (payload.companyTaxRates.impstven / 100),
+    );
+    const piscofins = this.roundMoney(
+      lineNet * (payload.companyTaxRates.piscofins / 100),
+    );
+    const icmsRate = this.roundMoney(this.toNumber(payload.item.cstRate));
+    const icms = this.roundMoney(lineNet * (icmsRate / 100));
+    const lucroLinha = this.roundMoney(
+      lineNet - (cost + custop + tribfed + piscofins + icms),
+    );
+    const comissao = this.roundMoney(lineNet * (payload.vendedorPct / 100));
 
     return {
       empven: payload.cdemp,
       nrven_iv: payload.nrven,
+      autocod_v: payload.autocodVenda ?? undefined,
       cdemp_iv: payload.cdemp,
       cditem_iv: payload.item.cditem,
-      deitem_iv: (payload.item.deitem ?? '').trim(),
-      unditem_iv: payload.item.undven ?? undefined,
+      deitem_iv: (
+        (payload.item.deitem ?? '').trim() || `ITEM ${payload.item.cditem}`
+      ).slice(0, 60),
+      unditem_iv: (payload.item.undven ?? '').trim().slice(0, 5) || undefined,
+      marca_iv: (payload.item.mrcitem ?? '').trim().slice(0, 20) || undefined,
       cdgru_iv: payload.item.cdgruit ?? undefined,
+      comgru_iv: this.roundMoney(this.toNumber(payload.item.groupPct)),
       precmin_iv: minPrice,
       precven_iv: payload.unitPrice,
       precpra_iv: payload.unitPrice,
       qtdesol_iv: payload.quantity,
-      perdes_iv: 0,
+      qtdeate_iv: 0,
+      qtdeent_iv: 0,
+      perdes_iv: payload.perdes,
+      vdesc_iv: lineDiscount,
+      codcst_iv: (payload.item.codcst ?? '').trim().slice(0, 5) || undefined,
       emisven_iv: payload.emisven,
-      compra_iv: cost,
+      status_iv: payload.status,
+      cdven_iv: payload.cdven ?? undefined,
+      pesobr_iv: pesolq,
+      entimed_sn: 'N',
+      entregar: 'S',
+      entregue: 'N',
+      conferente:
+        typeof payload.conferente === 'number'
+          ? String(payload.conferente)
+          : undefined,
+      obs: (payload.obs ?? '').toString().trim().slice(0, 200) || undefined,
+      compra_iv: purchaseCost,
       custo_iv: cost,
+      empitem: payload.cdemp,
+      custop,
+      tribfed,
+      piscofins,
+      icms,
+      lr: lucroLinha,
       mp: payload.mp,
+      temform:
+        this.normalizeFlag(payload.item.itprodsn) === FORMULA_FLAG ? 'S' : 'N',
+      st: 'S',
+      comissao,
+      tpcom: 'V',
+      picms_iv: icmsRate,
       ID_ITEM: payload.item.ID ?? undefined,
       ID_VENDA: payload.vendaId,
+      ID_EMPRESA: payload.idEmpresa ?? undefined,
+      ID_GRUPO: payload.item.groupId ?? undefined,
+      ID_CST: payload.item.cstId ?? undefined,
+      ID_VENDEDOR: payload.idVendedor ?? undefined,
     };
   }
 
@@ -274,6 +439,7 @@ export class PedidosOnlineConfirmService {
     tenant: string,
     pedidoId: string,
     userIdentifier?: string | null,
+    preferredCdemp?: number | null,
   ) {
     const prisma = await this.getPrisma(tenant);
 
@@ -348,9 +514,13 @@ export class PedidosOnlineConfirmService {
           cditem: true,
           deitem: true,
           undven: true,
+          mrcitem: true,
           preco: true,
           precomin: true,
           custo: true,
+          valcmp: true,
+          pesolq: true,
+          codcst: true,
           ativosn: true,
           dispven: true,
           ativoprod: true,
@@ -366,7 +536,12 @@ export class PedidosOnlineConfirmService {
         throw new BadRequestException('Itens do pedido nao encontrados.');
       }
 
-      const cdemp = await this.resolveCompanyId(tx, pedido, itemRecords);
+      const cdemp = await this.resolveCompanyId(
+        tx,
+        pedido,
+        itemRecords,
+        preferredCdemp,
+      );
       const itemMap = new Map(itemRecords.map((record) => [record.ID, record]));
 
       for (const itemId of itemIdList) {
@@ -522,13 +697,18 @@ export class PedidosOnlineConfirmService {
                 cditem: true,
                 deitem: true,
                 undven: true,
+                mrcitem: true,
                 precomin: true,
                 custo: true,
+                valcmp: true,
+                pesolq: true,
+                codcst: true,
                 ativosn: true,
                 dispven: true,
                 ativoprod: true,
                 isdeleted: true,
                 cdgruit: true,
+                itprodsn: true,
               },
             })
           : [];
@@ -552,6 +732,160 @@ export class PedidosOnlineConfirmService {
       );
 
       const now = new Date();
+      const tipoEntregaVenda = this.resolveDeliveryType(pedido.CANAL);
+      const pedidoNumero = Math.max(0, Math.floor(this.toNumber(pedido.PEDIDO)));
+
+      const [config, userRef, customerRef, companyRef] = await Promise.all([
+        tx.t_config.findFirst({
+          orderBy: { autocod: 'asc' },
+          select: {
+            codvendaavista: true,
+            vendpdv: true,
+            coddin: true,
+          },
+        }),
+        tx.t_users.findFirst({
+          where: { cdusu: userCode },
+          select: {
+            ID: true,
+            cdven: true,
+            email: true,
+          },
+        }),
+        pedido.ID_CLIENTE
+          ? tx.t_cli.findFirst({
+              where: { id: pedido.ID_CLIENTE },
+              select: {
+                id: true,
+                cdcli: true,
+                cdemp: true,
+                percomresp: true,
+              },
+            })
+          : Promise.resolve(null),
+        tx.t_emp.findFirst({
+          where: { cdemp },
+          select: {
+            ID: true,
+            custoper: true,
+            impstven: true,
+            piscofins: true,
+            Taxa_Entrega: true,
+          },
+        }),
+      ]);
+
+      const configuredVendCode = Math.floor(this.toNumber(config?.vendpdv));
+      const userVendCode = Math.floor(this.toNumber(userRef?.cdven));
+      const cdvenVenda =
+        configuredVendCode > 0
+          ? configuredVendCode
+          : userVendCode > 0
+            ? userVendCode
+            : null;
+
+      const vendorRef = cdvenVenda
+        ? await tx.t_vende.findFirst({
+            where: {
+              cdven: cdvenVenda,
+              OR: [{ cdemp }, { cdemp: null }],
+            },
+            select: {
+              ID: true,
+              cdven: true,
+              pcomven: true,
+            },
+            orderBy: { cdemp: 'desc' },
+          })
+        : null;
+
+      const cdfpgVenda = Math.floor(this.toNumber(config?.codvendaavista));
+      const cdtpgVenda = Math.floor(this.toNumber(config?.coddin));
+      const [fpgtoRef, tpgtoRef] = await Promise.all([
+        cdfpgVenda > 0
+          ? tx.t_fpgto.findFirst({
+              where: { cdfpg: cdfpgVenda },
+              select: { ID: true },
+            })
+          : Promise.resolve(null),
+        cdtpgVenda > 0
+          ? tx.t_tpgto.findFirst({
+              where: { cdtpg: cdtpgVenda },
+              select: { ID: true },
+            })
+          : Promise.resolve(null),
+      ]);
+
+      const allTaxRecords = [...itemRecords, ...matprimaRecords];
+      const groupCodes = Array.from(
+        new Set(
+          allTaxRecords
+            .map((record) => record.cdgruit)
+            .filter(
+              (value): value is number =>
+                typeof value === 'number' &&
+                Number.isInteger(value) &&
+                value > 0,
+            ),
+        ),
+      );
+      const cstCodes = Array.from(
+        new Set(
+          allTaxRecords
+            .map((record) => (record.codcst ?? '').toString().trim())
+            .filter((value) => Boolean(value)),
+        ),
+      );
+      const [groupRows, cstRows] = await Promise.all([
+        groupCodes.length
+          ? tx.t_gritens.findMany({
+              where: { cdgru: { in: groupCodes } },
+              select: {
+                cdgru: true,
+                perccomgru: true,
+                ID: true,
+              },
+            })
+          : Promise.resolve([]),
+        cstCodes.length
+          ? tx.t_cst.findMany({
+              where: { codcst: { in: cstCodes } },
+              select: {
+                codcst: true,
+                icms_l: true,
+                ID: true,
+              },
+            })
+          : Promise.resolve([]),
+      ]);
+      const groupMap = new Map(groupRows.map((row) => [row.cdgru, row]));
+      const cstMap = new Map(
+        cstRows.map((row) => [row.codcst.trim().toUpperCase(), row]),
+      );
+
+      const companyTaxRates = {
+        custoper: this.roundMoney(this.toNumber(companyRef?.custoper)),
+        impstven: this.roundMoney(this.toNumber(companyRef?.impstven)),
+        piscofins: this.roundMoney(this.toNumber(companyRef?.piscofins)),
+      };
+
+      const comissaoClientePct = this.roundMoney(
+        this.toNumber(customerRef?.percomresp),
+      );
+      const comissaoCliente = this.roundMoney(
+        totalLiquido * (comissaoClientePct / 100),
+      );
+      const vendedorPct = this.roundMoney(this.toNumber(vendorRef?.pcomven));
+      const comissaoVendedor = this.roundMoney(
+        totalLiquido * (vendedorPct / 100),
+      );
+      const trocoPara = this.roundMoney(this.toNumber(pedido.TrocoPara));
+      const vlrAcresc = this.roundMoney(this.toNumber(companyRef?.Taxa_Entrega));
+      const vlrPgDinheiro = trocoPara;
+      const vlrTroco = this.roundMoney(
+        vlrPgDinheiro - (vlrAcresc + totalLiquido),
+      );
+
       const nrven = await this.getNextSaleNumber(tx, cdemp);
 
       const vendaRecord = await tx.t_vendas.create({
@@ -567,6 +901,30 @@ export class PedidosOnlineConfirmService {
           nrven,
           userCode,
           now,
+          {
+            pedidoNumero,
+            tipoEntrega: tipoEntregaVenda,
+            cdcli:
+              typeof customerRef?.cdcli === 'number' ? customerRef.cdcli : null,
+            cdfpg: cdfpgVenda > 0 ? cdfpgVenda : null,
+            cdtpg: cdtpgVenda > 0 ? cdtpgVenda : null,
+            cdven: vendorRef?.cdven ?? cdvenVenda,
+            userId: userRef?.ID?.trim() ?? null,
+            userEmail: userRef?.email?.trim() ?? null,
+            customerId: customerRef?.id ?? pedido.ID_CLIENTE ?? null,
+            customerCompany:
+              typeof customerRef?.cdemp === 'number' ? customerRef.cdemp : null,
+            companyId: companyRef?.ID?.trim() ?? null,
+            fpgtoId: fpgtoRef?.ID?.trim() ?? null,
+            tpgtoId: tpgtoRef?.ID?.trim() ?? null,
+            vendedorId: vendorRef?.ID?.trim() ?? null,
+            trocoPara,
+            vlrAcresc,
+            vlrPgDinheiro,
+            vlrTroco,
+            comissaoCliente,
+            comissaoVendedor,
+          },
         ),
       });
 
@@ -575,17 +933,51 @@ export class PedidosOnlineConfirmService {
         throw new BadRequestException('Venda nao gerou ID valido.');
       }
 
+      const resolveTaxMetadata = (record: {
+        cdgruit: number | null;
+        codcst?: string | null;
+      }) => {
+        const group =
+          typeof record.cdgruit === 'number'
+            ? groupMap.get(record.cdgruit)
+            : null;
+        const cstKey = (record.codcst ?? '').toString().trim().toUpperCase();
+        const cst = cstKey ? cstMap.get(cstKey) : null;
+        return {
+          groupPct: group?.perccomgru ?? 0,
+          groupId: group?.ID ?? null,
+          cstRate: cst?.icms_l ?? 0,
+          cstId: cst?.ID ?? null,
+        };
+      };
+
       const parentLines: Prisma.t_itsvenUncheckedCreateInput[] =
         parentSnapshots.map((snapshot) =>
           this.buildItsvenData({
             cdemp,
             nrven,
-            item: snapshot.record,
+            autocodVenda: vendaRecord.autocod_v,
+            item: {
+              ...snapshot.record,
+              ...resolveTaxMetadata(snapshot.record),
+            },
             quantity: snapshot.quantity,
             unitPrice: snapshot.unitPrice,
             mp: 'N',
             emisven: now,
             vendaId,
+            perdes:
+              totalsSubtotal > 0
+                ? this.roundMoney((desconto / totalsSubtotal) * 100)
+                : 0,
+            status: 'A',
+            cdven: vendorRef?.cdven ?? cdvenVenda,
+            conferente: null,
+            companyTaxRates,
+            vendedorPct,
+            obs: snapshot.pedidoItem.OBS_ITEM ?? null,
+            idEmpresa: companyRef?.ID?.trim() ?? null,
+            idVendedor: vendorRef?.ID?.trim() ?? null,
           }),
         );
 
@@ -624,12 +1016,28 @@ export class PedidosOnlineConfirmService {
               this.buildItsvenData({
                 cdemp,
                 nrven,
-                item: record,
+                autocodVenda: vendaRecord.autocod_v,
+                item: {
+                  ...record,
+                  ...resolveTaxMetadata(record),
+                },
                 quantity,
                 unitPrice: 0,
                 mp: 'S',
                 emisven: now,
                 vendaId,
+                perdes:
+                  totalsSubtotal > 0
+                    ? this.roundMoney((desconto / totalsSubtotal) * 100)
+                    : 0,
+                status: 'A',
+                cdven: vendorRef?.cdven ?? cdvenVenda,
+                conferente: null,
+                companyTaxRates,
+                vendedorPct,
+                obs: `Componente do combo ${snapshot.record.cditem}`,
+                idEmpresa: companyRef?.ID?.trim() ?? null,
+                idVendedor: vendorRef?.ID?.trim() ?? null,
               }),
             );
           }
@@ -709,12 +1117,28 @@ export class PedidosOnlineConfirmService {
               this.buildItsvenData({
                 cdemp,
                 nrven,
-                item: record,
+                autocodVenda: vendaRecord.autocod_v,
+                item: {
+                  ...record,
+                  ...resolveTaxMetadata(record),
+                },
                 quantity,
                 unitPrice: 0,
                 mp: 'S',
                 emisven: now,
                 vendaId,
+                perdes:
+                  totalsSubtotal > 0
+                    ? this.roundMoney((desconto / totalsSubtotal) * 100)
+                    : 0,
+                status: 'A',
+                cdven: vendorRef?.cdven ?? cdvenVenda,
+                conferente: null,
+                companyTaxRates,
+                vendedorPct,
+                obs: `Materia prima da formula ${snapshot.record.cditem}`,
+                idEmpresa: companyRef?.ID?.trim() ?? null,
+                idVendedor: vendorRef?.ID?.trim() ?? null,
               }),
             );
           }
@@ -725,6 +1149,59 @@ export class PedidosOnlineConfirmService {
       if (componentLines.length) {
         await tx.t_itsven.createMany({ data: componentLines });
       }
+
+      const allItsvenLines = [...parentLines, ...componentLines];
+      const totalCustoItsven = this.roundMoney(
+        allItsvenLines.reduce(
+          (sum, line) => sum + this.toNumber(line.custo_iv),
+          0,
+        ),
+      );
+      const totalCustopItsven = this.roundMoney(
+        allItsvenLines.reduce((sum, line) => sum + this.toNumber(line.custop), 0),
+      );
+      const totalTribfedItsven = this.roundMoney(
+        allItsvenLines.reduce((sum, line) => sum + this.toNumber(line.tribfed), 0),
+      );
+      const totalPisCofinsItsven = this.roundMoney(
+        allItsvenLines.reduce(
+          (sum, line) => sum + this.toNumber(line.piscofins),
+          0,
+        ),
+      );
+      const totalIcmsItsven = this.roundMoney(
+        allItsvenLines.reduce((sum, line) => sum + this.toNumber(line.icms), 0),
+      );
+
+      const margemVenda =
+        totalLiquido > 0
+          ? this.roundMoney(((totalLiquido - totalCustoItsven) / totalLiquido) * 100)
+          : 0;
+      const lrVenda =
+        totalLiquido > 0
+          ? this.roundMoney(
+              ((totalLiquido -
+                (totalCustoItsven +
+                  totalCustopItsven +
+                  totalTribfedItsven +
+                  totalPisCofinsItsven +
+                  totalIcmsItsven)) /
+                totalLiquido) *
+                100,
+            )
+          : 0;
+
+      await tx.t_vendas.updateMany({
+        where: {
+          ID: vendaId,
+          cdemp_v: cdemp,
+        },
+        data: {
+          margem: margemVenda,
+          lr: lrVenda,
+          updatedat: now,
+        },
+      });
 
       const movestLines: Prisma.t_movestCreateManyInput[] = [];
 
@@ -797,6 +1274,9 @@ export class PedidosOnlineConfirmService {
 
       const response = {
         idPedidoOnline: updatedPedido.ID,
+        pedido: this.toNumber(updatedPedido.PEDIDO),
+        numeroPedido: nrven,
+        sinalCliente: 'Pedido Recebido',
         status: updatedPedido.STATUS,
         idVenda: vendaId,
         totals: {

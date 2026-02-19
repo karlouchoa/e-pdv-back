@@ -27,6 +27,15 @@ export class ConfirmOnlineOrderResponseDto {
   idPedidoOnline!: string;
 
   @Expose()
+  pedido!: number;
+
+  @Expose()
+  numeroPedido!: number;
+
+  @Expose()
+  sinalCliente!: string;
+
+  @Expose()
   status!: string;
 
   @Expose()

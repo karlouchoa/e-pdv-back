@@ -2,6 +2,7 @@ import { Transform, Type } from 'class-transformer';
 import {
   IsEmail,
   IsInt,
+  MinLength,
   IsOptional,
   IsString,
   MaxLength,
@@ -17,10 +18,12 @@ const toNumber = ({ value }: { value: unknown }) =>
 
 export class UpsertPublicClientDto {
   @IsString()
+  @MinLength(2)
   @MaxLength(60)
   nome!: string;
 
   @IsString()
+  @MinLength(10)
   @MaxLength(20)
   telefone!: string;
 
