@@ -66,7 +66,7 @@ export class TFormulasService {
 
   private async getFormulasByItemId(prisma: TenantClient, idItem: string) {
     const formulas = await prisma.t_formulas.findMany({
-      where: { ID_ITEM: idItem },
+      where: { id_item: idItem },
       orderBy: { autocod: 'asc' },
     });
 
@@ -80,7 +80,7 @@ export class TFormulasService {
   async create(tenant: string, dto: CreateTFormulaDto) {
     const prisma = await this.getPrisma(tenant);
     const item = await prisma.t_itens.findFirst({
-      where: { ID: dto.idItem },
+      where: { id: dto.idItem },
       select: {
         cditem: true,
         cdemp: true,
@@ -117,7 +117,7 @@ export class TFormulasService {
     return prisma.$transaction(async (tx) => {
       await tx.t_formulas.deleteMany({
         where: {
-          ID_ITEM: dto.idItem,
+          id_item: dto.idItem,
         },
       });
 
@@ -132,7 +132,7 @@ export class TFormulasService {
           undmp: line.undmp,
           empitemmp: line.empitemmp,
           deitem_iv: line.deitem_iv,
-          ID_ITEM: dto.idItem,
+          id_item: dto.idItem,
         }),
       );
 
@@ -176,7 +176,7 @@ export class TFormulasService {
 
         await tx.t_itens.updateMany({
           where: {
-            OR: [{ ID: dto.idItem }, { cdemp, cditem }],
+            OR: [{ id: dto.idItem }, { cdemp, cditem }],
           },
           data: {
             custo: totalCusto,
@@ -190,7 +190,7 @@ export class TFormulasService {
       await tx.t_formulas.createMany({ data });
 
       const created = await tx.t_formulas.findMany({
-        where: { ID_ITEM: dto.idItem },
+        where: { id_item: dto.idItem },
         orderBy: { autocod: 'asc' },
       });
 
@@ -237,7 +237,7 @@ export class TFormulasService {
     const prisma = await this.getPrisma(tenant);
 
     const result = await prisma.t_formulas.deleteMany({
-      where: { ID_ITEM: id },
+      where: { id_item: id },
     });
 
     if (result.count === 0) {

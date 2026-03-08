@@ -11,6 +11,7 @@ import type {
   PrismaClient as TenantClient,
 } from '../../prisma/generated/client_tenant';
 import { TenantDbService } from '../tenant-db/tenant-db.service';
+import { applyMovestBalanceFromCreates } from '../lib/movest-balance';
 import { CashierReportsPdfService } from './cashier-reports-pdf.service';
 import type {
   CashierAnalyticOrderRow,
@@ -28,6 +29,8 @@ import type {
   CashierReportQueryDto,
   CloseCashierDto,
   CourierQueryDto,
+  DashboardRevenueByCategoryQueryDto,
+  DashboardRevenueMonthlyQueryDto,
   CustomersQueryDto,
   DispatchSaleDto,
   OpenCashierDto,
@@ -38,6 +41,20 @@ import type {
 } from './dto/admin-operations.dto';
 
 type SalesWhere = Prisma.t_vendasWhereInput;
+type DailyRevenueCategoryAggregate = {
+  groupId: string | null;
+  label: string;
+  quantity: number;
+  total: number;
+};
+type MonthlyRevenueAggregate = {
+  key: string;
+  year: number;
+  month: number;
+  label: string;
+  total: number;
+  orderCount: number;
+};
 
 @Injectable()
 export class AdminOperationsService {
@@ -224,6 +241,59 @@ export class AdminOperationsService {
     return matriz?.cdemp ?? this.defaultCompanyId;
   }
 
+  private async resolveCompanyIdentity(
+    prisma: TenantClient,
+    preferredCdemp?: number | null,
+  ): Promise<{ cdemp: number; companyId: string; companyName: string }> {
+    const cdemp = await this.resolveCdemp(prisma, preferredCdemp);
+
+    const company = await prisma.t_emp.findFirst({
+      where: { cdemp },
+      select: {
+        id: true,
+        deemp: true,
+        apelido: true,
+        fantemp: true,
+      },
+    });
+
+    if (!company) {
+      throw new NotFoundException(`Empresa ${cdemp} nao encontrada.`);
+    }
+
+    const companyId = company.id?.trim();
+    if (!companyId) {
+      throw new BadRequestException(
+        `Empresa ${cdemp} sem ID para vinculo em T_VENDAS.id_empresa.`,
+      );
+    }
+
+    const companyName =
+      company.fantemp?.trim() ||
+      company.apelido?.trim() ||
+      company.deemp?.trim() ||
+      `Empresa ${cdemp}`;
+
+    return {
+      cdemp,
+      companyId,
+      companyName,
+    };
+  }
+
+  private toYyyyMmDd(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  private toYyyyMm(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}`;
+  }
+
   async listCouriers(
     tenant: string,
     preferredCdemp: number | null,
@@ -365,7 +435,7 @@ export class AdminOperationsService {
   ) {
     const sale = await prisma.t_vendas.findFirst({
       where: {
-        ID: saleId,
+        id: saleId,
         cdemp_v: cdemp,
       },
       include: {
@@ -376,16 +446,16 @@ export class AdminOperationsService {
             celcli: true,
             fonecli: true,
             cnpj_cpfcli: true,
-            T_ENDCLI: {
-              where: { ISDELETED: false },
-              orderBy: { UPDATEDAT: 'desc' },
+            t_endcli: {
+              where: { isdeleted: false },
+              orderBy: { updatedat: 'desc' },
               take: 1,
               select: {
-                BAIRRO: true,
-                CIDADE: true,
-                LOGRADOURO: true,
-                NUMERO: true,
-                COMPLEMENTO: true,
+                bairro: true,
+                cidade: true,
+                logradouro: true,
+                numero: true,
+                complemento: true,
               },
             },
           },
@@ -440,14 +510,14 @@ export class AdminOperationsService {
     if (query.bairro?.trim() || query.cidade?.trim()) {
       and.push({
         t_cli: {
-          T_ENDCLI: {
+          t_endcli: {
             some: {
-              ISDELETED: false,
+              isdeleted: false,
               ...(query.bairro?.trim()
-                ? { BAIRRO: { contains: query.bairro.trim() } }
+                ? { bairro: { contains: query.bairro.trim() } }
                 : {}),
               ...(query.cidade?.trim()
-                ? { CIDADE: { contains: query.cidade.trim() } }
+                ? { cidade: { contains: query.cidade.trim() } }
                 : {}),
             },
           },
@@ -486,7 +556,7 @@ export class AdminOperationsService {
       skip: (page - 1) * limit,
       take: limit,
       select: {
-        ID: true,
+        id: true,
         nrven_v: true,
         emisven_v: true,
         horaven_v: true,
@@ -503,11 +573,11 @@ export class AdminOperationsService {
         t_cli: {
           select: {
             decli: true,
-            T_ENDCLI: {
-              where: { ISDELETED: false },
-              orderBy: { UPDATEDAT: 'desc' },
+            t_endcli: {
+              where: { isdeleted: false },
+              orderBy: { updatedat: 'desc' },
               take: 1,
-              select: { BAIRRO: true, CIDADE: true },
+              select: { bairro: true, cidade: true },
             },
           },
         },
@@ -577,13 +647,13 @@ export class AdminOperationsService {
         cancelados: totalsByStatus.C,
       },
       items: rows.map((row) => {
-        const address = row.t_cli?.T_ENDCLI?.[0];
+        const address = row.t_cli?.t_endcli?.[0];
         const dtPedido = row.emisven_v ?? null;
         const dtSaida = row.dtsainf_v ?? null;
         const minutosDesdeSaida = this.minutesSince(dtSaida);
 
         return {
-          id: row.ID,
+          id: row.id,
           pedido: row.nrven_v,
           data: dtPedido,
           horarioPedido: row.horaven_v ?? null,
@@ -593,8 +663,8 @@ export class AdminOperationsService {
           descontoPerc: this.toNumber(row.pdesc_v),
           totalVenda: this.toNumber(row.totven_v),
           status: row.status_v ?? null,
-          bairro: address?.BAIRRO ?? null,
-          cidade: address?.CIDADE ?? null,
+          bairro: address?.bairro ?? null,
+          cidade: address?.cidade ?? null,
           horarioSaidaEntrega: row.hrsainf_v ?? null,
           dataSaidaEntrega: dtSaida,
           minutosDesdeSaida,
@@ -608,6 +678,315 @@ export class AdminOperationsService {
           troco: this.toNumber(row.vlrtroco),
         };
       }),
+    };
+  }
+
+  async getDailyRevenueByCategory(
+    tenant: string,
+    preferredCdemp: number | null,
+    query: DashboardRevenueByCategoryQueryDto,
+  ) {
+    const prisma = await this.getPrisma(tenant);
+    const { cdemp, companyId, companyName } = await this.resolveCompanyIdentity(
+      prisma,
+      preferredCdemp,
+    );
+    const referenceDate = this.normalizeReferenceDate(query.referenceDate);
+    const dayStart = this.startOfDay(referenceDate);
+    const dayEnd = this.endOfDay(referenceDate);
+    const limit =
+      Number.isFinite(query.limit) && query.limit && query.limit > 0
+        ? Math.min(Math.floor(query.limit), 50)
+        : 8;
+
+    const sales = await prisma.t_vendas.findMany({
+      where: {
+        id_empresa: companyId,
+        isdeleted: false,
+        status_v: { not: 'C' },
+        emisven_v: {
+          gte: dayStart,
+          lte: dayEnd,
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    const saleIds = Array.from(
+      new Set(
+        sales
+          .map((sale) => sale.id?.trim())
+          .filter((id): id is string => Boolean(id)),
+      ),
+    );
+
+    if (!saleIds.length) {
+      return {
+        referenceDate: this.toYyyyMmDd(referenceDate),
+        company: {
+          cdemp,
+          id: companyId,
+          name: companyName,
+        },
+        summary: {
+          totalRevenue: 0,
+          totalQuantity: 0,
+          totalOrders: 0,
+          totalCategories: 0,
+        },
+        categories: [],
+      };
+    }
+
+    const rows = await prisma.t_itsven.findMany({
+      where: {
+        isdeleted: false,
+        id_empresa: companyId,
+        id_venda: { in: saleIds },
+        OR: [{ mp: null }, { mp: { not: 'S' } }],
+      },
+      select: {
+        id_grupo: true,
+        qtdesol_iv: true,
+        precven_iv: true,
+        vdesc_iv: true,
+      },
+    });
+
+    const groupIds = Array.from(
+      new Set(
+        rows
+          .map((row) => row.id_grupo?.trim())
+          .filter((id): id is string => Boolean(id)),
+      ),
+    );
+    const groups = groupIds.length
+      ? await prisma.t_gritens.findMany({
+          where: {
+            id: { in: groupIds },
+            isdeleted: false,
+          },
+          select: {
+            id: true,
+            degru: true,
+          },
+        })
+      : [];
+    const groupNameById = new Map(
+      groups
+        .map((group) => {
+          const id = group.id?.trim();
+          if (!id) return null;
+          return [id, group.degru?.trim() ?? null] as const;
+        })
+        .filter(
+          (entry): entry is readonly [string, string | null] => entry !== null,
+        ),
+    );
+
+    const aggregates = new Map<string, DailyRevenueCategoryAggregate>();
+
+    for (const row of rows) {
+      const groupId = row.id_grupo?.trim() ?? null;
+      const mapKey = groupId ?? '__sem-categoria__';
+      const quantity = this.toNumber(row.qtdesol_iv);
+      const unitPrice = this.toNumber(row.precven_iv);
+      const discount = this.toNumber(row.vdesc_iv);
+      const total = this.roundMoney(Math.max(0, quantity * unitPrice - discount));
+
+      if (quantity <= 0 && total <= 0) {
+        continue;
+      }
+
+      const current = aggregates.get(mapKey);
+      const label = groupId
+        ? (groupNameById.get(groupId)?.trim() ?? 'Categoria sem nome')
+        : 'Sem categoria';
+
+      if (!current) {
+        aggregates.set(mapKey, {
+          groupId,
+          label,
+          quantity,
+          total,
+        });
+        continue;
+      }
+
+      current.quantity = this.roundMoney(current.quantity + quantity);
+      current.total = this.roundMoney(current.total + total);
+      if (
+        current.label === 'Categoria sem nome' &&
+        label !== 'Categoria sem nome'
+      ) {
+        current.label = label;
+      }
+    }
+
+    const ordered = Array.from(aggregates.values()).sort((left, right) => {
+      const byTotal = right.total - left.total;
+      if (Math.abs(byTotal) > Number.EPSILON) return byTotal;
+
+      const byQuantity = right.quantity - left.quantity;
+      if (Math.abs(byQuantity) > Number.EPSILON) return byQuantity;
+
+      return left.label.localeCompare(right.label, 'pt-BR');
+    });
+
+    const totalRevenue = this.roundMoney(
+      ordered.reduce((sum, entry) => sum + entry.total, 0),
+    );
+    const totalQuantity = this.roundMoney(
+      ordered.reduce((sum, entry) => sum + entry.quantity, 0),
+    );
+
+    return {
+      referenceDate: this.toYyyyMmDd(referenceDate),
+      company: {
+        cdemp,
+        id: companyId,
+        name: companyName,
+      },
+      summary: {
+        totalRevenue,
+        totalQuantity,
+        totalOrders: saleIds.length,
+        totalCategories: ordered.length,
+      },
+      categories: ordered.slice(0, limit).map((entry, index) => ({
+        rank: index + 1,
+        groupId: entry.groupId,
+        label: entry.label,
+        quantity: entry.quantity,
+        total: entry.total,
+      })),
+    };
+  }
+
+  async getMonthlyRevenue(
+    tenant: string,
+    preferredCdemp: number | null,
+    query: DashboardRevenueMonthlyQueryDto,
+  ) {
+    const prisma = await this.getPrisma(tenant);
+    const { cdemp, companyId, companyName } = await this.resolveCompanyIdentity(
+      prisma,
+      preferredCdemp,
+    );
+    const referenceDate = this.normalizeReferenceDate(query.referenceDate);
+    const months =
+      Number.isFinite(query.months) && query.months && query.months > 0
+        ? Math.min(Math.floor(query.months), 24)
+        : 12;
+    const monthLabels = [
+      'JAN',
+      'FEV',
+      'MAR',
+      'ABR',
+      'MAI',
+      'JUN',
+      'JUL',
+      'AGO',
+      'SET',
+      'OUT',
+      'NOV',
+      'DEZ',
+    ];
+
+    const firstMonth = new Date(
+      referenceDate.getFullYear(),
+      referenceDate.getMonth() - (months - 1),
+      1,
+    );
+    const rangeStart = this.startOfMonth(firstMonth);
+    const rangeEnd = this.endOfMonth(referenceDate);
+
+    const buckets = new Map<string, MonthlyRevenueAggregate>();
+    const orderedKeys: string[] = [];
+    for (let offset = months - 1; offset >= 0; offset -= 1) {
+      const monthDate = new Date(
+        referenceDate.getFullYear(),
+        referenceDate.getMonth() - offset,
+        1,
+      );
+      const key = this.toYyyyMm(monthDate);
+      orderedKeys.push(key);
+      buckets.set(key, {
+        key,
+        year: monthDate.getFullYear(),
+        month: monthDate.getMonth() + 1,
+        label: monthLabels[monthDate.getMonth()] ?? key,
+        total: 0,
+        orderCount: 0,
+      });
+    }
+
+    const sales = await prisma.t_vendas.findMany({
+      where: {
+        id_empresa: companyId,
+        isdeleted: false,
+        status_v: { not: 'C' },
+        emisven_v: {
+          gte: rangeStart,
+          lte: rangeEnd,
+        },
+      },
+      select: {
+        id: true,
+        emisven_v: true,
+        totven_v: true,
+      },
+    });
+
+    const orderIds = new Set<string>();
+    for (const sale of sales) {
+      const emittedAt = sale.emisven_v;
+      if (!emittedAt) continue;
+
+      const bucket = buckets.get(this.toYyyyMm(emittedAt));
+      if (!bucket) continue;
+
+      bucket.total = this.roundMoney(bucket.total + this.toNumber(sale.totven_v));
+      bucket.orderCount += 1;
+
+      const orderId = sale.id?.trim();
+      if (orderId) {
+        orderIds.add(orderId);
+      }
+    }
+
+    const items = orderedKeys
+      .map((key) => buckets.get(key))
+      .filter((entry): entry is MonthlyRevenueAggregate => Boolean(entry));
+    const totalRevenue = this.roundMoney(
+      items.reduce((sum, entry) => sum + entry.total, 0),
+    );
+    const totalOrders = orderIds.size || items.reduce((sum, item) => sum + item.orderCount, 0);
+    const monthsWithSales = items.filter((item) => item.orderCount > 0).length;
+
+    return {
+      referenceDate: this.toYyyyMmDd(referenceDate),
+      company: {
+        cdemp,
+        id: companyId,
+        name: companyName,
+      },
+      summary: {
+        totalRevenue,
+        totalOrders,
+        months,
+        monthsWithSales,
+      },
+      items: items.map((entry) => ({
+        key: entry.key,
+        year: entry.year,
+        month: entry.month,
+        label: entry.label,
+        total: entry.total,
+        orderCount: entry.orderCount,
+      })),
     };
   }
 
@@ -660,7 +1039,7 @@ export class AdminOperationsService {
     ]);
 
     return {
-      id: sale.ID,
+      id: sale.id,
       pedido: sale.nrven_v,
       data: sale.emisven_v ?? null,
       horarioPedido: sale.horaven_v ?? null,
@@ -680,13 +1059,13 @@ export class AdminOperationsService {
             nome: sale.t_cli.decli ?? null,
             telefone: sale.t_cli.celcli ?? sale.t_cli.fonecli ?? null,
             cpfCnpj: sale.t_cli.cnpj_cpfcli ?? null,
-            endereco: sale.t_cli.T_ENDCLI?.[0]
+            endereco: sale.t_cli.t_endcli?.[0]
               ? {
-                  bairro: sale.t_cli.T_ENDCLI[0].BAIRRO ?? null,
-                  cidade: sale.t_cli.T_ENDCLI[0].CIDADE ?? null,
-                  logradouro: sale.t_cli.T_ENDCLI[0].LOGRADOURO ?? null,
-                  numero: sale.t_cli.T_ENDCLI[0].NUMERO ?? null,
-                  complemento: sale.t_cli.T_ENDCLI[0].COMPLEMENTO ?? null,
+                  bairro: sale.t_cli.t_endcli[0].bairro ?? null,
+                  cidade: sale.t_cli.t_endcli[0].cidade ?? null,
+                  logradouro: sale.t_cli.t_endcli[0].logradouro ?? null,
+                  numero: sale.t_cli.t_endcli[0].numero ?? null,
+                  complemento: sale.t_cli.t_endcli[0].complemento ?? null,
                 }
               : null,
           }
@@ -849,7 +1228,7 @@ export class AdminOperationsService {
     };
 
     await prisma.t_vendas.updateMany({
-      where: { ID: saleId, cdemp_v: cdemp },
+      where: { id: saleId, cdemp_v: cdemp },
       data: updateData,
     });
 
@@ -937,7 +1316,7 @@ export class AdminOperationsService {
     }
 
     return {
-      id: refreshed.ID,
+      id: refreshed.id,
       pedido: refreshed.nrven_v,
       horarioSaidaEntrega: refreshed.hrsainf_v,
       dataSaidaEntrega: refreshed.dtsainf_v,
@@ -1040,19 +1419,19 @@ export class AdminOperationsService {
 
     const customerIds = rows.map((row) => row.id);
     const addresses = customerIds.length
-      ? await prisma.t_ENDCLI.groupBy({
-          by: ['ID_CLIENTE'],
+      ? await prisma.t_endcli.groupBy({
+          by: ['id_cliente'],
           where: {
-            ID_CLIENTE: { in: customerIds },
-            ISDELETED: false,
+            id_cliente: { in: customerIds },
+            isdeleted: false,
           },
           _count: { _all: true },
         })
       : [];
     const addressCountMap = new Map(
       addresses.map(
-        (entry: { ID_CLIENTE: string; _count: { _all: number } }) => [
-          entry.ID_CLIENTE,
+        (entry: { id_cliente: string; _count: { _all: number } }) => [
+          entry.id_cliente,
           entry._count._all,
         ],
       ),
@@ -1081,9 +1460,9 @@ export class AdminOperationsService {
     const customer = await prisma.t_cli.findUnique({
       where: { id: customerId },
       include: {
-        T_ENDCLI: {
-          where: { ISDELETED: false },
-          orderBy: { UPDATEDAT: 'desc' },
+        t_endcli: {
+          where: { isdeleted: false },
+          orderBy: { updatedat: 'desc' },
         },
       },
     });
@@ -1175,12 +1554,12 @@ export class AdminOperationsService {
     const cdemp = await this.resolveCdemp(prisma, preferredCdemp);
     await this.ensureCustomerBelongsToCompany(prisma, cdemp, customerId);
 
-    return prisma.t_ENDCLI.findMany({
+    return prisma.t_endcli.findMany({
       where: {
-        ID_CLIENTE: customerId,
-        ISDELETED: false,
+        id_cliente: customerId,
+        isdeleted: false,
       },
-      orderBy: [{ UPDATEDAT: 'desc' }, { CREATEDAT: 'desc' }],
+      orderBy: [{ updatedat: 'desc' }, { createdat: 'desc' }],
     });
   }
 
@@ -1195,23 +1574,23 @@ export class AdminOperationsService {
     const cdemp = await this.resolveCdemp(prisma, preferredCdemp);
     await this.ensureCustomerBelongsToCompany(prisma, cdemp, customerId);
 
-    return prisma.t_ENDCLI.create({
+    return prisma.t_endcli.create({
       data: {
-        ID_CLIENTE: customerId,
-        CEP: this.trim(dto.cep, 10) ?? undefined,
-        LOGRADOURO: this.trim(dto.logradouro, 100) ?? undefined,
-        NUMERO: this.trim(dto.numero, 20) ?? undefined,
-        BAIRRO: this.trim(dto.bairro, 60) ?? undefined,
-        CIDADE: this.trim(dto.cidade, 60) ?? undefined,
-        UF: this.trim(dto.uf, 2) ?? undefined,
-        COMPLEMENTO: this.trim(dto.complemento, 100) ?? undefined,
-        PONTO_REFERENCIA: this.trim(dto.pontoReferencia, 255) ?? undefined,
-        TIPO_LOCAL: this.trim(dto.tipoLocal, 20) ?? undefined,
-        INSTRUCOES_ENTREGA: this.trim(dto.instrucoesEntrega, 1000) ?? undefined,
-        LATITUDE: dto.latitude ?? undefined,
-        LONGITUDE: dto.longitude ?? undefined,
-        CDUSU: this.normalizeUserCode(userIdentifier),
-        TIPO_ENDERECO: this.trim(dto.tipoEndereco, 3) ?? undefined,
+        id_cliente: customerId,
+        cep: this.trim(dto.cep, 10) ?? undefined,
+        logradouro: this.trim(dto.logradouro, 100) ?? undefined,
+        numero: this.trim(dto.numero, 20) ?? undefined,
+        bairro: this.trim(dto.bairro, 60) ?? undefined,
+        cidade: this.trim(dto.cidade, 60) ?? undefined,
+        uf: this.trim(dto.uf, 2) ?? undefined,
+        complemento: this.trim(dto.complemento, 100) ?? undefined,
+        ponto_referencia: this.trim(dto.pontoReferencia, 255) ?? undefined,
+        tipo_local: this.trim(dto.tipoLocal, 20) ?? undefined,
+        instrucoes_entrega: this.trim(dto.instrucoesEntrega, 1000) ?? undefined,
+        latitude: dto.latitude ?? undefined,
+        longitude: dto.longitude ?? undefined,
+        cdusu: this.normalizeUserCode(userIdentifier),
+        tipo_endereco: this.trim(dto.tipoEndereco, 3) ?? undefined,
       },
     });
   }
@@ -1228,36 +1607,36 @@ export class AdminOperationsService {
     const cdemp = await this.resolveCdemp(prisma, preferredCdemp);
     await this.ensureCustomerBelongsToCompany(prisma, cdemp, customerId);
 
-    const existing = await prisma.t_ENDCLI.findFirst({
+    const existing = await prisma.t_endcli.findFirst({
       where: {
-        ID: addressId,
-        ID_CLIENTE: customerId,
-        ISDELETED: false,
+        id: addressId,
+        id_cliente: customerId,
+        isdeleted: false,
       },
-      select: { ID: true },
+      select: { id: true },
     });
     if (!existing) {
       throw new NotFoundException('Endereco nao encontrado para o cliente.');
     }
 
-    return prisma.t_ENDCLI.update({
-      where: { ID: addressId },
+    return prisma.t_endcli.update({
+      where: { id: addressId },
       data: {
-        CEP: this.trim(dto.cep, 10) ?? undefined,
-        LOGRADOURO: this.trim(dto.logradouro, 100) ?? undefined,
-        NUMERO: this.trim(dto.numero, 20) ?? undefined,
-        BAIRRO: this.trim(dto.bairro, 60) ?? undefined,
-        CIDADE: this.trim(dto.cidade, 60) ?? undefined,
-        UF: this.trim(dto.uf, 2) ?? undefined,
-        COMPLEMENTO: this.trim(dto.complemento, 100) ?? undefined,
-        PONTO_REFERENCIA: this.trim(dto.pontoReferencia, 255) ?? undefined,
-        TIPO_LOCAL: this.trim(dto.tipoLocal, 20) ?? undefined,
-        INSTRUCOES_ENTREGA: this.trim(dto.instrucoesEntrega, 1000) ?? undefined,
-        LATITUDE: dto.latitude ?? undefined,
-        LONGITUDE: dto.longitude ?? undefined,
-        TIPO_ENDERECO: this.trim(dto.tipoEndereco, 3) ?? undefined,
-        CDUSU: this.normalizeUserCode(userIdentifier),
-        UPDATEDAT: new Date(),
+        cep: this.trim(dto.cep, 10) ?? undefined,
+        logradouro: this.trim(dto.logradouro, 100) ?? undefined,
+        numero: this.trim(dto.numero, 20) ?? undefined,
+        bairro: this.trim(dto.bairro, 60) ?? undefined,
+        cidade: this.trim(dto.cidade, 60) ?? undefined,
+        uf: this.trim(dto.uf, 2) ?? undefined,
+        complemento: this.trim(dto.complemento, 100) ?? undefined,
+        ponto_referencia: this.trim(dto.pontoReferencia, 255) ?? undefined,
+        tipo_local: this.trim(dto.tipoLocal, 20) ?? undefined,
+        instrucoes_entrega: this.trim(dto.instrucoesEntrega, 1000) ?? undefined,
+        latitude: dto.latitude ?? undefined,
+        longitude: dto.longitude ?? undefined,
+        tipo_endereco: this.trim(dto.tipoEndereco, 3) ?? undefined,
+        cdusu: this.normalizeUserCode(userIdentifier),
+        updatedat: new Date(),
       },
     });
   }
@@ -1272,15 +1651,15 @@ export class AdminOperationsService {
     const cdemp = await this.resolveCdemp(prisma, preferredCdemp);
     await this.ensureCustomerBelongsToCompany(prisma, cdemp, customerId);
 
-    const updated = await prisma.t_ENDCLI.updateMany({
+    const updated = await prisma.t_endcli.updateMany({
       where: {
-        ID: addressId,
-        ID_CLIENTE: customerId,
-        ISDELETED: false,
+        id: addressId,
+        id_cliente: customerId,
+        isdeleted: false,
       },
       data: {
-        ISDELETED: true,
-        UPDATEDAT: new Date(),
+        isdeleted: true,
+        updatedat: new Date(),
       },
     });
     if (!updated.count) {
@@ -1647,12 +2026,12 @@ export class AdminOperationsService {
         select: { coddin: true },
       }),
       prisma.$queryRaw<Array<{ status: string | null; total: unknown }>>`
-        SELECT UPPER(LTRIM(RTRIM(ISNULL(status, '')))) AS status,
-               SUM(ISNULL(valor, 0)) AS total
+        SELECT UPPER(TRIM(COALESCE(status, ''))) AS status,
+               SUM(COALESCE(valor, 0)) AS total
         FROM t_cxdoc
         WHERE cdemp = ${cdemp}
           AND codcx = ${cashier.codabe}
-        GROUP BY UPPER(LTRIM(RTRIM(ISNULL(status, ''))))
+        GROUP BY UPPER(TRIM(COALESCE(status, '')))
       `,
       prisma.t_vendas.aggregate({
         where: {
@@ -1853,7 +2232,7 @@ export class AdminOperationsService {
         },
         orderBy: [{ nrven_v: 'asc' }],
         select: {
-          ID: true,
+          id: true,
           nrven_v: true,
           emisven_v: true,
           horaven_v: true,
@@ -1921,7 +2300,7 @@ export class AdminOperationsService {
 
       return {
         nrven: sale.nrven_v,
-        saleId: sale.ID?.trim() ?? null,
+        saleId: sale.id?.trim() ?? null,
         issuedAt: sale.emisven_v ?? null,
         saleHour: sale.horaven_v ?? null,
         customerName: sale.t_cli?.decli?.trim() ?? null,
@@ -1992,8 +2371,8 @@ export class AdminOperationsService {
         cdtpg: true,
         detpg: true,
         tipo: true,
-        PIX: true,
-        TEF: true,
+        pix: true,
+        tef: true,
         quitpg: true,
       },
     });
@@ -2031,7 +2410,7 @@ export class AdminOperationsService {
       orderBy: [{ deitem: 'asc' }],
       take: limit,
       select: {
-        ID: true,
+        id: true,
         cditem: true,
         deitem: true,
         undven: true,
@@ -2040,23 +2419,23 @@ export class AdminOperationsService {
         locfotitem: true,
         t_imgitens: {
           select: {
-            URL: true,
+            url: true,
           },
-          orderBy: { AUTOCOD: 'asc' },
+          orderBy: { autocod: 'asc' },
           take: 1,
         },
       },
     });
 
     return rows.map((row) => ({
-      id: row.ID,
+      id: row.id,
       cditem: row.cditem,
       descricao: row.deitem,
       unidade: row.undven,
       codigoBarras: row.barcodeit,
       preco: this.toNumber(row.preco),
       imagem:
-        row.t_imgitens?.[0]?.URL?.trim() || row.locfotitem?.trim() || null,
+        row.t_imgitens?.[0]?.url?.trim() || row.locfotitem?.trim() || null,
     }));
   }
 
@@ -2071,7 +2450,7 @@ export class AdminOperationsService {
       },
       orderBy: [{ emisven_v: 'desc' }, { nrven_v: 'desc' }],
       select: {
-        ID: true,
+        id: true,
         nrven_v: true,
         emisven_v: true,
         totven_v: true,
@@ -2084,7 +2463,7 @@ export class AdminOperationsService {
     });
 
     return rows.map((row) => ({
-      id: row.ID,
+      id: row.id,
       pedido: row.nrven_v,
       data: row.emisven_v,
       cliente: row.t_cli?.decli ?? null,
@@ -2101,7 +2480,7 @@ export class AdminOperationsService {
     const cdemp = await this.resolveCdemp(prisma, preferredCdemp);
     const sale = await prisma.t_vendas.findFirst({
       where: {
-        ID: saleId,
+        id: saleId,
         cdemp_v: cdemp,
         status_v: 'A',
       },
@@ -2128,7 +2507,7 @@ export class AdminOperationsService {
       orderBy: [{ registro: 'asc' }],
       select: {
         registro: true,
-        ID_ITEM: true,
+        id_item: true,
         cditem_iv: true,
         deitem_iv: true,
         qtdesol_iv: true,
@@ -2137,7 +2516,7 @@ export class AdminOperationsService {
     });
 
     return {
-      id: sale.ID,
+      id: sale.id,
       pedido: sale.nrven_v,
       data: sale.emisven_v,
       cliente: sale.t_cli
@@ -2146,7 +2525,7 @@ export class AdminOperationsService {
       totalVenda: this.toNumber(sale.totven_v),
       items: items.map((item) => ({
         registro: item.registro,
-        idItem: item.ID_ITEM,
+        idItem: item.id_item,
         cditem: item.cditem_iv,
         descricao: item.deitem_iv,
         quantidade: this.toNumber(item.qtdesol_iv),
@@ -2184,8 +2563,8 @@ export class AdminOperationsService {
       empven: cdemp,
       cdfpg: payment.cdfpg ?? null,
       data: now,
-      CreatedAt: now,
-      UpdatedAt: now,
+      createdat: now,
+      updatedat: now,
     }));
   }
 
@@ -2195,7 +2574,7 @@ export class AdminOperationsService {
     emisven: Date;
     vendaId: string;
     item: {
-      ID: string | null;
+      id: string | null;
       cditem: number;
       deitem: string | null;
       undven: string | null;
@@ -2224,8 +2603,8 @@ export class AdminOperationsService {
       compra_iv: cost,
       custo_iv: cost,
       mp: 'N',
-      ID_ITEM: payload.item.ID ?? undefined,
-      ID_VENDA: payload.vendaId,
+      id_item: payload.item.id ?? undefined,
+      id_venda: payload.vendaId,
     };
   }
 
@@ -2235,6 +2614,8 @@ export class AdminOperationsService {
     userCode: string;
     now: Date;
     itemCode: number;
+    itemId?: string | null;
+    companyId?: string | null;
     quantity: number;
     unitPrice: number;
     lineTotal: number;
@@ -2248,6 +2629,8 @@ export class AdminOperationsService {
       numdoc: payload.nrven,
       especie: 'V',
       cditem: payload.itemCode,
+      id_item: payload.itemId ?? undefined,
+      id_empresa: payload.companyId ?? undefined,
       qtde: payload.quantity,
       valor: payload.lineTotal,
       preco: payload.unitPrice,
@@ -2288,6 +2671,16 @@ export class AdminOperationsService {
   ) {
     const prisma = await this.getPrisma(tenant);
     const cdemp = await this.resolveCdemp(prisma, preferredCdemp);
+    const company = await prisma.t_emp.findFirst({
+      where: { cdemp },
+      select: { id: true },
+    });
+    const companyId = company?.id?.trim();
+    if (!companyId) {
+      throw new BadRequestException(
+        `Empresa ${cdemp} sem ID para vinculo em T_MOVEST.id_empresa.`,
+      );
+    }
     const userCode = this.normalizeUserCode(userIdentifier);
     const now = new Date();
     const paymentTotal = this.roundMoney(
@@ -2309,12 +2702,12 @@ export class AdminOperationsService {
       if (dto.importedSaleId) {
         const sale = await tx.t_vendas.findFirst({
           where: {
-            ID: dto.importedSaleId,
+            id: dto.importedSaleId,
             cdemp_v: cdemp,
             status_v: 'A',
           },
           select: {
-            ID: true,
+            id: true,
             nrven_v: true,
             totven_v: true,
           },
@@ -2335,7 +2728,7 @@ export class AdminOperationsService {
 
         await tx.t_vendas.updateMany({
           where: {
-            ID: dto.importedSaleId,
+            id: dto.importedSaleId,
             cdemp_v: cdemp,
           },
           data: {
@@ -2362,7 +2755,7 @@ export class AdminOperationsService {
 
         return {
           mode: 'IMPORTED',
-          saleId: sale.ID,
+          saleId: sale.id,
           nrven: sale.nrven_v,
           totalVenda: saleTotal,
           totalPago: paymentTotal,
@@ -2387,12 +2780,12 @@ export class AdminOperationsService {
         where: {
           cdemp,
           OR: [
-            { ID: { in: itemIds } },
+            { id: { in: itemIds } },
             ...(numericCodes.length ? [{ cditem: { in: numericCodes } }] : []),
           ],
         },
         select: {
-          ID: true,
+          id: true,
           cditem: true,
           deitem: true,
           undven: true,
@@ -2409,7 +2802,7 @@ export class AdminOperationsService {
         throw new BadRequestException('Nenhum item informado foi encontrado.');
       }
 
-      const byId = new Map(records.map((record) => [record.ID, record]));
+      const byId = new Map(records.map((record) => [record.id, record]));
       const byCditem = new Map(
         records.map((record) => [record.cditem, record]),
       );
@@ -2479,11 +2872,11 @@ export class AdminOperationsService {
           cdtpg_v: dto.payments[0]?.cdtpg ?? undefined,
           vlrtroco: dto.changeFor ?? undefined,
           obsven_v: this.trim(dto.notes, 200) ?? undefined,
-          ID_CLIENTE: dto.clientId ?? undefined,
+          id_cliente: dto.clientId ?? undefined,
         },
       });
 
-      const vendaId = venda.ID?.trim();
+      const vendaId = venda.id?.trim();
       if (!vendaId) {
         throw new BadRequestException('Venda criada sem identificador valido.');
       }
@@ -2502,21 +2895,24 @@ export class AdminOperationsService {
         ),
       });
 
-      await tx.t_movest.createMany({
-        data: lines.map((line) =>
-          this.buildMovestLine({
-            cdemp,
-            nrven,
-            userCode,
-            now,
-            itemCode: line.record.cditem,
-            quantity: line.quantity,
-            unitPrice: line.unitPrice,
-            lineTotal: line.total,
-            cost: this.toNumber(line.record.custo),
-          }),
-        ),
-      });
+      const movestLines = lines.map((line) =>
+        this.buildMovestLine({
+          cdemp,
+          nrven,
+          userCode,
+          now,
+          itemCode: line.record.cditem,
+          itemId: line.record.id?.trim() ?? undefined,
+          companyId,
+          quantity: line.quantity,
+          unitPrice: line.unitPrice,
+          lineTotal: line.total,
+          cost: this.toNumber(line.record.custo),
+        }),
+      );
+
+      await tx.t_movest.createMany({ data: movestLines });
+      await applyMovestBalanceFromCreates(tx, movestLines);
 
       await tx.t_pgcaixa.createMany({
         data: this.mapPaymentRows(
@@ -2540,3 +2936,6 @@ export class AdminOperationsService {
     });
   }
 }
+
+
+

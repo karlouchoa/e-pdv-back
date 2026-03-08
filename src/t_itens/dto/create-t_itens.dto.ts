@@ -10,6 +10,15 @@ import {
   ValidateNested,
 } from 'class-validator';
 
+const toNullableNumber = ({ value }: { value: unknown }) => {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : value;
+};
+
 export class ItemImageDto {
   @IsOptional()
   @IsString()
@@ -36,6 +45,11 @@ export class CreateTItemDto {
   @IsOptional()
   @IsString()
   category?: string;
+
+  @IsOptional()
+  @Transform(toNullableNumber)
+  @IsNumber()
+  subgroup?: number | null;
 
   @IsOptional()
   @IsString()
@@ -96,6 +110,18 @@ export class CreateTItemDto {
   isRawMaterial?: boolean;
 
   @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  isNegative?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  isCombo?: boolean;
+
+  @IsOptional()
   @IsString()
   notes?: string;
 
@@ -116,4 +142,20 @@ export class CreateTItemDto {
   @IsOptional()
   @IsIn(['S', 'N'])
   matprima?: string;
+
+  @IsOptional()
+  @IsIn(['S', 'N'])
+  ativosn?: string;
+
+  @IsOptional()
+  @IsIn(['S', 'N'])
+  negativo?: string;
+
+  @IsOptional()
+  @IsIn(['S', 'N'])
+  ComboSN?: string;
+
+  @IsOptional()
+  @IsIn(['S', 'N'])
+  combosn?: string;
 }

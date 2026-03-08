@@ -8,9 +8,13 @@ import { TenantDbService } from '../tenant-db/tenant-db.service';
 
 export type PedidoOnlineComboRow = {
   ID: string;
+  id: string;
   ID_PEDIDO_ITEM: string;
+  id_pedido_item: string;
   CDGRU: number | null;
+  cdgru: number | null;
   ID_ITEM_ESCOLHIDO: string;
+  id_item_escolhido: string;
   QTDE: unknown;
 };
 
@@ -24,6 +28,10 @@ export class PedidosOnlineComboRepository {
     return this.tenantDbService.getTenantClient(tenant);
   }
 
+  private asUuid(value: string) {
+    return TenantPrisma.sql`${value}::uuid`;
+  }
+
   // TEMP: After db pull substitute with Prisma models.
   async listEscolhasByPedidoItemId(
     tenant: string,
@@ -35,13 +43,17 @@ export class PedidosOnlineComboRepository {
     return prisma.$queryRaw<PedidoOnlineComboRow[]>(
       TenantPrisma.sql`
         SELECT
-          ID,
-          ID_PEDIDO_ITEM,
-          CDGRU,
-          ID_ITEM_ESCOLHIDO,
-          QTDE
+          ID AS "ID",
+          ID AS "id",
+          ID_PEDIDO_ITEM AS "ID_PEDIDO_ITEM",
+          ID_PEDIDO_ITEM AS "id_pedido_item",
+          CDGRU AS "CDGRU",
+          CDGRU AS "cdgru",
+          ID_ITEM_ESCOLHIDO AS "ID_ITEM_ESCOLHIDO",
+          ID_ITEM_ESCOLHIDO AS "id_item_escolhido",
+          QTDE AS "QTDE"
         FROM T_PedidosOnLineComboEscolhas
-        WHERE ID_PEDIDO_ITEM = ${pedidoItemId}
+        WHERE ID_PEDIDO_ITEM = ${this.asUuid(pedidoItemId)}
         ORDER BY ID
       `,
     );
@@ -68,18 +80,22 @@ export class PedidosOnlineComboRepository {
           ID_ITEM_ESCOLHIDO,
           QTDE
         )
-        OUTPUT
-          INSERTED.ID,
-          INSERTED.ID_PEDIDO_ITEM,
-          INSERTED.CDGRU,
-          INSERTED.ID_ITEM_ESCOLHIDO,
-          INSERTED.QTDE
         VALUES (
-          ${payload.pedidoItemId},
+          ${this.asUuid(payload.pedidoItemId)},
           ${payload.cdgru},
-          ${payload.idItemEscolhido},
+          ${this.asUuid(payload.idItemEscolhido)},
           ${payload.quantity}
         )
+        RETURNING
+          ID AS "ID",
+          ID AS "id",
+          ID_PEDIDO_ITEM AS "ID_PEDIDO_ITEM",
+          ID_PEDIDO_ITEM AS "id_pedido_item",
+          CDGRU AS "CDGRU",
+          CDGRU AS "cdgru",
+          ID_ITEM_ESCOLHIDO AS "ID_ITEM_ESCOLHIDO",
+          ID_ITEM_ESCOLHIDO AS "id_item_escolhido",
+          QTDE AS "QTDE"
       `,
     );
 

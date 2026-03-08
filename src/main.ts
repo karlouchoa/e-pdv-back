@@ -1,6 +1,10 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { ValidationPipe } from '@nestjs/common';
+import {
+  BadRequestException,
+  ValidationError,
+  ValidationPipe,
+} from '@nestjs/common';
 import { json, urlencoded } from 'express';
 
 declare global {
@@ -12,6 +16,24 @@ declare global {
 (BigInt.prototype as any).toJSON = function toJSON() {
   return this.toString();
 };
+
+function flattenValidationMessages(errors: ValidationError[]): string[] {
+  const messages: string[] = [];
+
+  const walk = (validationErrors: ValidationError[]) => {
+    for (const error of validationErrors) {
+      if (error.constraints) {
+        messages.push(...Object.values(error.constraints));
+      }
+      if (error.children?.length) {
+        walk(error.children);
+      }
+    }
+  };
+
+  walk(errors);
+  return Array.from(new Set(messages));
+}
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -91,6 +113,15 @@ async function bootstrap() {
       transform: true,
       whitelist: true,
       forbidNonWhitelisted: true,
+      exceptionFactory: (errors: ValidationError[] = []) => {
+        const details = flattenValidationMessages(errors);
+        return new BadRequestException({
+          statusCode: 400,
+          error: 'Bad Request',
+          message: 'Falha na validacao dos dados.',
+          details,
+        });
+      },
     }),
   );
 

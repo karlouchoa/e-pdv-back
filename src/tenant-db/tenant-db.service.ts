@@ -14,6 +14,7 @@ export class TenantDbService implements OnModuleDestroy {
    * Prisma connection cache by tenant database URL.
    */
   private connections: Map<string, TenantClient> = new Map();
+  private resolvedDatabaseByTenant: Map<string, string> = new Map();
 
   /**
    * Main database connection (t_acessos, etc).
@@ -67,28 +68,22 @@ export class TenantDbService implements OnModuleDestroy {
   }
 
   private buildTenantConnectionFromDbVars(dbName: string): string {
-    const host = process.env.DB_HOST;
-    const port = process.env.DB_PORT;
-    const user = process.env.DB_USER;
-    const pass = process.env.DB_PASS;
+    const host = process.env.DB_HOST?.trim();
+    const port = process.env.DB_PORT?.trim() || '5432';
+    const user = process.env.DB_USER?.trim();
+    const pass = process.env.DB_PASS?.trim();
 
-    if (!host || !port || !user || !pass) {
+    if (!host || !user || !pass) {
       throw new Error(
-        'SQL Server variables are missing: DB_HOST, DB_PORT, DB_USER, DB_PASS.',
+        'PostgreSQL variables are missing: DB_HOST, DB_USER, DB_PASS.',
       );
     }
 
-    const encrypt = this.readBooleanEnv('DB_ENCRYPT') ?? true;
-    const trustServerCertificate =
-      this.readBooleanEnv('DB_TRUST_SERVER_CERTIFICATE') ?? true;
+    const encodedUser = encodeURIComponent(user);
+    const encodedPass = encodeURIComponent(pass);
+    const encodedDbName = encodeURIComponent(dbName);
 
-    return (
-      `sqlserver://${host}:${port};` +
-      `database=${dbName};` +
-      `user=${user};` +
-      `password=${pass};` +
-      `encrypt=${encrypt};trustServerCertificate=${trustServerCertificate};`
-    );
+    return `postgresql://${encodedUser}:${encodedPass}@${host}:${port}/${encodedDbName}`;
   }
 
   /**
@@ -110,30 +105,35 @@ export class TenantDbService implements OnModuleDestroy {
   }
 
   /**
-   * Replace "database=..." segment in a SQL Server URL.
+   * Replace database segment in a PostgreSQL URL.
    */
   private withDatabaseName(connectionString: string, dbName: string): string {
-    const withTrailingSemicolon = connectionString.endsWith(';')
-      ? connectionString
-      : `${connectionString};`;
-
-    const withoutDatabase = withTrailingSemicolon.replace(
-      /database=[^;]*;?/gi,
-      '',
-    );
-
-    return `${withoutDatabase}database=${dbName};`;
+    try {
+      const parsed = new URL(connectionString);
+      if (!/^postgres(ql)?:$/i.test(parsed.protocol)) {
+        return connectionString;
+      }
+      parsed.pathname = `/${encodeURIComponent(dbName)}`;
+      return parsed.toString();
+    } catch {
+      const [base, query] = connectionString.split('?');
+      const normalizedBase = base.replace(/\/[^/?#]*$/, '');
+      const nextBase = `${normalizedBase}/${encodeURIComponent(dbName)}`;
+      return query ? `${nextBase}?${query}` : nextBase;
+    }
   }
 
   private describeConnectionEndpoint(connectionString: string): string {
-    const hostMatch = connectionString.match(
-      /^sqlserver:\/\/([^;:/?]+)(?::(\d+))?/i,
-    );
-    const dbMatch = connectionString.match(/database=([^;]+)/i);
-    const host = hostMatch?.[1] ?? 'unknown-host';
-    const port = hostMatch?.[2] ?? 'default-port';
-    const database = dbMatch?.[1] ?? 'unknown-db';
-    return `${host}:${port}/${database}`;
+    try {
+      const parsed = new URL(connectionString);
+      const host = parsed.hostname || 'unknown-host';
+      const port = parsed.port || 'default-port';
+      const database =
+        decodeURIComponent(parsed.pathname.replace(/^\/+/, '')) || 'unknown-db';
+      return `${host}:${port}/${database}`;
+    } catch {
+      return 'unknown-host:default-port/unknown-db';
+    }
   }
 
   /**
@@ -153,44 +153,47 @@ export class TenantDbService implements OnModuleDestroy {
       return connectionString;
     }
 
-    return connectionString.replace(
-      /^sqlserver:\/\/([^;:/?]+)(?::(\d+))?/i,
-      (_match, currentHost: string, currentPort?: string) => {
-        const nextHost = host || currentHost;
-        const nextPort = port || currentPort || '';
-        return `sqlserver://${nextHost}${nextPort ? `:${nextPort}` : ''}`;
-      },
-    );
+    try {
+      const parsed = new URL(connectionString);
+      if (!/^postgres(ql)?:$/i.test(parsed.protocol)) {
+        return connectionString;
+      }
+
+      if (host) parsed.hostname = host;
+      if (port) parsed.port = port;
+      return parsed.toString();
+    } catch {
+      return connectionString;
+    }
   }
 
   private applyTlsOverrides(connectionString: string): string {
-    let next = connectionString.endsWith(';')
-      ? connectionString
-      : `${connectionString};`;
+    let next = connectionString;
 
     const encrypt = this.readBooleanEnv('DB_ENCRYPT');
-    if (encrypt !== undefined) {
-      next = this.upsertConnectionParam(next, 'encrypt', String(encrypt));
-    }
-
     const trustServerCertificate = this.readBooleanEnv(
       'DB_TRUST_SERVER_CERTIFICATE',
     );
+
+    if (encrypt === false) {
+      return this.upsertConnectionParam(next, 'sslmode', 'disable');
+    }
+
+    if (encrypt === true) {
+      const sslMode = trustServerCertificate === false ? 'verify-full' : 'require';
+      return this.upsertConnectionParam(next, 'sslmode', sslMode);
+    }
+
     if (trustServerCertificate !== undefined) {
-      next = this.upsertConnectionParam(
-        next,
-        'trustServerCertificate',
-        String(trustServerCertificate),
-      );
+      const sslMode = trustServerCertificate ? 'require' : 'verify-full';
+      next = this.upsertConnectionParam(next, 'sslmode', sslMode);
     }
 
     return next;
   }
 
   private applyPoolOverrides(connectionString: string): string {
-    let next = connectionString.endsWith(';')
-      ? connectionString
-      : `${connectionString};`;
+    let next = connectionString;
 
     const connectionLimit = this.readIntegerEnv('DB_CONNECTION_LIMIT');
     if (connectionLimit !== undefined) {
@@ -214,11 +217,17 @@ export class TenantDbService implements OnModuleDestroy {
     key: string,
     value: string,
   ): string {
-    const regex = new RegExp(`${key}=[^;]*;?`, 'i');
-    if (regex.test(connectionString)) {
-      return connectionString.replace(regex, `${key}=${value};`);
+    try {
+      const parsed = new URL(connectionString);
+      parsed.searchParams.set(key, value);
+      return parsed.toString();
+    } catch {
+      const [base, query] = connectionString.split('?');
+      const params = new URLSearchParams(query ?? '');
+      params.set(key, value);
+      const nextQuery = params.toString();
+      return nextQuery ? `${base}?${nextQuery}` : base;
     }
-    return `${connectionString}${key}=${value};`;
   }
 
   private readBooleanEnv(name: string): boolean | undefined {
@@ -274,25 +283,31 @@ export class TenantDbService implements OnModuleDestroy {
       Array<{
         banco: string | null;
         subdominio: string | null;
-        Empresa: string | null;
-        logoUrl: string | null;
+        empresa: string | null;
+        logourl: string | null;
         imagem_capa: string | null;
       }>
     >`
-      SELECT TOP 1 banco, subdominio, Empresa, logoUrl, imagem_capa
+      SELECT
+        banco,
+        subdominio,
+        empresa,
+        logourl,
+        imagem_capa
       FROM t_acessos
-      WHERE ISNULL(ativo, 'N') = 'S'
+      WHERE COALESCE(ativo, 'N') = 'S'
         AND (
-          UPPER(LTRIM(RTRIM(banco))) = UPPER(LTRIM(RTRIM(${normalizedKey})))
-          OR UPPER(LTRIM(RTRIM(subdominio))) = UPPER(LTRIM(RTRIM(${normalizedKey})))
+          UPPER(TRIM(banco)) = UPPER(TRIM(${normalizedKey}))
+          OR UPPER(TRIM(subdominio)) = UPPER(TRIM(${normalizedKey}))
         )
       ORDER BY
         CASE
-          WHEN UPPER(LTRIM(RTRIM(banco))) = UPPER(LTRIM(RTRIM(${normalizedKey}))) THEN 0
-          WHEN UPPER(LTRIM(RTRIM(subdominio))) = UPPER(LTRIM(RTRIM(${normalizedKey}))) THEN 1
+          WHEN UPPER(TRIM(banco)) = UPPER(TRIM(${normalizedKey})) THEN 0
+          WHEN UPPER(TRIM(subdominio)) = UPPER(TRIM(${normalizedKey})) THEN 1
           ELSE 2
         END,
         id DESC
+      LIMIT 1
     `;
 
     const access = rows[0];
@@ -308,8 +323,8 @@ export class TenantDbService implements OnModuleDestroy {
     return {
       banco,
       subdominio: access.subdominio?.trim() || null,
-      companyName: access.Empresa?.trim() || null,
-      logoUrl: access.logoUrl?.trim() || null,
+      companyName: access.empresa?.trim() || null,
+      logoUrl: access.logourl?.trim() || null,
       coverUrl: access.imagem_capa?.trim() || null,
     };
   }
@@ -330,16 +345,22 @@ export class TenantDbService implements OnModuleDestroy {
       Array<{
         banco: string | null;
         subdominio: string | null;
-        Empresa: string | null;
-        logoUrl: string | null;
+        empresa: string | null;
+        logourl: string | null;
         imagem_capa: string | null;
       }>
     >`
-      SELECT TOP 1 banco, subdominio, Empresa, logoUrl, imagem_capa
+      SELECT
+        banco,
+        subdominio,
+        empresa,
+        logourl,
+        imagem_capa
       FROM t_acessos
-      WHERE ISNULL(ativo, 'N') = 'S'
-        AND UPPER(LTRIM(RTRIM(subdominio))) = UPPER(LTRIM(RTRIM(${normalizedSubdomain})))
+      WHERE COALESCE(ativo, 'N') = 'S'
+        AND UPPER(TRIM(subdominio)) = UPPER(TRIM(${normalizedSubdomain}))
       ORDER BY id DESC
+      LIMIT 1
     `;
 
     const access = rows[0];
@@ -355,32 +376,101 @@ export class TenantDbService implements OnModuleDestroy {
     return {
       banco,
       subdominio: access.subdominio?.trim() || null,
-      companyName: access.Empresa?.trim() || null,
-      logoUrl: access.logoUrl?.trim() || null,
+      companyName: access.empresa?.trim() || null,
+      logoUrl: access.logourl?.trim() || null,
       coverUrl: access.imagem_capa?.trim() || null,
     };
   }
 
-  private getOrCreateTenantClient(
+  private buildDatabaseNameCandidates(
+    databaseName: string,
+    preferredDatabaseName?: string | null,
+  ): string[] {
+    const trimmed = databaseName.trim();
+    const candidates: string[] = [];
+    const pushUnique = (value: string) => {
+      const normalized = value.trim();
+      if (!normalized) return;
+      if (!candidates.includes(normalized)) {
+        candidates.push(normalized);
+      }
+    };
+
+    if (preferredDatabaseName) {
+      pushUnique(preferredDatabaseName);
+    }
+    pushUnique(trimmed);
+    pushUnique(trimmed.toLowerCase());
+
+    return candidates;
+  }
+
+  private isDatabaseNotFoundError(error: unknown): boolean {
+    const message =
+      error instanceof Error ? error.message : String(error ?? '');
+    return /database .+ does not exist/i.test(message);
+  }
+
+  private async getOrCreateTenantClient(
     tenantLabel: string,
     databaseName: string,
-  ): TenantClient {
-    const connectionString = this.buildTenantConnectionString(databaseName);
+  ): Promise<TenantClient> {
+    const tenantCacheKey = tenantLabel.trim().toLowerCase();
+    const preferredDatabaseName =
+      this.resolvedDatabaseByTenant.get(tenantCacheKey) ?? null;
+    const candidates = this.buildDatabaseNameCandidates(
+      databaseName,
+      preferredDatabaseName,
+    );
+    let lastError: unknown = null;
 
-    // Reuse existing tenant connection when available.
-    if (!this.connections.has(connectionString)) {
-      this.logger.log(
-        `Creating Prisma tenant connection for: ${tenantLabel} -> ${databaseName} at ${this.describeConnectionEndpoint(connectionString)}`,
-      );
+    for (let index = 0; index < candidates.length; index += 1) {
+      const candidateDbName = candidates[index];
+      const connectionString = this.buildTenantConnectionString(candidateDbName);
 
-      const client = new TenantPrismaClient({
-        datasources: { db: { url: connectionString } },
-      });
+      // Reuse existing tenant connection when available.
+      let client = this.connections.get(connectionString);
+      if (!client) {
+        this.logger.log(
+          `Creating Prisma tenant connection for: ${tenantLabel} -> ${candidateDbName} at ${this.describeConnectionEndpoint(connectionString)}`,
+        );
 
-      this.connections.set(connectionString, client);
+        client = new TenantPrismaClient({
+          datasources: { db: { url: connectionString } },
+        });
+
+        this.connections.set(connectionString, client);
+      }
+
+      try {
+        await client.$queryRawUnsafe('SELECT 1');
+        if (index > 0) {
+          this.logger.warn(
+            `Tenant '${tenantLabel}' database fallback applied: '${databaseName}' -> '${candidateDbName}'.`,
+          );
+        }
+        this.resolvedDatabaseByTenant.set(tenantCacheKey, candidateDbName);
+        return client;
+      } catch (error) {
+        lastError = error;
+        const isLastCandidate = index === candidates.length - 1;
+        if (!this.isDatabaseNotFoundError(error) || isLastCandidate) {
+          throw error;
+        }
+
+        this.connections.delete(connectionString);
+        await client.$disconnect().catch(() => undefined);
+        this.logger.warn(
+          `Database '${candidateDbName}' not found for tenant '${tenantLabel}'. Trying next candidate...`,
+        );
+      }
     }
 
-    return this.connections.get(connectionString)!;
+    if (lastError) {
+      throw lastError;
+    }
+
+    throw new Error(`Unable to create tenant client for '${tenantLabel}'.`);
   }
 
   async resolveTenantDatabaseName(tenantKey: string): Promise<string> {
@@ -445,15 +535,16 @@ export class TenantDbService implements OnModuleDestroy {
     const rows = await this.main.$queryRaw<
       Array<{
         banco: string | null;
-        logoUrl: string | null;
-        Empresa: string | null;
+        logourl: string | null;
+        empresa: string | null;
       }>
     >`
-      SELECT TOP 1 banco, logoUrl, Empresa
+      SELECT banco, logourl, empresa
       FROM t_acessos
-      WHERE ISNULL(ativo, 'N') = 'S'
-        AND UPPER(LTRIM(RTRIM(login))) = UPPER(LTRIM(RTRIM(${normalized})))
+      WHERE COALESCE(ativo, 'N') = 'S'
+        AND UPPER(TRIM(login)) = UPPER(TRIM(${normalized}))
       ORDER BY id DESC
+      LIMIT 1
     `;
 
     const tenant = rows[0];
@@ -462,8 +553,8 @@ export class TenantDbService implements OnModuleDestroy {
     }
 
     const slug = tenant.banco?.trim();
-    const logoUrl = tenant.logoUrl?.trim() || null;
-    const companyName = tenant.Empresa?.trim() || null;
+    const logoUrl = tenant.logourl?.trim() || null;
+    const companyName = tenant.empresa?.trim() || null;
 
     if (!slug) {
       throw new Error(

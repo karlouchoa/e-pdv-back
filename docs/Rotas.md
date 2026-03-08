@@ -5,6 +5,8 @@ Públicas:
     GET /t_itpromo
     GET /t_fpgto/public
     GET /t_tpgto/public
+    GET /t_itenscombo/public/item/:idItem
+    GET /itensporcategoria/public/:cdgruit
     POST /t_cli/public/lookup
     GET /t_vendas/public/:id
     POST /t_pedidosonline/public

@@ -8,8 +8,11 @@ import { TenantDbService } from '../tenant-db/tenant-db.service';
 
 export type PedidoOnlineItemRow = {
   ID: string;
+  id: string;
   ID_PEDIDO: string;
+  id_pedido: string;
   ID_ITEM: string;
+  id_item: string;
   QTDE: unknown;
   VLR_UNIT_CALC: unknown;
   VLR_TOTAL_CALC: unknown;
@@ -27,6 +30,10 @@ export class PedidosOnlineItensRepository {
     return this.tenantDbService.getTenantClient(tenant);
   }
 
+  private asUuid(value: string) {
+    return TenantPrisma.sql`${value}::uuid`;
+  }
+
   // TEMP: After db pull substitute with Prisma models.
   async listItensByPedidoId(
     tenant: string,
@@ -38,16 +45,19 @@ export class PedidosOnlineItensRepository {
     return prisma.$queryRaw<PedidoOnlineItemRow[]>(
       TenantPrisma.sql`
         SELECT
-          ID,
-          ID_PEDIDO,
-          ID_ITEM,
-          QTDE,
-          VLR_UNIT_CALC,
-          VLR_TOTAL_CALC,
-          OBS_ITEM,
-          EH_COMBO
+          ID AS "ID",
+          ID AS "id",
+          ID_PEDIDO AS "ID_PEDIDO",
+          ID_PEDIDO AS "id_pedido",
+          ID_ITEM AS "ID_ITEM",
+          ID_ITEM AS "id_item",
+          QTDE AS "QTDE",
+          VLR_UNIT_CALC AS "VLR_UNIT_CALC",
+          VLR_TOTAL_CALC AS "VLR_TOTAL_CALC",
+          OBS_ITEM AS "OBS_ITEM",
+          EH_COMBO AS "EH_COMBO"
         FROM T_PedidosOnLineItens
-        WHERE ID_PEDIDO = ${pedidoId}
+        WHERE ID_PEDIDO = ${this.asUuid(pedidoId)}
         ORDER BY ID
       `,
     );
@@ -70,7 +80,7 @@ export class PedidosOnlineItensRepository {
           SET
             VLR_UNIT_CALC = ${update.unitPrice},
             VLR_TOTAL_CALC = ${update.total}
-          WHERE ID = ${update.id}
+          WHERE ID = ${this.asUuid(update.id)}
         `,
       );
     }
@@ -104,24 +114,27 @@ export class PedidosOnlineItensRepository {
           OBS_ITEM,
           EH_COMBO
         )
-        OUTPUT
-          INSERTED.ID,
-          INSERTED.ID_PEDIDO,
-          INSERTED.ID_ITEM,
-          INSERTED.QTDE,
-          INSERTED.VLR_UNIT_CALC,
-          INSERTED.VLR_TOTAL_CALC,
-          INSERTED.OBS_ITEM,
-          INSERTED.EH_COMBO
         VALUES (
-          ${payload.pedidoId},
-          ${payload.itemId},
+          ${this.asUuid(payload.pedidoId)},
+          ${this.asUuid(payload.itemId)},
           ${payload.quantity},
           ${payload.unitPrice},
           ${payload.total},
           ${payload.obsItem ?? null},
           ${comboFlag}
         )
+        RETURNING
+          ID AS "ID",
+          ID AS "id",
+          ID_PEDIDO AS "ID_PEDIDO",
+          ID_PEDIDO AS "id_pedido",
+          ID_ITEM AS "ID_ITEM",
+          ID_ITEM AS "id_item",
+          QTDE AS "QTDE",
+          VLR_UNIT_CALC AS "VLR_UNIT_CALC",
+          VLR_TOTAL_CALC AS "VLR_TOTAL_CALC",
+          OBS_ITEM AS "OBS_ITEM",
+          EH_COMBO AS "EH_COMBO"
       `,
     );
 

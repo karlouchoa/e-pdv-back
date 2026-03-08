@@ -8,6 +8,9 @@ import { ProductBaseService } from './product-base.service';
 
 @Injectable()
 export class ProductCService extends ProductBaseService {
+  private readonly uuidRegex =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
   constructor(tenantDbService: TenantDbService) {
     super(tenantDbService);
   }
@@ -30,9 +33,10 @@ export class ProductCService extends ProductBaseService {
       const itemId = this.ensureItemId(item);
 
       const normalized = this.normalizeComboRules(dto.comboRules);
-      const comboData = this.buildComboData(normalized, itemId);
+      const resolved = await this.resolveComboSubgroupLinks(tx, normalized);
+      const comboData = this.buildComboData(resolved, itemId);
 
-      await tx.t_ItensCombo.createMany({ data: comboData });
+      await tx.t_itenscombo.createMany({ data: comboData });
 
       return { item, comboRules: comboData };
     });
@@ -84,10 +88,11 @@ export class ProductCService extends ProductBaseService {
       });
 
       const itemId = this.ensureItemId(item);
-      await tx.t_ItensCombo.deleteMany({ where: { ID_ITEM: itemId } });
+      await tx.t_itenscombo.deleteMany({ where: { id_item: itemId } });
 
-      const comboData = this.buildComboData(normalized, itemId);
-      await tx.t_ItensCombo.createMany({ data: comboData });
+      const resolved = await this.resolveComboSubgroupLinks(tx, normalized);
+      const comboData = this.buildComboData(resolved, itemId);
+      await tx.t_itenscombo.createMany({ data: comboData });
 
       return { item: updated, comboRules: comboData };
     });
@@ -102,7 +107,7 @@ export class ProductCService extends ProductBaseService {
 
     return prisma.$transaction(async (tx) => {
       const itemId = this.ensureItemId(item);
-      await tx.t_ItensCombo.deleteMany({ where: { ID_ITEM: itemId } });
+      await tx.t_itenscombo.deleteMany({ where: { id_item: itemId } });
 
       const updated = await tx.t_itens.update({
         where: {
@@ -139,7 +144,9 @@ export class ProductCService extends ProductBaseService {
         );
       }
 
-      return { cdgru, qtde };
+      const idSubgrupo = this.normalizeOptionalUuid(rule.id_subgrupo);
+
+      return { cdgru, qtde, id_subgrupo: idSubgrupo };
     });
 
     const seen = new Set<number>();
@@ -153,14 +160,87 @@ export class ProductCService extends ProductBaseService {
     return normalized;
   }
 
+  private normalizeOptionalUuid(value?: string | null) {
+    const trimmed = value?.trim();
+    if (!trimmed) {
+      return null;
+    }
+
+    if (!this.uuidRegex.test(trimmed)) {
+      throw new BadRequestException('id_subgrupo invalido em comboRules.');
+    }
+
+    return trimmed;
+  }
+
+  private async resolveComboSubgroupLinks(
+    prisma: Awaited<ReturnType<ProductBaseService['getPrisma']>> | Prisma.TransactionClient,
+    rules: Array<{ cdgru: number; qtde: number; id_subgrupo: string | null }>,
+  ) {
+    return Promise.all(
+      rules.map(async (rule, index) => {
+        const requestedId = rule.id_subgrupo;
+
+        if (requestedId) {
+          const subgroup = await prisma.t_subgr.findFirst({
+            where: { id: requestedId },
+            select: { cdsub: true, id: true },
+          });
+
+          if (!subgroup) {
+            throw new BadRequestException(
+              `comboRules[${index}].id_subgrupo nao encontrado em t_subgr.`,
+            );
+          }
+
+          if (subgroup.cdsub !== rule.cdgru) {
+            throw new BadRequestException(
+              `comboRules[${index}] possui cdgru diferente do id_subgrupo informado.`,
+            );
+          }
+
+          return {
+            cdgru: subgroup.cdsub,
+            qtde: rule.qtde,
+            id_subgrupo: subgroup.id,
+          };
+        }
+
+        const subgroup = await prisma.t_subgr.findUnique({
+          where: { cdsub: rule.cdgru },
+          select: { cdsub: true, id: true },
+        });
+
+        if (!subgroup) {
+          throw new BadRequestException(
+            `comboRules[${index}].cdgru nao encontrado em t_subgr.`,
+          );
+        }
+
+        if (!subgroup.id?.trim()) {
+          throw new BadRequestException(
+            `Subgrupo ${subgroup.cdsub} sem ID para vinculo em t_itenscombo.ID_SUBGRUPO.`,
+          );
+        }
+
+        return {
+          cdgru: subgroup.cdsub,
+          qtde: rule.qtde,
+          id_subgrupo: subgroup.id,
+        };
+      }),
+    );
+  }
+
   private buildComboData(
-    rules: Array<{ cdgru: number; qtde: number }>,
+    rules: Array<{ cdgru: number; qtde: number; id_subgrupo: string }>,
     itemId: string,
-  ): Prisma.T_ItensComboCreateManyInput[] {
+  ): Prisma.t_itenscomboCreateManyInput[] {
     return rules.map((rule) => ({
-      ID_ITEM: itemId,
-      CDGRU: rule.cdgru,
-      QTDE: rule.qtde,
+      id_item: itemId,
+      cdgru: rule.cdgru,
+      qtde: rule.qtde,
+      id_subgrupo: rule.id_subgrupo,
     }));
   }
 
@@ -169,7 +249,7 @@ export class ProductCService extends ProductBaseService {
     item: Awaited<ReturnType<ProductBaseService['findItemById']>>,
     requireCombo: boolean,
   ) {
-    if (item.ComboSN !== 'S') {
+    if (item.combosn !== 'S') {
       throw new BadRequestException('Item nao marcado como produto combo.');
     }
 

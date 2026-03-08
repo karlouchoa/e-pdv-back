@@ -13,6 +13,7 @@ import { MovementSummaryQueryDto } from './dto/movement-summary-query.dto';
 import { KardexQueryDto } from './dto/kardex-query.dto';
 
 import { CreateMovementDto } from './dto/create-movement.dto';
+import { applyMovestBalanceFromCreates } from '../lib/movest-balance';
 
 @Injectable()
 export class InventoryService {
@@ -621,7 +622,7 @@ export class InventoryService {
 
     const serverNowResult = await prisma.$queryRaw<
       { now: Date }[]
-    >`SELECT GETDATE() as now`;
+    >`SELECT CURRENT_TIMESTAMP as now`;
     const serverNow = serverNowResult?.[0]?.now ?? new Date();
 
     const movementDate = dto.date ? new Date(dto.date) : serverNow;
@@ -667,10 +668,10 @@ export class InventoryService {
     );
 
     if (warehouseInput) {
-      let whereCompany: { ID: string } | { cdemp: number } | null = null;
+      let whereCompany: { id: string } | { cdemp: number } | null = null;
 
       if (this.isGuid(warehouseInput)) {
-        whereCompany = { ID: warehouseInput };
+        whereCompany = { id: warehouseInput };
       } else {
         const cdempParsed = Number(warehouseInput);
 
@@ -692,7 +693,7 @@ export class InventoryService {
       this.logger.debug(
         `[createMovement] companyLookup where=${JSON.stringify(
           whereCompany,
-        )} result=${empresa ? `cdemp=${empresa.cdemp} ID=${empresa.ID}` : 'null'}`,
+        )} result=${empresa ? `cdemp=${empresa.cdemp} ID=${empresa.id}` : 'null'}`,
       );
     } else {
       const defaultCdemp = await this.getCompanyId(tenant, prisma);
@@ -704,7 +705,7 @@ export class InventoryService {
       });
 
       this.logger.debug(
-        `[createMovement] companyByDefault defaultCdemp=${defaultCdemp} result=${empresa ? `cdemp=${empresa.cdemp} ID=${empresa.ID}` : 'null'}`,
+        `[createMovement] companyByDefault defaultCdemp=${defaultCdemp} result=${empresa ? `cdemp=${empresa.cdemp} ID=${empresa.id}` : 'null'}`,
       );
     }
 
@@ -719,12 +720,12 @@ export class InventoryService {
       });
 
       this.logger.warn(
-        `[createMovement] companyFallback triggered input='${warehouseInput}' defaultCdemp=${defaultCdemp} result=${empresa ? `cdemp=${empresa.cdemp} ID=${empresa.ID}` : 'null'}`,
+        `[createMovement] companyFallback triggered input='${warehouseInput}' defaultCdemp=${defaultCdemp} result=${empresa ? `cdemp=${empresa.cdemp} ID=${empresa.id}` : 'null'}`,
       );
 
       if (!empresa) {
         const sampleCompanies = await prisma.t_emp.findMany({
-          select: { cdemp: true, ID: true, deemp: true, isdeleted: true },
+          select: { cdemp: true, id: true, deemp: true, isdeleted: true },
           orderBy: { cdemp: 'asc' },
           take: 10,
         });
@@ -740,6 +741,13 @@ export class InventoryService {
       );
     }
 
+    const companyId = empresa.id?.trim();
+    if (!companyId) {
+      throw new BadRequestException(
+        `Empresa/Almoxarifado '${warehouseLabel}' sem ID para vinculo em T_MOVEST.id_empresa.`,
+      );
+    }
+
     const cdemp = empresa.cdemp; // empresa selecionada
 
     const empmov = empresa.cdemp;
@@ -749,7 +757,7 @@ export class InventoryService {
     // 4 - Buscar item pelo GUID dentro do almoxarifado selecionado
 
     const item = await prisma.t_itens.findFirst({
-      where: { ID: dto.itemId, cdemp },
+      where: { id: dto.itemId, cdemp },
     });
 
     if (!item) {
@@ -780,58 +788,65 @@ export class InventoryService {
 
     // 6ï¸âƒ£ Criar movimento
 
-    const created = await prisma.t_movest.create({
-      data: {
-        cdemp, // empresa onde o movimento acontece
+    const created = await prisma.$transaction(async (tx) => {
+      const movement = await tx.t_movest.create({
+        data: {
+          cdemp, // empresa onde o movimento acontece
 
-        cditem, // cÃ³digo numÃ©rico do item
+          cditem, // cÃ³digo numÃ©rico do item
+          id_item: item.id?.trim() ?? undefined,
+          id_empresa: companyId,
 
-        data: movementDate,
+          data: movementDate,
 
-        st: type,
+          st: type,
 
-        qtde: quantity,
+          qtde: quantity,
 
-        preco: unitPrice,
+          preco: unitPrice,
 
-        valor: totalValue,
+          valor: totalValue,
 
-        custo: cost,
+          custo: cost,
 
-        numdoc: dto.document?.number ?? null,
+          numdoc: dto.document?.number ?? null,
 
-        datadoc: dto.document?.date ? new Date(dto.document.date) : serverNow,
+          datadoc: dto.document?.date ? new Date(dto.document.date) : serverNow,
 
-        especie,
+          especie,
 
-        clifor: dto.customerOrSupplier,
+          clifor: dto.customerOrSupplier,
 
-        codusu: userCode,
+          codusu: userCode,
 
-        empitem, // almoxarifado informado
+          empitem, // almoxarifado informado
 
-        empfor, // empresa de referencia
+          empfor, // empresa de referencia
 
-        empmov, // empresa do movimento (codigo numerico)
+          empmov, // empresa do movimento (codigo numerico)
 
-        empven,
+          empven,
 
-        saldoant: previousBalance,
+          saldoant: previousBalance,
 
-        sldantemp: currentBalance,
+          sldantemp: currentBalance,
 
-        obs: dto.notes ?? null,
+          obs: dto.notes ?? null,
 
-        obsit: dto.notes ?? null,
+          obsit: dto.notes ?? null,
 
-        datalan: serverNow,
+          datalan: serverNow,
 
-        isdeleted: false,
+          isdeleted: false,
 
-        createdat: serverNow,
+          createdat: serverNow,
 
-        updatedat: serverNow,
-      },
+          updatedat: serverNow,
+        },
+      });
+
+      await applyMovestBalanceFromCreates(tx, [movement]);
+      return movement;
     });
 
     // 7ï¸âƒ£ Retorno padrÃ£o

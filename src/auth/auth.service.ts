@@ -36,12 +36,13 @@ export class AuthService {
     }
 
     const users = await prisma.$queryRaw<TenantUserLoginRow[]>`
-      SELECT TOP 1 cdusu, deusu, senha, adm, email
+      SELECT cdusu, deusu, senha, adm, email
       FROM t_users
-      WHERE ISNULL(isdeleted, 0) = 0
-        AND ISNULL(ativo, 'N') = 'S'
-        AND UPPER(LTRIM(RTRIM(email))) = UPPER(LTRIM(RTRIM(${normalizedEmail})))
+      WHERE COALESCE(isdeleted, false) = false
+        AND COALESCE(ativo, 'N') = 'S'
+        AND UPPER(TRIM(email)) = UPPER(TRIM(${normalizedEmail}))
       ORDER BY codigo DESC
+      LIMIT 1
     `;
 
     return users[0] ?? null;
@@ -54,32 +55,17 @@ export class AuthService {
     }
 
     const prisma = await this.tenantDbService.getTenantClient(tenant);
+    const rawLinks = await prisma.$queryRaw<{ codemp: number }[]>`
+      SELECT DISTINCT codemp
+      FROM t_usere
+      WHERE COALESCE(isdeleted, false) = false
+        AND UPPER(TRIM(codusu)) = UPPER(TRIM(${cdusu}))
+    `;
 
-    const links = await prisma.t_usere.findMany({
-      where: {
-        codusu: cdusu,
-        NOT: { isdeleted: true },
-      },
-      select: { codemp: true },
-      distinct: ['codemp'],
-    });
-
-    let companyIds = links
-      .map((link) => link.codemp)
-      .filter((id): id is number => typeof id === 'number');
-
-    if (!companyIds.length) {
-      const rawLinks = await prisma.$queryRaw<{ codemp: number }[]>`
-        SELECT DISTINCT codemp
-        FROM t_usere
-        WHERE ISNULL(isdeleted, 0) = 0
-          AND UPPER(LTRIM(RTRIM(codusu))) = UPPER(LTRIM(RTRIM(${cdusu})))
-      `;
-
-      companyIds = rawLinks
-        .map((link) => link.codemp)
-        .filter((id): id is number => typeof id === 'number');
-    }
+    const companyIds = rawLinks
+      .map((link) => Number(link.codemp))
+      .filter((id) => Number.isFinite(id))
+      .map((id) => Math.trunc(id));
 
     if (!companyIds.length) {
       return [];

@@ -15,11 +15,11 @@ type ItemTypeFlags = {
 };
 
 type ItemSummary = {
-  ID: string | null;
+  id: string | null;
   cditem: number;
   cdemp: number;
   itprodsn: string | null;
-  ComboSN: string | null;
+  combosn: string | null;
   undven: string | null;
 };
 
@@ -79,7 +79,7 @@ export class ProductBaseService {
       negativo: 'S',
       aceitadesc: 'S',
       itprodsn: flags.itprodsn,
-      ComboSN: flags.comboSN,
+      combosn: flags.comboSN,
       datacadit: new Date(),
       updatedat: new Date(),
     };
@@ -94,7 +94,7 @@ export class ProductBaseService {
     const data: Prisma.t_itensUncheckedUpdateInput = {
       updatedat: new Date(),
       itprodsn: flags.itprodsn,
-      ComboSN: flags.comboSN,
+      combosn: flags.comboSN,
     };
 
     if (dto.name !== undefined) {
@@ -172,14 +172,14 @@ export class ProductBaseService {
     const item = await prisma.t_itens.findFirst({
       where: {
         cdemp,
-        ID: id,
+        id: id,
       },
       select: {
-        ID: true,
+        id: true,
         cditem: true,
         cdemp: true,
         itprodsn: true,
-        ComboSN: true,
+        combosn: true,
         undven: true,
       },
     });
@@ -192,7 +192,7 @@ export class ProductBaseService {
   }
 
   protected ensureItemId(item: ItemSummary): string {
-    const id = item.ID?.trim();
+    const id = item.id?.trim();
     if (!id) {
       throw new BadRequestException('Item sem ID UUID valido.');
     }
@@ -206,8 +206,8 @@ export class ProductBaseService {
   ): Promise<{ formulaCount: number; comboCount: number }> {
     // TODO: add product_type column in t_itens to avoid relation checks.
     const [formulaCount, comboCount] = await Promise.all([
-      prisma.t_formulas.count({ where: { ID_ITEM: itemId } }),
-      prisma.t_ItensCombo.count({ where: { ID_ITEM: itemId } }),
+      prisma.t_formulas.count({ where: { id_item: itemId } }),
+      prisma.t_itenscombo.count({ where: { id_item: itemId } }),
     ]);
 
     return { formulaCount, comboCount };
@@ -248,3 +248,4 @@ export class ProductBaseService {
     return parsed;
   }
 }
+

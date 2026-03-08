@@ -9,6 +9,10 @@ import type { PrismaClient as MainClient } from '../../prisma/generated/client_m
 import { MainPrisma, TenantPrisma } from '../lib/prisma-clients';
 import { TenantDbService } from '../tenant-db/tenant-db.service';
 import type { PrimaryKeyType, TenantTableConfig } from './tenant-table.config';
+import {
+  applyMovestBalanceChanges,
+  applyMovestBalanceFromCreates,
+} from '../lib/movest-balance';
 
 interface WhereParams {
   [key: string]: string;
@@ -27,7 +31,7 @@ export type GenericTenantUserContext = {
 const LATITUDE_ALIASES = [
   'latitude',
   'Latitude',
-  'LATITUDE',
+  'latitude',
   'lat',
   'Lat',
   'LAT',
@@ -39,7 +43,7 @@ const LATITUDE_ALIASES = [
 const LONGITUDE_ALIASES = [
   'longitude',
   'Longitude',
-  'LONGITUDE',
+  'longitude',
   'lng',
   'Lng',
   'LNG',
@@ -98,11 +102,15 @@ export class GenericTenantService {
   }
 
   private quoteIdentifier(value: string): string {
-    return `[${value.replace(/]/g, ']]')}]`;
+    return `"${value.replace(/"/g, '""')}"`;
   }
 
   private isCompanyTable(): boolean {
     return this.config.name.toLowerCase() === 't_emp';
+  }
+
+  private isStockMovementTable(): boolean {
+    return this.config.name.toLowerCase() === 't_movest';
   }
 
   private readAliasValue(
@@ -260,11 +268,12 @@ export class GenericTenantService {
   ): Promise<number | null> {
     const rows = await main.$queryRaw<Array<{ id: number }>>(
       MainPrisma.sql`
-        SELECT TOP (1) id
+        SELECT id
         FROM t_acessos
-        WHERE REPLACE(REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(ISNULL(cnpj, ''))), '.', ''), '/', ''), '-', ''), ' ', '') = ${cnpjDigits}
-          AND LOWER(LTRIM(RTRIM(ISNULL(Empresa, '')))) = LOWER(LTRIM(RTRIM(${companyAlias})))
+        WHERE REPLACE(REPLACE(REPLACE(REPLACE(TRIM(COALESCE(cnpj, '')), '.', ''), '/', ''), '-', ''), ' ', '') = ${cnpjDigits}
+          AND LOWER(TRIM(COALESCE(empresa, ''))) = LOWER(TRIM(${companyAlias}))
         ORDER BY CASE WHEN ativo = 'S' THEN 0 ELSE 1 END, id
+        LIMIT 1
       `,
     );
 
@@ -302,13 +311,13 @@ export class GenericTenantService {
       return;
     }
 
-    const logoUrl = this.normalizeText(entity?.logonfe, 1000);
+    const logourl = this.normalizeText(entity?.logonfe, 1000);
     const imagemCapa = this.normalizeText(entity?.imagem_capa, 255);
 
     await main.t_acessos.update({
       where: { id: acessoId },
       data: {
-        logoUrl,
+        logourl,
         imagem_capa: imagemCapa,
       },
     });
@@ -339,10 +348,11 @@ export class GenericTenantService {
 
     const rows = await prisma.$queryRaw<Array<{ hasLocation?: number }>>(
       TenantPrisma.sql`
-        SELECT TOP (1) 1 AS hasLocation
+        SELECT 1 AS "hasLocation"
         FROM INFORMATION_SCHEMA.COLUMNS
         WHERE LOWER(TABLE_NAME) = LOWER(${this.config.name})
           AND LOWER(COLUMN_NAME) = 'location'
+        LIMIT 1
       `,
     );
 
@@ -359,11 +369,14 @@ export class GenericTenantService {
       Array<{ TABLE_SCHEMA?: string; TABLE_NAME?: string }>
     >(
       TenantPrisma.sql`
-        SELECT TOP (1) TABLE_SCHEMA, TABLE_NAME
+        SELECT
+          TABLE_SCHEMA AS "TABLE_SCHEMA",
+          TABLE_NAME AS "TABLE_NAME"
         FROM INFORMATION_SCHEMA.TABLES
         WHERE TABLE_TYPE = 'BASE TABLE'
           AND LOWER(TABLE_NAME) = LOWER(${this.config.name})
-        ORDER BY CASE WHEN TABLE_SCHEMA = 'dbo' THEN 0 ELSE 1 END, TABLE_SCHEMA
+        ORDER BY CASE WHEN TABLE_SCHEMA = 'public' THEN 0 ELSE 1 END, TABLE_SCHEMA
+        LIMIT 1
       `,
     );
 
@@ -408,11 +421,11 @@ export class GenericTenantService {
     await prisma.$executeRaw(
       TenantPrisma.sql`
         UPDATE ${TenantPrisma.raw(tableRef)}
-        SET [location] = CASE
+        SET location = CASE
           WHEN ${latitude} IS NULL OR ${longitude} IS NULL THEN NULL
-          ELSE geography::Point(${latitude}, ${longitude}, 4326)
+          ELSE POINT(${longitude}, ${latitude})
         END
-        WHERE [cdemp] = ${cdemp}
+        WHERE cdemp = ${cdemp}
       `,
     );
   }
@@ -531,6 +544,21 @@ export class GenericTenantService {
       );
     }
 
+    if (this.isStockMovementTable()) {
+      return prisma.$transaction(async (tx) => {
+        const txDelegate = (tx as any)?.[this.config.name];
+        if (!txDelegate) {
+          throw new NotFoundException(
+            `Delegate for model '${this.config.name}' not found in Prisma client.`,
+          );
+        }
+
+        const created = await txDelegate.create({ data });
+        await applyMovestBalanceFromCreates(tx, [created]);
+        return created;
+      });
+    }
+
     const created = await delegate.create({ data });
 
     await this.syncCompanySideEffects(
@@ -582,6 +610,31 @@ export class GenericTenantService {
       );
     }
 
+    if (this.isStockMovementTable()) {
+      return prisma.$transaction(async (tx) => {
+        const txDelegate = (tx as any)?.[this.config.name];
+        if (!txDelegate) {
+          throw new NotFoundException(
+            `Delegate for model '${this.config.name}' not found in Prisma client.`,
+          );
+        }
+
+        const previous = await txDelegate.findUnique({ where });
+        if (!previous) {
+          throw new NotFoundException(
+            `Registro nÃ£o encontrado em '${this.config.name}'.`,
+          );
+        }
+
+        const updated = await txDelegate.update({ where, data });
+        await applyMovestBalanceChanges(tx, [
+          { movement: previous, reverse: true },
+          { movement: updated },
+        ]);
+        return updated;
+      });
+    }
+
     await this.ensureExists(delegate, where);
     const updated = await delegate.update({ where, data });
 
@@ -599,8 +652,33 @@ export class GenericTenantService {
   }
 
   async remove(tenant: string, params: WhereParams) {
-    const { delegate } = await this.getDelegate(tenant);
+    const { prisma, delegate } = await this.getDelegate(tenant);
     const where = this.buildWhere(params);
+
+    if (this.isStockMovementTable()) {
+      return prisma.$transaction(async (tx) => {
+        const txDelegate = (tx as any)?.[this.config.name];
+        if (!txDelegate) {
+          throw new NotFoundException(
+            `Delegate for model '${this.config.name}' not found in Prisma client.`,
+          );
+        }
+
+        const previous = await txDelegate.findUnique({ where });
+        if (!previous) {
+          throw new NotFoundException(
+            `Registro nÃ£o encontrado em '${this.config.name}'.`,
+          );
+        }
+
+        const deleted = await txDelegate.delete({ where });
+        await applyMovestBalanceChanges(tx, [
+          { movement: previous, reverse: true },
+        ]);
+        return deleted;
+      });
+    }
+
     await this.ensureExists(delegate, where);
     return delegate.delete({ where });
   }

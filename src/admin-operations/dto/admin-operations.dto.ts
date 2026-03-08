@@ -8,6 +8,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Max,
   MaxLength,
   Min,
   ValidateNested,
@@ -138,6 +139,31 @@ export class SalesQueryDto {
   @IsNumber()
   @Min(1)
   limit?: number;
+}
+
+export class DashboardRevenueByCategoryQueryDto {
+  @IsOptional()
+  @IsDateString()
+  referenceDate?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  limit?: number;
+}
+
+export class DashboardRevenueMonthlyQueryDto {
+  @IsOptional()
+  @IsDateString()
+  referenceDate?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  @Max(24)
+  months?: number;
 }
 
 export class DispatchSaleDto {

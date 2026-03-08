@@ -118,8 +118,7 @@ exports.Prisma.TransactionIsolationLevel = makeStrictEnum({
   ReadUncommitted: 'ReadUncommitted',
   ReadCommitted: 'ReadCommitted',
   RepeatableRead: 'RepeatableRead',
-  Serializable: 'Serializable',
-  Snapshot: 'Snapshot'
+  Serializable: 'Serializable'
 });
 
 exports.Prisma.T_acessosScalarFieldEnum = {
@@ -136,33 +135,21 @@ exports.Prisma.T_acessosScalarFieldEnum = {
   cnpj: 'cnpj',
   ddd: 'ddd',
   whatsapp: 'whatsapp',
-  createdAt: 'createdAt',
-  Empresa: 'Empresa',
-  logoUrl: 'logoUrl',
+  createdat: 'createdat',
+  empresa: 'empresa',
+  logourl: 'logourl',
   imagem_capa: 'imagem_capa',
   subdominio: 'subdominio'
-};
-
-exports.Prisma.T_bancoScalarFieldEnum = {
-  id: 'id',
-  banco: 'banco',
-  hscode: 'hscode',
-  data: 'data'
-};
-
-exports.Prisma.T_logScalarFieldEnum = {
-  reglog: 'reglog',
-  data: 'data',
-  login: 'login',
-  usuario: 'usuario',
-  empresa: 'empresa',
-  loja: 'loja',
-  motivo: 'motivo'
 };
 
 exports.Prisma.SortOrder = {
   asc: 'asc',
   desc: 'desc'
+};
+
+exports.Prisma.QueryMode = {
+  default: 'default',
+  insensitive: 'insensitive'
 };
 
 exports.Prisma.NullsOrder = {
@@ -172,9 +159,7 @@ exports.Prisma.NullsOrder = {
 
 
 exports.Prisma.ModelName = {
-  t_acessos: 't_acessos',
-  t_banco: 't_banco',
-  t_log: 't_log'
+  t_acessos: 't_acessos'
 };
 
 /**

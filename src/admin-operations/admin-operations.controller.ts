@@ -24,6 +24,8 @@ import {
   CashItemSearchDto,
   CloseCashierDto,
   CourierQueryDto,
+  DashboardRevenueByCategoryQueryDto,
+  DashboardRevenueMonthlyQueryDto,
   CustomersQueryDto,
   DispatchSaleDto,
   OpenCashierDto,
@@ -120,6 +122,30 @@ export class AdminOperationsController {
   @Get('vendas')
   listSales(@Req() req: TenantRequest, @Query() query: SalesQueryDto) {
     return this.adminOpsService.listSales(
+      this.getTenant(req),
+      this.getWarehouse(req),
+      query,
+    );
+  }
+
+  @Get('dashboard/faturamento-dia')
+  getDailyRevenueByCategory(
+    @Req() req: TenantRequest,
+    @Query() query: DashboardRevenueByCategoryQueryDto,
+  ) {
+    return this.adminOpsService.getDailyRevenueByCategory(
+      this.getTenant(req),
+      this.getWarehouse(req),
+      query,
+    );
+  }
+
+  @Get('dashboard/faturamento-mensal')
+  getMonthlyRevenue(
+    @Req() req: TenantRequest,
+    @Query() query: DashboardRevenueMonthlyQueryDto,
+  ) {
+    return this.adminOpsService.getMonthlyRevenue(
       this.getTenant(req),
       this.getWarehouse(req),
       query,

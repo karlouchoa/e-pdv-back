@@ -43,14 +43,6 @@ export class OrderStatusRepository {
           note,
           changed_by
         )
-        OUTPUT
-          INSERTED.id AS id,
-          INSERTED.venda_id AS vendaId,
-          INSERTED.status AS status,
-          INSERTED.source AS source,
-          INSERTED.note AS note,
-          INSERTED.changed_by AS changedBy,
-          INSERTED.changed_at AS changedAt
         VALUES (
           ${payload.vendaId},
           ${payload.status},
@@ -58,6 +50,14 @@ export class OrderStatusRepository {
           ${payload.note ?? null},
           ${payload.changedBy ?? null}
         )
+        RETURNING
+          id AS "id",
+          venda_id AS "vendaId",
+          status AS "status",
+          source AS "source",
+          note AS "note",
+          changed_by AS "changedBy",
+          changed_at AS "changedAt"
       `,
     );
 
@@ -74,13 +74,13 @@ export class OrderStatusRepository {
     return prisma.$queryRaw<OrderStatusHistoryRow[]>(
       TenantPrisma.sql`
         SELECT
-          id,
-          venda_id AS vendaId,
-          status,
-          source,
-          note,
-          changed_by AS changedBy,
-          changed_at AS changedAt
+          id AS "id",
+          venda_id AS "vendaId",
+          status AS "status",
+          source AS "source",
+          note AS "note",
+          changed_by AS "changedBy",
+          changed_at AS "changedAt"
         FROM app_order_status_history
         WHERE venda_id = ${vendaId}
         ORDER BY changed_at DESC

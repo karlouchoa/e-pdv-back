@@ -96,24 +96,24 @@ export class PublicCustomersService {
     const addresses = await prisma.$queryRaw<PublicClientAddressDto[]>`
       SELECT
         ID AS id,
-        ID_CLIENTE AS id_cliente,
-        CEP AS cep,
-        LOGRADOURO AS logradouro,
-        NUMERO AS numero,
-        BAIRRO AS bairro,
-        CIDADE AS cidade,
-        UF AS uf,
-        COMPLEMENTO AS complemento,
-        PONTO_REFERENCIA AS ponto_referencia,
-        TIPO_LOCAL AS tipo_local,
-        INSTRUCOES_ENTREGA AS instrucoes_entrega,
-        LATITUDE AS latitude,
-        LONGITUDE AS longitude,
-        TIPO_ENDERECO AS tipo_endereco
-      FROM T_ENDCLI
-      WHERE ID_CLIENTE = ${clientId}
-        AND ISNULL(ISDELETED, 0) = 0
-      ORDER BY CREATEDAT DESC, ID DESC
+        id_cliente AS id_cliente,
+        cep AS cep,
+        logradouro AS logradouro,
+        numero AS numero,
+        bairro AS bairro,
+        cidade AS cidade,
+        uf AS uf,
+        complemento AS complemento,
+        ponto_referencia AS ponto_referencia,
+        tipo_local AS tipo_local,
+        instrucoes_entrega AS instrucoes_entrega,
+        latitude AS latitude,
+        longitude AS longitude,
+        tipo_endereco AS tipo_endereco
+      FROM t_endcli
+      WHERE id_cliente = ${clientId}
+        AND COALESCE(isdeleted, false) = false
+      ORDER BY createdat DESC, ID DESC
     `;
 
     return plainToInstance(PublicClientAddressDto, addresses ?? [], {
@@ -144,10 +144,10 @@ export class PublicCustomersService {
 
     await prisma.$executeRaw(
       TenantPrisma.sql`
-        UPDATE T_ENDCLI
-        SET [location] = CASE
+        UPDATE t_endcli
+        SET location = CASE
           WHEN ${latitude ?? null} IS NULL OR ${longitude ?? null} IS NULL THEN NULL
-          ELSE geography::Point(${latitude ?? null}, ${longitude ?? null}, 4326)
+          ELSE POINT(${longitude ?? null}, ${latitude ?? null})
         END
         WHERE ID = ${addressId}
       `,
@@ -166,7 +166,7 @@ export class PublicCustomersService {
 
     const prisma = await this.getPrisma(tenant);
     const records = await prisma.$queryRaw<PublicClientRow[]>`
-      SELECT TOP 1
+      SELECT
         id,
         cdcli,
         cdemp,
@@ -179,14 +179,15 @@ export class PublicCustomersService {
         cnpj_cpfcli
       FROM t_cli
       WHERE (
-        CONCAT(ISNULL(dddcli, ''), ISNULL(fonecli, '')) = ${term}
-        OR CONCAT(ISNULL(dddcli, ''), ISNULL(celcli, '')) = ${term}
-        OR ISNULL(fonecli, '') = ${term}
-        OR ISNULL(celcli, '') = ${term}
+        CONCAT(COALESCE(dddcli, ''), COALESCE(fonecli, '')) = ${term}
+        OR CONCAT(COALESCE(dddcli, ''), COALESCE(celcli, '')) = ${term}
+        OR COALESCE(fonecli, '') = ${term}
+        OR COALESCE(celcli, '') = ${term}
       )
         AND (${cdemp} IS NULL OR cdemp = ${cdemp})
-        AND ISNULL(isdeleted, 0) = 0
-      ORDER BY ISNULL(updatedat, createdat) DESC, id DESC
+        AND COALESCE(isdeleted, false) = false
+      ORDER BY COALESCE(updatedat, createdat) DESC, id DESC
+      LIMIT 1
     `;
 
     const record = records[0] ?? null;
@@ -297,7 +298,7 @@ export class PublicCustomersService {
         const uf = this.normalizeUf(dto.endereco.uf);
         if (!cep || !numero || !bairro || !cidade) {
           throw new BadRequestException(
-            'Endereco incompleto. Informe CEP, numero (ou S/N), bairro e cidade.',
+            'Endereco incompleto. Informe cep, numero (ou S/N), bairro e cidade.',
           );
         }
 
@@ -307,13 +308,13 @@ export class PublicCustomersService {
           dto.endereco.longitude === undefined ? null : dto.endereco.longitude;
 
         if (dto.endereco.id) {
-          const existingAddress = await tx.t_ENDCLI.findFirst({
+          const existingAddress = await tx.t_endcli.findFirst({
             where: {
-              ID: dto.endereco.id,
-              ID_CLIENTE: client.id,
-              ISDELETED: false,
+              id: dto.endereco.id,
+              id_cliente: client.id,
+              isdeleted: false,
             },
-            select: { ID: true },
+            select: { id: true },
           });
 
           if (!existingAddress) {
@@ -322,34 +323,34 @@ export class PublicCustomersService {
             );
           }
 
-          const updatedAddress = await tx.t_ENDCLI.update({
-            where: { ID: existingAddress.ID },
+          const updatedAddress = await tx.t_endcli.update({
+            where: { id: existingAddress.id },
             data: {
-              CEP: cep,
-              LOGRADOURO: logradouro,
-              NUMERO: numero,
-              BAIRRO: bairro,
-              CIDADE: cidade,
-              UF: uf,
-              COMPLEMENTO: this.normalizeText(dto.endereco.complemento, 100),
-              PONTO_REFERENCIA: this.normalizeText(
+              cep: cep,
+              logradouro: logradouro,
+              numero: numero,
+              bairro: bairro,
+              cidade: cidade,
+              uf: uf,
+              complemento: this.normalizeText(dto.endereco.complemento, 100),
+              ponto_referencia: this.normalizeText(
                 dto.endereco.pontoReferencia,
                 255,
               ),
-              TIPO_LOCAL: this.normalizeText(dto.endereco.tipoLocal, 20),
-              INSTRUCOES_ENTREGA: this.normalizeText(
+              tipo_local: this.normalizeText(dto.endereco.tipoLocal, 20),
+              instrucoes_entrega: this.normalizeText(
                 dto.endereco.instrucoesEntrega,
                 2000,
               ),
-              LATITUDE: latitude,
-              LONGITUDE: longitude,
-              TIPO_ENDERECO: this.normalizeText(dto.endereco.tipoEndereco, 3),
-              UPDATEDAT: now,
+              latitude: latitude,
+              longitude: longitude,
+              tipo_endereco: this.normalizeText(dto.endereco.tipoEndereco, 3),
+              updatedat: now,
             },
-            select: { ID: true },
+            select: { id: true },
           });
 
-          selectedAddressId = updatedAddress.ID;
+          selectedAddressId = updatedAddress.id;
           if (selectedAddressId) {
             await this.syncAddressLocation(
               tx,
@@ -359,35 +360,35 @@ export class PublicCustomersService {
             );
           }
         } else {
-          const createdAddress = await tx.t_ENDCLI.create({
+          const createdAddress = await tx.t_endcli.create({
             data: {
-              ID_CLIENTE: client.id,
-              CEP: cep,
-              LOGRADOURO: logradouro,
-              NUMERO: numero,
-              BAIRRO: bairro,
-              CIDADE: cidade,
-              UF: uf,
-              COMPLEMENTO: this.normalizeText(dto.endereco.complemento, 100),
-              PONTO_REFERENCIA: this.normalizeText(
+              id_cliente: client.id,
+              cep: cep,
+              logradouro: logradouro,
+              numero: numero,
+              bairro: bairro,
+              cidade: cidade,
+              uf: uf,
+              complemento: this.normalizeText(dto.endereco.complemento, 100),
+              ponto_referencia: this.normalizeText(
                 dto.endereco.pontoReferencia,
                 255,
               ),
-              TIPO_LOCAL: this.normalizeText(dto.endereco.tipoLocal, 20),
-              INSTRUCOES_ENTREGA: this.normalizeText(
+              tipo_local: this.normalizeText(dto.endereco.tipoLocal, 20),
+              instrucoes_entrega: this.normalizeText(
                 dto.endereco.instrucoesEntrega,
                 2000,
               ),
-              LATITUDE: latitude,
-              LONGITUDE: longitude,
-              TIPO_ENDERECO:
+              latitude: latitude,
+              longitude: longitude,
+              tipo_endereco:
                 this.normalizeText(dto.endereco.tipoEndereco, 3) ?? 'ENT',
-              CDUSU: 'PUBLIC',
+              cdusu: 'PUBLIC',
             },
-            select: { ID: true },
+            select: { id: true },
           });
 
-          selectedAddressId = createdAddress.ID;
+          selectedAddressId = createdAddress.id;
           if (selectedAddressId) {
             await this.syncAddressLocation(
               tx,

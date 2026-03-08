@@ -97,7 +97,7 @@ export class ProductBService extends ProductBaseService {
       });
 
       const itemId = this.ensureItemId(item);
-      await tx.t_formulas.deleteMany({ where: { ID_ITEM: itemId } });
+      await tx.t_formulas.deleteMany({ where: { id_item: itemId } });
 
       const formulaData = this.buildFormulaData(
         normalized,
@@ -123,7 +123,7 @@ export class ProductBService extends ProductBaseService {
 
     return prisma.$transaction(async (tx) => {
       const itemId = this.ensureItemId(item);
-      await tx.t_formulas.deleteMany({ where: { ID_ITEM: itemId } });
+      await tx.t_formulas.deleteMany({ where: { id_item: itemId } });
 
       const updated = await tx.t_itens.update({
         where: {
@@ -211,7 +211,7 @@ export class ProductBService extends ProductBaseService {
       undmp: formula.unit,
       empitemmp: cdemp,
       deitem_iv: null,
-      ID_ITEM: itemId,
+      id_item: itemId,
     }));
   }
 
@@ -224,7 +224,7 @@ export class ProductBService extends ProductBaseService {
       throw new BadRequestException('Item nao marcado como produto composto.');
     }
 
-    if (item.ComboSN === 'S') {
+    if (item.combosn === 'S') {
       throw new BadRequestException('Item pertence a produtos combo.');
     }
 

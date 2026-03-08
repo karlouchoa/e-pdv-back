@@ -110,12 +110,25 @@ export function resolvePublicSubdomainFromRequest(
   req: Request,
   options?: { optional?: boolean },
 ): string | null {
-  const tenantFromHost = extractTenantFromHost(
-    normalizeHost(firstHeaderValue(req.headers.host)),
-  );
+  const headerTenant = firstHeaderValue(req.headers['x-tenant']);
+  if (headerTenant) {
+    const normalized = headerTenant.toLowerCase();
+    if (!RESERVED_TENANTS.has(normalized)) {
+      return normalized;
+    }
+  }
 
-  if (tenantFromHost) {
-    return tenantFromHost;
+  const tenantFromCandidates = [
+    firstHeaderValue(req.headers.host),
+    firstHeaderValue(req.headers['x-forwarded-host']),
+    firstHeaderValue(req.headers.origin),
+    firstHeaderValue(req.headers.referer),
+  ]
+    .map((candidate) => extractTenantFromHost(normalizeHost(candidate)))
+    .find((candidate): candidate is string => Boolean(candidate));
+
+  if (tenantFromCandidates) {
+    return tenantFromCandidates;
   }
 
   if (options?.optional) {

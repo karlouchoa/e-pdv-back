@@ -52,7 +52,7 @@ export class PublicOrdersService {
   private toVendaResponse(record: TvendasModel) {
     const mapped = {
       autocod_v: record.autocod_v,
-      id: record.ID ?? null,
+      id: record.id ?? null,
       nrven_v: record.nrven_v,
       cdemp_v: record.cdemp_v,
       emisven_v: record.emisven_v ?? null,
@@ -73,7 +73,7 @@ export class PublicOrdersService {
       trocreq: record.trocreq ?? null,
       empcli: record.empcli ?? null,
       horaven_v: record.horaven_v ?? null,
-      id_cliente: record.ID_CLIENTE ?? null,
+      id_cliente: record.id_cliente ?? null,
       createdat: record.createdat ?? null,
       updatedat: record.updatedat ?? null,
     };
@@ -107,8 +107,8 @@ export class PublicOrdersService {
   private toItsvenResponse(record: TitsvenModel) {
     const mapped = {
       registro: record.registro,
-      id: record.ID ?? null,
-      id_venda: record.ID_VENDA ?? null,
+      id: record.id ?? null,
+      id_venda: record.id_venda ?? null,
       empven: record.empven,
       nrven_iv: record.nrven_iv,
       cdemp_iv: record.cdemp_iv ?? null,
@@ -203,8 +203,8 @@ export class PublicOrdersService {
       trocreq: dto.trocreq,
       empcli: dto.empcli,
       horaven_v: dto.horaven_v,
-      ID: dto.id,
-      ID_CLIENTE: dto.id_cliente,
+      id: dto.id,
+      id_cliente: dto.id_cliente,
       createdat: dto.createdat ? new Date(dto.createdat) : undefined,
       updatedat: dto.updatedat ? new Date(dto.updatedat) : undefined,
     };
@@ -237,8 +237,8 @@ export class PublicOrdersService {
       custo_iv: snapshot.cost,
       st: dto.st,
       mp: dto.mp,
-      ID: dto.id,
-      ID_VENDA: dto.id_venda ?? vendaId ?? undefined,
+      id: dto.id,
+      id_venda: dto.id_venda ?? vendaId ?? undefined,
     };
   }
 
@@ -427,7 +427,7 @@ export class PublicOrdersService {
     vendaId: string,
   ): Promise<void> {
     const itens = await prisma.t_itsven.findMany({
-      where: { ID_VENDA: vendaId },
+      where: { id_venda: vendaId },
       select: {
         qtdesol_iv: true,
         precven_iv: true,
@@ -447,7 +447,7 @@ export class PublicOrdersService {
     );
 
     const venda = await prisma.t_vendas.findFirst({
-      where: { ID: vendaId },
+      where: { id: vendaId },
       select: { autocod_v: true, nrven_v: true, cdemp_v: true },
     });
 
@@ -492,8 +492,8 @@ export class PublicOrdersService {
 
     const record = await prisma.t_itsven.create({ data });
 
-    if (record.ID_VENDA) {
-      await this.updateVendaTotals(prisma, record.ID_VENDA);
+    if (record.id_venda) {
+      await this.updateVendaTotals(prisma, record.id_venda);
     }
     return this.toItsvenResponse(record);
   }
@@ -530,7 +530,7 @@ export class PublicOrdersService {
         data: this.buildVendaData(dto, totals),
       });
 
-      const vendaId = vendaRecord.ID ?? null;
+      const vendaId = vendaRecord.id ?? null;
 
       const createdItems: PublicItsvenResponseDto[] = [];
       for (let index = 0; index < itens.length; index += 1) {
@@ -553,9 +553,9 @@ export class PublicOrdersService {
     const prisma = await this.getPrisma(tenant);
 
     const venda = await prisma.t_vendas.findFirst({
-      where: { ID: vendaId },
+      where: { id: vendaId },
       select: {
-        ID: true,
+        id: true,
         status_v: true,
         totven_v: true,
         totpro_v: true,
@@ -564,14 +564,14 @@ export class PublicOrdersService {
       },
     });
 
-    if (!venda?.ID) {
+    if (!venda?.id) {
       throw new NotFoundException('Pedido nao encontrado.');
     }
 
     const itens = await prisma.t_itsven.findMany({
-      where: { ID_VENDA: vendaId },
+      where: { id_venda: vendaId },
       select: {
-        ID: true,
+        id: true,
         cditem_iv: true,
         deitem_iv: true,
         qtdesol_iv: true,
@@ -583,7 +583,7 @@ export class PublicOrdersService {
       const quantity = this.toNumber(item.qtdesol_iv);
       const unitPrice = this.toNumber(item.precven_iv);
       return {
-        id: item.ID ?? null,
+        id: item.id ?? null,
         cditem: item.cditem_iv ?? null,
         description: item.deitem_iv ?? null,
         quantity,
@@ -603,7 +603,7 @@ export class PublicOrdersService {
     const status = venda.status_v?.trim() || 'PENDING';
 
     return this.toPublicOrderResponse({
-      id: venda.ID,
+      id: venda.id,
       status,
       subtotal,
       discountValue,

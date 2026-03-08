@@ -90,8 +90,7 @@ exports.Prisma.TransactionIsolationLevel = makeStrictEnum({
   ReadUncommitted: 'ReadUncommitted',
   ReadCommitted: 'ReadCommitted',
   RepeatableRead: 'RepeatableRead',
-  Serializable: 'Serializable',
-  Snapshot: 'Snapshot'
+  Serializable: 'Serializable'
 });
 
 exports.Prisma.T_acessosScalarFieldEnum = {
@@ -108,33 +107,21 @@ exports.Prisma.T_acessosScalarFieldEnum = {
   cnpj: 'cnpj',
   ddd: 'ddd',
   whatsapp: 'whatsapp',
-  createdAt: 'createdAt',
-  Empresa: 'Empresa',
-  logoUrl: 'logoUrl',
+  createdat: 'createdat',
+  empresa: 'empresa',
+  logourl: 'logourl',
   imagem_capa: 'imagem_capa',
   subdominio: 'subdominio'
-};
-
-exports.Prisma.T_bancoScalarFieldEnum = {
-  id: 'id',
-  banco: 'banco',
-  hscode: 'hscode',
-  data: 'data'
-};
-
-exports.Prisma.T_logScalarFieldEnum = {
-  reglog: 'reglog',
-  data: 'data',
-  login: 'login',
-  usuario: 'usuario',
-  empresa: 'empresa',
-  loja: 'loja',
-  motivo: 'motivo'
 };
 
 exports.Prisma.SortOrder = {
   asc: 'asc',
   desc: 'desc'
+};
+
+exports.Prisma.QueryMode = {
+  default: 'default',
+  insensitive: 'insensitive'
 };
 
 exports.Prisma.NullsOrder = {
@@ -144,9 +131,7 @@ exports.Prisma.NullsOrder = {
 
 
 exports.Prisma.ModelName = {
-  t_acessos: 't_acessos',
-  t_banco: 't_banco',
-  t_log: 't_log'
+  t_acessos: 't_acessos'
 };
 /**
  * Create the Client
@@ -186,7 +171,7 @@ const config = {
   "datasourceNames": [
     "db"
   ],
-  "activeProvider": "sqlserver",
+  "activeProvider": "postgresql",
   "postinstall": false,
   "inlineDatasources": {
     "db": {
@@ -196,13 +181,13 @@ const config = {
       }
     }
   },
-  "inlineSchema": "generator client {\n  provider = \"prisma-client-js\"\n  output   = \"./generated/client_main\"\n}\n\ndatasource db {\n  provider = \"sqlserver\"\n  url      = env(\"DATABASE_ACESSOS\")\n}\n\nmodel t_acessos {\n  id          Int      @id(map: \"PK_t_acessos\") @default(autoincrement())\n  login       String?  @db.VarChar(60)\n  senha       String?  @db.VarChar(15)\n  nome        String?  @db.VarChar(30)\n  funcao      String?  @db.VarChar(30)\n  banco       String?  @db.VarChar(100)\n  adm         String?  @db.Char(1)\n  ativo       String?  @db.Char(1)\n  con         Int?\n  pwd         String?  @db.Char(1)\n  cnpj        String?  @db.VarChar(18)\n  ddd         String?  @db.VarChar(2)\n  whatsapp    String?  @db.VarChar(10)\n  createdAt   DateTime @default(now(), map: \"DF_t_acessos_createdAt\") @db.DateTime\n  Empresa     String?  @db.VarChar(100)\n  logoUrl     String?  @db.VarChar(Max)\n  imagem_capa String?  @db.VarChar(255)\n  subdominio  String?  @db.VarChar(60)\n\n  @@map(\"t_acessos\")\n}\n\nmodel t_banco {\n  id     Int       @id(map: \"PK_T_BANCOS\") @default(autoincrement())\n  banco  String?   @db.VarChar(50)\n  hscode String?   @db.VarChar(30)\n  data   DateTime? @db.DateTime\n}\n\nmodel t_log {\n  reglog  Int       @id(map: \"PK_t_log\") @default(autoincrement())\n  data    DateTime? @db.DateTime\n  login   String    @db.VarChar(60)\n  usuario String?   @db.VarChar(30)\n  empresa String?   @db.VarChar(40)\n  loja    String?   @db.VarChar(20)\n  motivo  String?   @db.VarChar(120)\n}\n\n/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.\nmodel versao {\n  aplicativo String?   @db.VarChar(50)\n  compilacao DateTime? @db.DateTime\n\n  @@ignore\n}\n",
-  "inlineSchemaHash": "63752ea59b42ab5e9cb562e4cd34214b4e754afc0394dc60e05707aaa672b664",
+  "inlineSchema": "generator client {\n  provider = \"prisma-client-js\"\n  output   = \"./generated/client_main\"\n}\n\ndatasource db {\n  provider = \"postgresql\"\n  url      = env(\"DATABASE_ACESSOS\")\n}\n\nmodel t_acessos {\n  id          Int      @id(map: \"pk_t_acessos\") @default(autoincrement())\n  login       String?  @db.VarChar(60)\n  senha       String?  @db.VarChar(15)\n  nome        String?  @db.VarChar(30)\n  funcao      String?  @db.VarChar(30)\n  banco       String?  @db.VarChar(100)\n  adm         String?  @db.Char(1)\n  ativo       String?  @db.Char(1)\n  con         Int?\n  pwd         String?  @db.Char(1)\n  cnpj        String?  @db.VarChar(18)\n  ddd         String?  @db.VarChar(2)\n  whatsapp    String?  @db.VarChar(10)\n  createdat   DateTime @default(now()) @db.Timestamp(6)\n  empresa     String?  @db.VarChar(100)\n  logourl     String?  @db.VarChar(250)\n  imagem_capa String?  @db.VarChar(250)\n  subdominio  String?  @db.VarChar(60)\n}\n",
+  "inlineSchemaHash": "a39e836b1002a8e52ba28e06ea3b388ac9f93b8d2d5af54a2e8623acef5a0d90",
   "copyEngine": true
 }
 config.dirname = '/'
 
-config.runtimeDataModel = JSON.parse("{\"models\":{\"t_acessos\":{\"fields\":[{\"name\":\"id\",\"kind\":\"scalar\",\"type\":\"Int\"},{\"name\":\"login\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"senha\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"nome\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"funcao\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"banco\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"adm\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"ativo\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"con\",\"kind\":\"scalar\",\"type\":\"Int\"},{\"name\":\"pwd\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"cnpj\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"ddd\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"whatsapp\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"createdAt\",\"kind\":\"scalar\",\"type\":\"DateTime\"},{\"name\":\"Empresa\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"logoUrl\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"imagem_capa\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"subdominio\",\"kind\":\"scalar\",\"type\":\"String\"}],\"dbName\":\"t_acessos\"},\"t_banco\":{\"fields\":[{\"name\":\"id\",\"kind\":\"scalar\",\"type\":\"Int\"},{\"name\":\"banco\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"hscode\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"data\",\"kind\":\"scalar\",\"type\":\"DateTime\"}],\"dbName\":null},\"t_log\":{\"fields\":[{\"name\":\"reglog\",\"kind\":\"scalar\",\"type\":\"Int\"},{\"name\":\"data\",\"kind\":\"scalar\",\"type\":\"DateTime\"},{\"name\":\"login\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"usuario\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"empresa\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"loja\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"motivo\",\"kind\":\"scalar\",\"type\":\"String\"}],\"dbName\":null}},\"enums\":{},\"types\":{}}")
+config.runtimeDataModel = JSON.parse("{\"models\":{\"t_acessos\":{\"fields\":[{\"name\":\"id\",\"kind\":\"scalar\",\"type\":\"Int\"},{\"name\":\"login\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"senha\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"nome\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"funcao\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"banco\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"adm\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"ativo\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"con\",\"kind\":\"scalar\",\"type\":\"Int\"},{\"name\":\"pwd\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"cnpj\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"ddd\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"whatsapp\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"createdat\",\"kind\":\"scalar\",\"type\":\"DateTime\"},{\"name\":\"empresa\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"logourl\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"imagem_capa\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"subdominio\",\"kind\":\"scalar\",\"type\":\"String\"}],\"dbName\":null}},\"enums\":{},\"types\":{}}")
 defineDmmfProperty(exports.Prisma, config.runtimeDataModel)
 config.engineWasm = {
   getRuntime: async () => require('./query_engine_bg.js'),

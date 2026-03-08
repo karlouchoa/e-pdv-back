@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Controller,
   Get,
   Post,
@@ -13,6 +14,10 @@ import {
 import { TItensService } from './t_itens.service';
 import { CreateTItemDto } from './dto/create-t_itens.dto';
 import { UpdateTItemDto } from './dto/update-t_itens.dto';
+import {
+  SyncTItensBatchDto,
+  SyncTItensBatchItemDto,
+} from './dto/sync-t_itens-batch.dto';
 import { TenantJwtGuard } from '../auth/tenant-jwt.guard';
 import type { Request } from 'express';
 
@@ -24,11 +29,50 @@ interface TenantRequest extends Request {
 export class TItensController {
   constructor(private readonly tItensService: TItensService) {}
 
+  private normalizeSyncItems(dto: SyncTItensBatchDto): SyncTItensBatchItemDto[] {
+    const directItems = Array.isArray(dto.items) ? dto.items : [];
+    const groupedItems = (dto.Empresa ?? []).flatMap((group) =>
+      (group.items ?? []).map((item) => {
+        const groupCompany = group.ID_EMPRESA.trim();
+        const itemSaldoCompany = item.ID_EMPRESA_SALDO?.trim();
+
+        if (itemSaldoCompany && itemSaldoCompany !== groupCompany) {
+          throw new BadRequestException(
+            `ID_EMPRESA_SALDO divergente no item ${item.ID}.`,
+          );
+        }
+
+        return {
+          ...item,
+          ID_EMPRESA_SALDO: itemSaldoCompany ?? groupCompany,
+        };
+      }),
+    );
+
+    const normalized = [...directItems, ...groupedItems];
+    if (!normalized.length) {
+      throw new BadRequestException(
+        'Informe items ou Empresa[].items para sincronizacao.',
+      );
+    }
+
+    return normalized;
+  }
+
   /** 🔹 CREATE */
   @Post()
   @UseGuards(TenantJwtGuard)
   create(@Req() req: TenantRequest, @Body() dto: CreateTItemDto) {
     return this.tItensService.create(req.user.tenant, dto);
+  }
+
+  @Post('sync-batch')
+  @UseGuards(TenantJwtGuard)
+  syncBatch(@Req() req: TenantRequest, @Body() dto: SyncTItensBatchDto) {
+    return this.tItensService.syncBatchById(
+      req.user.tenant,
+      this.normalizeSyncItems(dto),
+    );
   }
 
   /** 🔹 UPDATE (UUID) */

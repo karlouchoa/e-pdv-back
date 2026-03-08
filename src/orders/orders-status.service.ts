@@ -77,7 +77,7 @@ export class OrdersStatusService {
 
     const prisma = await this.tenantDbService.getTenantClient(tenant);
     const venda = await prisma.t_vendas.findFirst({
-      where: { ID: vendaId },
+      where: { id: vendaId },
       select: { autocod_v: true, nrven_v: true, cdemp_v: true },
     });
 
@@ -122,7 +122,7 @@ export class OrdersStatusService {
   async listHistory(tenant: string, vendaId: string) {
     const prisma = await this.tenantDbService.getTenantClient(tenant);
     const venda = await prisma.t_vendas.findFirst({
-      where: { ID: vendaId },
+      where: { id: vendaId },
       select: { autocod_v: true },
     });
 

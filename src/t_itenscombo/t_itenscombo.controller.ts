@@ -34,6 +34,11 @@ export class TItensComboController {
     return this.tItensComboService.findAll(req.user.tenant);
   }
 
+  @Get('item/:idItem')
+  findByItem(@Req() req: TenantRequest, @Param('idItem') idItem: string) {
+    return this.tItensComboService.findByItemId(req.user.tenant, idItem);
+  }
+
   @Get(':id')
   findOne(@Req() req: TenantRequest, @Param('id') id: string) {
     return this.tItensComboService.findOne(req.user.tenant, id);

@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { plainToInstance } from 'class-transformer';
 import {
   TenantPrisma as Prisma,
   type TenantClient,
@@ -6,8 +7,94 @@ import {
 import type { Prisma as PrismaTypes } from '../../prisma/generated/client_tenant';
 import { TenantDbService } from '../tenant-db/tenant-db.service';
 import { CreateTItemDto } from './dto/create-t_itens.dto';
+import {
+  SyncTItensBatchItemDto,
+  SyncTItensFormulaDto,
+  SyncTItensBatchResponseDto,
+  SyncTItensBatchResultItemDto,
+} from './dto/sync-t_itens-batch.dto';
 import { UpdateTItemDto } from './dto/update-t_itens.dto';
 import { NotFoundException } from '@nestjs/common';
+import { applyMovestBalanceFromCreates } from '../lib/movest-balance';
+
+const T_ITENS_SYNC_NUMERIC_FIELDS = [
+  'cdemp',
+  'cditem',
+  'qtembitem',
+  'cdgruit',
+  'pesobr',
+  'pesolq',
+  'eminitem',
+  'emaxitem',
+  'percipi',
+  'valcmp',
+  'precomin',
+  'preco',
+  'precoatac',
+  'percom',
+  'sldatual',
+  'custo',
+  'margem',
+  'margematac',
+  'diasent',
+  'saldoultent',
+  'qtdeprvche',
+  'empit',
+  'subgru',
+  'familiait',
+  'pcomprcmin',
+  'CCLASSTRIB_ID',
+] as const;
+
+const T_ITENS_SYNC_STRING_FIELDS = [
+  'deitem',
+  'defat',
+  'undven',
+  'mrcitem',
+  'medcmp',
+  'barcodeit',
+  'locfotitem',
+  'usucadit',
+  'negativo',
+  'ativosn',
+  'codcst',
+  'aceitadesc',
+  'clasfis',
+  'codncm',
+  'pedcomplsn',
+  'ativoprod',
+  'enderecoit',
+  'obsitem',
+  'liberadocomsenha',
+  'itprodsn',
+  'matprima',
+  'servicosn',
+  'cest',
+  'emitnf',
+  'cnae',
+  'vendmultemb',
+  'naobaixarmp',
+  'naovembalanca',
+  'abrelote',
+  'CCLASSTRIB',
+  'categoria_ncm',
+  'cst_ibs_cbs_padrao',
+  'industrializado_zfm',
+  'fiscal_validado',
+  'fiscal_origem',
+  'combosn',
+] as const;
+
+const T_ITENS_SYNC_DATE_FIELDS = [
+  'ultcmp',
+  'datacadit',
+  'dataultent',
+  'prvcheg',
+  'dtalteracao',
+  'fiscal_validado_em',
+] as const;
+
+type TenantClientLike = TenantClient | PrismaTypes.TransactionClient;
 
 @Injectable()
 export class TItensService {
@@ -87,7 +174,7 @@ export class TItensService {
 
       if (this.isGuid(candidate)) {
         company = await prisma.t_emp.findFirst({
-          where: { ID: candidate },
+          where: { id: candidate },
           select: { cdemp: true },
         });
       }
@@ -162,6 +249,40 @@ export class TItensService {
     return numeric;
   }
 
+  private parseOptionalPositiveInteger(
+    value: unknown,
+    fieldName: string,
+  ): number | null {
+    if (value === null || value === undefined || value === '') {
+      return null;
+    }
+
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed <= 0) {
+      throw new BadRequestException(
+        `${fieldName} deve ser um numero inteiro maior que zero.`,
+      );
+    }
+
+    return parsed;
+  }
+
+  private async resolveSubgroup(
+    prisma: TenantClient,
+    cdsub: number,
+  ): Promise<{ cdsub: number; cdgru: number }> {
+    const subgroup = await prisma.t_subgr.findUnique({
+      where: { cdsub },
+      select: { cdsub: true, cdgru: true },
+    });
+
+    if (!subgroup) {
+      throw new BadRequestException(`Subgrupo ${cdsub} nao encontrado.`);
+    }
+
+    return subgroup;
+  }
+
   private ensureCdemp<T extends Record<string, unknown>>(
     item: T,
     fallbackCdemp: number | null,
@@ -193,6 +314,23 @@ export class TItensService {
     );
   }
 
+  private toSNFlag(
+    value: string | undefined,
+    booleanValue: boolean | undefined,
+    fallback: 'S' | 'N',
+  ): 'S' | 'N' {
+    const normalized = value?.trim().toUpperCase();
+    if (normalized === 'S' || normalized === 'N') {
+      return normalized;
+    }
+
+    if (typeof booleanValue === 'boolean') {
+      return booleanValue ? 'S' : 'N';
+    }
+
+    return fallback;
+  }
+
   private buildWhere(
     cdemp: number,
     cditem: number,
@@ -205,20 +343,651 @@ export class TItensService {
     };
   }
 
+  private toSyncDate(value: string | null | undefined): Date | null {
+    if (value === undefined || value === null || value === '') {
+      return null;
+    }
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  private extractExistingTimestamp(record: {
+    updatedat?: Date | null;
+    createdat?: Date | null;
+  }): Date | null {
+    return record.updatedat ?? record.createdat ?? null;
+  }
+
+  private buildTItensSyncMutationData(payload: SyncTItensBatchItemDto) {
+    const data: PrismaTypes.t_itensUncheckedUpdateInput = {};
+
+    for (const field of T_ITENS_SYNC_NUMERIC_FIELDS) {
+      const value = payload[field];
+      if (value === undefined || value === null) continue;
+      (data as Record<string, unknown>)[field] = value;
+    }
+
+    for (const field of T_ITENS_SYNC_STRING_FIELDS) {
+      const value = payload[field];
+      if (value === undefined) continue;
+      (data as Record<string, unknown>)[field] = value;
+    }
+
+    for (const field of T_ITENS_SYNC_DATE_FIELDS) {
+      const value = payload[field];
+      if (value === undefined) continue;
+      (data as Record<string, unknown>)[field] =
+        value === null ? null : this.toSyncDate(value);
+    }
+
+    if (payload.isdeleted !== undefined && payload.isdeleted !== null) {
+      data.isdeleted = payload.isdeleted;
+    }
+
+    if (payload.id) {
+      data.id = payload.id.trim();
+    }
+
+    return data;
+  }
+
+  private toSyncErrorMessage(error: unknown): string {
+    if (error instanceof Error && error.message) {
+      return error.message;
+    }
+    return 'Erro inesperado ao sincronizar item.';
+  }
+
+  private roundTo(value: number, scale: number): number {
+    const factor = 10 ** scale;
+    return Math.round(value * factor) / factor;
+  }
+
+  private async resolveCompanyContext(
+    prisma: TenantClientLike,
+    idEmpresaRaw: string | null | undefined,
+    fieldName: 'id_empresa' | 'ID_EMPRESA_SALDO',
+  ): Promise<{ companyId: string | null; companyCdemp: number | null }> {
+    const idEmpresa = this.normalizeGuid(idEmpresaRaw ?? null);
+    if (!idEmpresa) {
+      return { companyId: null, companyCdemp: null };
+    }
+
+    const company = await prisma.t_emp.findFirst({
+      where: { id: idEmpresa },
+      select: { id: true, cdemp: true },
+    });
+
+    if (!company?.id) {
+      throw new BadRequestException(
+        `${fieldName} ${idEmpresa} nao encontrado em T_EMP.`,
+      );
+    }
+
+    return {
+      companyId: company.id.trim(),
+      companyCdemp: company.cdemp,
+    };
+  }
+
+  private async resolveItemCompanyContext(
+    prisma: TenantClientLike,
+    item: SyncTItensBatchItemDto,
+  ): Promise<{ companyId: string | null; companyCdemp: number | null }> {
+    const context = await this.resolveCompanyContext(
+      prisma,
+      item.id_empresa,
+      'id_empresa',
+    );
+
+    const payloadCdemp =
+      typeof item.cdemp === 'number' && Number.isFinite(item.cdemp)
+        ? Math.floor(item.cdemp)
+        : null;
+    if (
+      payloadCdemp !== null &&
+      context.companyCdemp !== null &&
+      payloadCdemp !== context.companyCdemp
+    ) {
+      throw new BadRequestException(
+        `id_empresa do item pertence a cdemp ${context.companyCdemp}, diferente de cdemp ${payloadCdemp} informado no item.`,
+      );
+    }
+
+    return context;
+  }
+
+  private async resolveSaldoCompanyContext(
+    prisma: TenantClientLike,
+    item: SyncTItensBatchItemDto,
+  ): Promise<{ companyId: string | null; companyCdemp: number | null }> {
+    return this.resolveCompanyContext(
+      prisma,
+      item.ID_EMPRESA_SALDO,
+      'ID_EMPRESA_SALDO',
+    );
+  }
+
+  private async syncStockAdjustmentForItem(
+    prisma: TenantClientLike,
+    item: SyncTItensBatchItemDto,
+    parent: {
+      idItem: string;
+      cditem: number;
+      cdemp: number;
+      companyId: string | null;
+      companyCdemp: number | null;
+    },
+  ): Promise<{
+    created: boolean;
+    type: 'E' | 'S' | null;
+    quantity: number;
+    previous: number;
+    target: number;
+  }> {
+    if (item.sldatual === undefined || item.sldatual === null) {
+      return { created: false, type: null, quantity: 0, previous: 0, target: 0 };
+    }
+
+    if (!(typeof item.sldatual === 'number' && Number.isFinite(item.sldatual))) {
+      throw new BadRequestException(
+        `sldatual invalido para o item ${parent.idItem}.`,
+      );
+    }
+
+    if (!parent.companyId || parent.companyCdemp === null) {
+      throw new BadRequestException(
+        `ID_EMPRESA_SALDO e obrigatorio para ajuste de saldo do item ${parent.idItem}.`,
+      );
+    }
+
+    const saldoRows = await prisma.t_saldoit.findMany({
+      where: {
+        cdemp: parent.companyCdemp,
+        cditem: parent.cditem,
+      },
+      select: { saldo: true },
+    });
+    const previous = this.roundTo(
+      saldoRows.reduce(
+        (sum, row) => sum + (this.toOptionalNumber(row.saldo) ?? 0),
+        0,
+      ),
+      4,
+    );
+    const target = this.roundTo(item.sldatual, 4);
+    const diff = this.roundTo(target - previous, 4);
+
+    if (Math.abs(diff) <= 0.00005) {
+      return { created: false, type: null, quantity: 0, previous, target };
+    }
+
+    const type: 'E' | 'S' = diff > 0 ? 'E' : 'S';
+    const quantity = this.roundTo(Math.abs(diff), 4);
+    const movementDate =
+      this.toSyncDate(item.updatedat) ?? this.toSyncDate(item.createdat) ?? new Date();
+    const now = new Date();
+    const unitPrice =
+      typeof item.preco === 'number' && Number.isFinite(item.preco)
+        ? this.roundTo(item.preco, 4)
+        : 0;
+    const cost =
+      typeof item.custo === 'number' && Number.isFinite(item.custo)
+        ? this.roundTo(item.custo, 4)
+        : typeof item.valcmp === 'number' && Number.isFinite(item.valcmp)
+          ? this.roundTo(item.valcmp, 4)
+          : unitPrice;
+    const totalValue = this.roundTo(unitPrice * quantity, 4);
+
+    await prisma.t_movest.create({
+      data: {
+        cdemp: parent.companyCdemp,
+        data: movementDate,
+        datadoc: movementDate,
+        datalan: now,
+        especie: 'A',
+        cditem: parent.cditem,
+        id_item: parent.idItem,
+        id_empresa: parent.companyId,
+        qtde: quantity,
+        valor: totalValue,
+        preco: unitPrice,
+        custo: cost,
+        st: type,
+        codusu: 'INTEGRA',
+        empitem: parent.companyCdemp,
+        empfor: parent.companyCdemp,
+        empmov: parent.companyCdemp,
+        empven: parent.companyCdemp,
+        saldoant: previous,
+        sldantemp: target,
+        obs: 'Ajuste de saldo via integracao t_itens/sync-batch',
+        obsit: 'Ajuste de saldo via integracao t_itens/sync-batch',
+        isdeleted: false,
+        createdat: now,
+        updatedat: now,
+      },
+    });
+
+    await applyMovestBalanceFromCreates(prisma, [
+      {
+        cdemp: parent.companyCdemp,
+        cditem: parent.cditem,
+        empitem: parent.companyCdemp,
+        st: type,
+        qtde: quantity,
+        isdeleted: false,
+        id_item: parent.idItem,
+        id_empresa: parent.companyId,
+      },
+    ]);
+
+    return { created: true, type, quantity, previous, target };
+  }
+
+  private normalizeGuid(value: string | null | undefined): string | null {
+    const trimmed = value?.trim();
+    return trimmed ? trimmed : null;
+  }
+
+  private async resolveFormulaMateriaPrima(
+    prisma: TenantClientLike,
+    formula: SyncTItensFormulaDto,
+  ): Promise<{
+    idMatprima: string | null;
+    matprima: number | null;
+    empitemmp: number | null;
+    undmp: string | null;
+    deitem: string | null;
+  }> {
+    let idMatprima = this.normalizeGuid(formula.id_matprima ?? null);
+    let matprima =
+      typeof formula.matprima === 'number' && Number.isFinite(formula.matprima)
+        ? Math.floor(formula.matprima)
+        : null;
+    let empitemmp =
+      typeof formula.empitemmp === 'number' && Number.isFinite(formula.empitemmp)
+        ? Math.floor(formula.empitemmp)
+        : null;
+    let undmp = formula.undmp?.trim() ?? null;
+    let deitem = formula.deitem_iv?.trim() ?? null;
+
+    if (idMatprima) {
+      const item = await prisma.t_itens.findFirst({
+        where: { id: idMatprima },
+        select: {
+          cditem: true,
+          cdemp: true,
+          undven: true,
+          deitem: true,
+        },
+      });
+
+      if (item) {
+        matprima = matprima ?? item.cditem;
+        empitemmp = empitemmp ?? item.cdemp;
+        undmp = undmp ?? item.undven?.trim() ?? null;
+        deitem = deitem ?? item.deitem?.trim() ?? null;
+      }
+    }
+
+    if (!idMatprima && matprima !== null && empitemmp !== null) {
+      const item = await prisma.t_itens.findFirst({
+        where: { cdemp: empitemmp, cditem: matprima },
+        select: {
+          id: true,
+          undven: true,
+          deitem: true,
+        },
+      });
+
+      if (item?.id) {
+        idMatprima = item.id.trim();
+        undmp = undmp ?? item.undven?.trim() ?? null;
+        deitem = deitem ?? item.deitem?.trim() ?? null;
+      }
+    }
+
+    return { idMatprima, matprima, empitemmp, undmp, deitem };
+  }
+
+  private async syncFormulasForItem(
+    prisma: TenantClientLike,
+    item: SyncTItensBatchItemDto,
+    parent: { idItem: string; cdemp: number; cditem: number; undven: string },
+  ): Promise<{ inserted: number; updated: number; skipped: number; deleted: number }> {
+    if (!Array.isArray(item.formulas)) {
+      return { inserted: 0, updated: 0, skipped: 0, deleted: 0 };
+    }
+
+    const formulas = item.formulas;
+    const deleted = (
+      await prisma.t_formulas.deleteMany({
+        where: { id_item: parent.idItem },
+      })
+    ).count;
+
+    if (!formulas.length) {
+      return { inserted: 0, updated: 0, skipped: 0, deleted };
+    }
+
+    let inserted = 0;
+    const updated = 0;
+    const skipped = 0;
+
+    for (const formula of formulas) {
+      const formulaItemId = this.normalizeGuid(formula.id_item ?? null);
+      if (formulaItemId && formulaItemId !== parent.idItem) {
+        throw new BadRequestException(
+          `Formula do item ${parent.idItem} com id_item divergente (${formulaItemId}).`,
+        );
+      }
+
+      const incomingCreatedAt = this.toSyncDate(formula.createdat);
+      const incomingUpdatedAt = this.toSyncDate(formula.updatedat);
+      const resolved = await this.resolveFormulaMateriaPrima(prisma, formula);
+
+      const formulaCdemp =
+        typeof formula.cdemp === 'number' && Number.isFinite(formula.cdemp)
+          ? Math.floor(formula.cdemp)
+          : parent.cdemp;
+
+      if (resolved.matprima === null || resolved.empitemmp === null) {
+        throw new BadRequestException(
+          `Formula do item ${parent.idItem} sem identificacao valida da materia-prima.`,
+        );
+      }
+
+      if (!(typeof formula.qtdemp === 'number' && Number.isFinite(formula.qtdemp) && formula.qtdemp > 0)) {
+        throw new BadRequestException(
+          `Formula do item ${parent.idItem} com qtdemp invalida.`,
+        );
+      }
+
+      const undmp = formula.undmp?.trim() ?? resolved.undmp;
+      if (!undmp) {
+        throw new BadRequestException(
+          `Formula do item ${parent.idItem} sem undmp.`,
+        );
+      }
+
+      const createdAt = incomingCreatedAt ?? new Date();
+      const updatedAt = incomingUpdatedAt ?? createdAt;
+
+      const createData: PrismaTypes.t_formulasUncheckedCreateInput = {
+        cditem:
+          typeof formula.cditem === 'number' && Number.isFinite(formula.cditem)
+            ? Math.floor(formula.cditem)
+            : parent.cditem,
+        empitem:
+          typeof formula.empitem === 'number' && Number.isFinite(formula.empitem)
+            ? Math.floor(formula.empitem)
+            : parent.cdemp,
+        undven: (formula.undven?.trim() || parent.undven || 'UN').slice(0, 3),
+        matprima: resolved.matprima,
+        qtdemp: formula.qtdemp,
+        undmp: undmp.slice(0, 3),
+        empitemmp: resolved.empitemmp,
+        deitem_iv: formula.deitem_iv ?? resolved.deitem ?? null,
+        cdemp: formulaCdemp,
+        createdat: createdAt,
+        updatedat: updatedAt,
+        id_item: parent.idItem,
+        id_matprima: resolved.idMatprima ?? undefined,
+      };
+
+      await prisma.t_formulas.create({ data: createData });
+      inserted += 1;
+    }
+
+    return { inserted, updated, skipped, deleted };
+  }
+
+  async syncBatchById(tenant: string, items: SyncTItensBatchItemDto[]) {
+    if (!items.length) {
+      throw new BadRequestException('Informe ao menos um item.');
+    }
+
+    const prisma = await this.getPrisma(tenant);
+    const fallbackCdemp = await this.getMatrizCompanyId(tenant, prisma);
+    const results: SyncTItensBatchResultItemDto[] = [];
+
+    let inserted = 0;
+    let updated = 0;
+    let skipped = 0;
+    let errors = 0;
+
+    for (const item of items) {
+      const itemId = item.id?.trim();
+      if (!itemId) {
+        errors += 1;
+        results.push({
+          id: '',
+          action: 'ERROR',
+          message: 'ID do item nao informado.',
+        });
+        continue;
+      }
+
+      try {
+        const outcome = await prisma.$transaction(async (tx) => {
+          const itemCompanyContext = await this.resolveItemCompanyContext(tx, item);
+          const saldoCompanyContext = await this.resolveSaldoCompanyContext(
+            tx,
+            item,
+          );
+          const incomingCreatedAt = this.toSyncDate(item.createdat);
+          const incomingUpdatedAt = this.toSyncDate(item.updatedat);
+          const existing = await tx.t_itens.findFirst({
+            where: { id: itemId },
+            select: {
+              id: true,
+              cdemp: true,
+              cditem: true,
+              undven: true,
+              updatedat: true,
+              createdat: true,
+            },
+          });
+
+          if (existing) {
+            let action: 'UPDATED' | 'SKIPPED' = 'SKIPPED';
+            let message = 'Registro existente sem alteracao no item.';
+            let parent = {
+              idItem: itemId,
+              cdemp: existing.cdemp,
+              cditem: existing.cditem,
+              undven: existing.undven?.trim() || 'UN',
+              companyId: saldoCompanyContext.companyId,
+              companyCdemp: saldoCompanyContext.companyCdemp,
+            };
+
+            if (!incomingUpdatedAt) {
+              message = 'Registro existente sem updatedat no payload.';
+            } else {
+              const currentTs = this.extractExistingTimestamp(existing);
+              if (
+                currentTs &&
+                incomingUpdatedAt.getTime() <= currentTs.getTime()
+              ) {
+                message =
+                  'updatedat do payload menor ou igual ao registro atual; sem alteracao.';
+              } else {
+                const data = this.buildTItensSyncMutationData(item);
+                delete (data as Record<string, unknown>).cdemp;
+                delete (data as Record<string, unknown>).cditem;
+                delete (data as Record<string, unknown>).id;
+                delete (data as Record<string, unknown>).createdat;
+                data.updatedat = incomingUpdatedAt;
+
+                const updatedItem = await tx.t_itens.update({
+                  where: {
+                    cdemp_cditem: {
+                      cdemp: existing.cdemp,
+                      cditem: existing.cditem,
+                    },
+                  },
+                  data,
+                  select: {
+                    cdemp: true,
+                    cditem: true,
+                    undven: true,
+                  },
+                });
+                parent = {
+                  idItem: itemId,
+                  cdemp: updatedItem.cdemp,
+                  cditem: updatedItem.cditem,
+                  undven: updatedItem.undven?.trim() || 'UN',
+                  companyId: saldoCompanyContext.companyId,
+                  companyCdemp: saldoCompanyContext.companyCdemp,
+                };
+                action = 'UPDATED';
+                message = 'Item atualizado com sucesso.';
+              }
+            }
+
+            const formulaSummary = await this.syncFormulasForItem(tx, item, parent);
+            if (
+              action === 'SKIPPED' &&
+              (formulaSummary.deleted > 0 || formulaSummary.inserted > 0)
+            ) {
+              action = 'UPDATED';
+              message = 'Item sem alteracao; formulas sincronizadas com sucesso.';
+            }
+            if (Array.isArray(item.formulas)) {
+              message += ` Formulas: ${formulaSummary.deleted} removidas, ${formulaSummary.inserted} inseridas.`;
+            }
+
+            const stockAdjustment = await this.syncStockAdjustmentForItem(
+              tx,
+              item,
+              parent,
+            );
+            if (stockAdjustment.created) {
+              if (action === 'SKIPPED') {
+                action = 'UPDATED';
+                message = 'Item sem alteracao; ajuste de saldo aplicado.';
+              }
+              message += ` Ajuste estoque: ${stockAdjustment.type} ${stockAdjustment.quantity} (saldo ${stockAdjustment.previous} -> ${stockAdjustment.target}).`;
+            }
+
+            return { action, message };
+          }
+
+          if (!incomingCreatedAt) {
+            return {
+              action: 'SKIPPED' as const,
+              message: 'Item novo sem createdat no payload.',
+            };
+          }
+
+          const data =
+            this.buildTItensSyncMutationData(item) as PrismaTypes.t_itensUncheckedCreateInput;
+          const cdempValue =
+            typeof item.cdemp === 'number' && Number.isFinite(item.cdemp)
+              ? Math.floor(item.cdemp)
+              : itemCompanyContext.companyCdemp !== null
+                ? itemCompanyContext.companyCdemp
+              : fallbackCdemp;
+
+          data.id = itemId;
+          data.cdemp = cdempValue;
+          if (typeof item.cditem === 'number' && Number.isFinite(item.cditem)) {
+            data.cditem = Math.floor(item.cditem);
+          }
+          data.createdat = incomingCreatedAt;
+          data.updatedat = incomingUpdatedAt ?? incomingCreatedAt;
+
+          const created = await tx.t_itens.create({
+            data,
+            select: {
+              cdemp: true,
+              cditem: true,
+              undven: true,
+            },
+          });
+
+          const formulaSummary = await this.syncFormulasForItem(tx, item, {
+            idItem: itemId,
+            cdemp: created.cdemp,
+            cditem: created.cditem,
+            undven: created.undven?.trim() || 'UN',
+          });
+
+          let message = 'Item inserido com sucesso.';
+          if (Array.isArray(item.formulas)) {
+            message += ` Formulas: ${formulaSummary.deleted} removidas, ${formulaSummary.inserted} inseridas.`;
+          }
+
+          const stockAdjustment = await this.syncStockAdjustmentForItem(tx, item, {
+            idItem: itemId,
+            cdemp: created.cdemp,
+            cditem: created.cditem,
+            companyId: saldoCompanyContext.companyId,
+            companyCdemp: saldoCompanyContext.companyCdemp,
+          });
+          if (stockAdjustment.created) {
+            message += ` Ajuste estoque: ${stockAdjustment.type} ${stockAdjustment.quantity} (saldo ${stockAdjustment.previous} -> ${stockAdjustment.target}).`;
+          }
+
+          return {
+            action: 'INSERTED' as const,
+            message,
+          };
+        });
+
+        if (outcome.action === 'INSERTED') {
+          inserted += 1;
+        } else if (outcome.action === 'UPDATED') {
+          updated += 1;
+        } else {
+          skipped += 1;
+        }
+
+        results.push({
+          id: itemId,
+          action: outcome.action,
+          message: outcome.message,
+        });
+      } catch (error) {
+        errors += 1;
+        results.push({
+          id: itemId,
+          action: 'ERROR',
+          message: this.toSyncErrorMessage(error),
+        });
+      }
+    }
+
+    return plainToInstance(
+      SyncTItensBatchResponseDto,
+      {
+        total: items.length,
+        inserted,
+        updated,
+        skipped,
+        errors,
+        results,
+      },
+      { excludeExtraneousValues: true },
+    );
+  }
+
   private resolveImageUrls(item: {
     locfotitem?: string | null;
-    t_imgitens?: Array<{ ID?: string | null; URL?: string | null }>;
+    t_imgitens?: Array<{ ID?: string | null; url?: string | null }>;
   }) {
     return this.resolveImages(item).map((image) => image.url);
   }
 
   private resolveImages(item: {
     locfotitem?: string | null;
-    t_imgitens?: Array<{ ID?: string | null; URL?: string | null }>;
+    t_imgitens?: Array<{ ID?: string | null; url?: string | null }>;
   }) {
     const images: Array<{ id?: string; url: string }> = [];
     for (const image of item.t_imgitens ?? []) {
-      const url = (image.URL ?? '').trim();
+      const url = (image.url ?? '').trim();
       if (!url) {
         continue;
       }
@@ -241,7 +1010,7 @@ export class TItensService {
 
   private withImageUrls<T extends { locfotitem?: string | null }>(
     item: T & {
-      t_imgitens?: Array<{ ID?: string | null; URL?: string | null }>;
+      t_imgitens?: Array<{ ID?: string | null; url?: string | null }>;
     },
   ) {
     const images = this.resolveImages(item);
@@ -257,7 +1026,7 @@ export class TItensService {
 
   private withImageUrlsList<T extends { locfotitem?: string | null }>(
     items: Array<
-      T & { t_imgitens?: Array<{ ID?: string | null; URL?: string | null }> }
+      T & { t_imgitens?: Array<{ ID?: string | null; url?: string | null }> }
     >,
   ) {
     return items.map((item) => this.withImageUrls(item));
@@ -301,7 +1070,7 @@ export class TItensService {
 
   private normalizeImageInputs(
     images?: Array<
-      { id?: string | null; url?: string | null; URL?: string | null } | string
+      { id?: string | null; URL?: string | null; url?: string | null } | string
     >,
   ) {
     if (!Array.isArray(images)) return [];
@@ -313,7 +1082,7 @@ export class TItensService {
           const trimmed = image.trim() || undefined;
           if (trimmed && trimmed.length > 200) {
             throw new BadRequestException(
-              'Cada URL de imagem deve ter no maximo 200 caracteres.',
+              'Cada url de imagem deve ter no maximo 200 caracteres.',
             );
           }
           return { url: trimmed };
@@ -322,7 +1091,7 @@ export class TItensService {
         const trimmedUrl = url?.trim() || undefined;
         if (trimmedUrl && trimmedUrl.length > 200) {
           throw new BadRequestException(
-            'Cada URL de imagem deve ter no maximo 200 caracteres.',
+            'Cada url de imagem deve ter no maximo 200 caracteres.',
           );
         }
 
@@ -347,6 +1116,52 @@ export class TItensService {
     return candidate?.trim() || null;
   }
 
+  private normalizeImagePath(
+    value: string | null | undefined,
+  ): string | null {
+    const normalized = value?.trim() || null;
+    if (!normalized) {
+      return null;
+    }
+    if (normalized.length > 200) {
+      throw new BadRequestException(
+        'O caminho da imagem deve ter no maximo 200 caracteres.',
+      );
+    }
+    return normalized;
+  }
+
+  private async ensurePrimaryImageRecord(
+    prisma: TenantClient,
+    itemId: string,
+    imagePath: string | null | undefined,
+  ) {
+    const normalizedPath = this.normalizeImagePath(imagePath);
+    if (!normalizedPath) {
+      return;
+    }
+
+    const existing = await prisma.t_imgitens.findFirst({
+      where: {
+        id_item: itemId,
+        url: normalizedPath,
+      },
+      select: { id: true },
+    });
+
+    if (existing) {
+      return;
+    }
+
+    await prisma.t_imgitens.create({
+      data: {
+        id_item: itemId,
+        url: normalizedPath,
+        updatedat: new Date(),
+      },
+    });
+  }
+
   private async syncItemImages(
     prisma: TenantClient,
     itemId: string,
@@ -364,7 +1179,7 @@ export class TItensService {
 
     operations.push(
       prisma.t_imgitens.deleteMany({
-        where: { ID_ITEM: itemId },
+        where: { id_item: itemId },
       }),
     );
 
@@ -372,9 +1187,9 @@ export class TItensService {
       operations.push(
         prisma.t_imgitens.create({
           data: {
-            ID_ITEM: itemId,
-            URL: url,
-            UPDATEDAT: now,
+            id_item: itemId,
+            url: url,
+            updatedat: now,
           },
         }),
       );
@@ -446,6 +1261,26 @@ export class TItensService {
     const hasImagesPayload = Array.isArray(dto.images);
     const imageInputs = this.normalizeImageInputs(dto.images);
     const primaryImageUrl = this.resolvePrimaryImageUrl(imageInputs);
+    const imagePath = this.normalizeImagePath(dto.imagePath);
+    let resolvedCategory = this.parseOptionalPositiveInteger(
+      dto.category,
+      'category',
+    );
+    let resolvedSubgroup = this.parseOptionalPositiveInteger(
+      dto.subgroup,
+      'subgroup',
+    );
+
+    if (resolvedSubgroup !== null) {
+      const subgroup = await this.resolveSubgroup(prisma, resolvedSubgroup);
+      if (resolvedCategory !== null && subgroup.cdgru !== resolvedCategory) {
+        throw new BadRequestException(
+          'Subgrupo informado nao pertence ao grupo selecionado.',
+        );
+      }
+      resolvedCategory = resolvedCategory ?? subgroup.cdgru;
+      resolvedSubgroup = subgroup.cdsub;
+    }
 
     const data = {
       cdemp,
@@ -454,7 +1289,8 @@ export class TItensService {
       deitem: dto.name,
       defat: dto.description ?? '',
       undven: dto.unit ?? 'UN',
-      cdgruit: dto.category ? Number(dto.category) : null,
+      cdgruit: resolvedCategory,
+      subgru: resolvedSubgroup,
 
       preco: dto.salePrice ?? 0,
       custo: dto.costPrice ?? 0,
@@ -466,16 +1302,16 @@ export class TItensService {
 
       diasent: dto.leadTimeDays ?? 0,
 
-      itprodsn: dto.itprodsn ?? 'N',
-      matprima: dto.matprima ?? 'N',
+      itprodsn: this.toSNFlag(dto.itprodsn, dto.isComposed, 'N'),
+      matprima: this.toSNFlag(dto.matprima, dto.isRawMaterial, 'N'),
+      combosn: this.toSNFlag(dto.combosn, dto.isCombo, 'N'),
 
       obsitem: dto.notes ?? null,
-      locfotitem:
-        dto.imagePath !== undefined ? dto.imagePath : (primaryImageUrl ?? null),
+      locfotitem: imagePath ?? primaryImageUrl ?? null,
 
       // defaults obrigatórios
-      ativosn: 'S',
-      negativo: 'S',
+      ativosn: this.toSNFlag(dto.ativosn, dto.isActive, 'S'),
+      negativo: this.toSNFlag(dto.negativo, dto.isNegative, 'S'),
       aceitadesc: 'S',
 
       qtembitem: 0,
@@ -494,8 +1330,11 @@ export class TItensService {
     };
 
     const created = await prisma.t_itens.create({ data });
-    if (hasImagesPayload && created.ID) {
-      await this.syncItemImages(prisma, created.ID, imageInputs);
+    if (hasImagesPayload && created.id) {
+      await this.syncItemImages(prisma, created.id, imageInputs);
+    }
+    if (created.id) {
+      await this.ensurePrimaryImageRecord(prisma, created.id, created.locfotitem);
     }
     return this.ensureCdemp(created, cdemp);
   }
@@ -570,11 +1409,11 @@ export class TItensService {
     const includeCategoria: PrismaTypes.t_itensInclude = {
       t_imgitens: {
         select: {
-          ID: true,
-          URL: true,
+          id: true,
+          url: true,
         },
         orderBy: {
-          AUTOCOD: 'asc',
+          autocod: 'asc',
         },
       },
     };
@@ -684,7 +1523,7 @@ export class TItensService {
     }
 
     const cditemsToFetch = [...saldoMap.keys()];
-    const chunkSize = 1500; // abaixo do limite de 2100 parametros do SQL Server
+    const chunkSize = 1500; // limite conservador para evitar excesso de parametros em IN (...)
     type Item = PrismaTypes.t_itensGetPayload<PrismaTypes.t_itensFindManyArgs>;
     const filteredItems: Item[] = [];
 
@@ -794,11 +1633,11 @@ export class TItensService {
       include: {
         t_imgitens: {
           select: {
-            ID: true,
-            URL: true,
+            id: true,
+            url: true,
           },
           orderBy: {
-            AUTOCOD: 'asc',
+            autocod: 'asc',
           },
         },
       },
@@ -823,11 +1662,11 @@ export class TItensService {
       include: {
         t_imgitens: {
           select: {
-            ID: true,
-            URL: true,
+            id: true,
+            url: true,
           },
           orderBy: {
-            AUTOCOD: 'asc',
+            autocod: 'asc',
           },
         },
       },
@@ -844,17 +1683,57 @@ export class TItensService {
     const hasImagesPayload = Array.isArray(dto.images);
     const imageInputs = this.normalizeImageInputs(dto.images);
     const primaryImageUrl = this.resolvePrimaryImageUrl(imageInputs);
+    const imagePath =
+      dto.imagePath !== undefined ? this.normalizeImagePath(dto.imagePath) : undefined;
 
     // 1️⃣ Buscar o item pelo UUID
     const existing = await prisma.t_itens.findFirst({
       where: {
         cdemp,
-        ID: uuid, // <-- UUID verdadeiro
+        id: uuid, // <-- UUID verdadeiro
       },
     });
 
     if (!existing) {
       throw new Error('Item não encontrado para este tenant.');
+    }
+
+    const hasCategoryField = Object.prototype.hasOwnProperty.call(
+      dto,
+      'category',
+    );
+    const hasSubgroupField = Object.prototype.hasOwnProperty.call(
+      dto,
+      'subgroup',
+    );
+
+    let resolvedCategory = hasCategoryField
+      ? this.parseOptionalPositiveInteger(dto.category, 'category')
+      : this.toOptionalNumber(existing.cdgruit);
+    let resolvedSubgroup = hasSubgroupField
+      ? this.parseOptionalPositiveInteger(dto.subgroup, 'subgroup')
+      : this.toOptionalNumber(existing.subgru);
+
+    if (hasSubgroupField) {
+      if (resolvedSubgroup !== null) {
+        const subgroup = await this.resolveSubgroup(prisma, resolvedSubgroup);
+        if (resolvedCategory !== null && subgroup.cdgru !== resolvedCategory) {
+          throw new BadRequestException(
+            'Subgrupo informado nao pertence ao grupo selecionado.',
+          );
+        }
+        resolvedCategory = resolvedCategory ?? subgroup.cdgru;
+        resolvedSubgroup = subgroup.cdsub;
+      }
+    } else if (hasCategoryField && resolvedSubgroup !== null) {
+      try {
+        const subgroup = await this.resolveSubgroup(prisma, resolvedSubgroup);
+        if (resolvedCategory === null || subgroup.cdgru !== resolvedCategory) {
+          resolvedSubgroup = null;
+        }
+      } catch {
+        resolvedSubgroup = null;
+      }
     }
 
     const cditem = existing.cditem; // <- chave real
@@ -865,7 +1744,12 @@ export class TItensService {
       defat: dto.description,
       undven: dto.unit,
       mrcitem: dto.marca,
-      cdgruit: dto.category ? Number(dto.category) : undefined,
+      ...(hasCategoryField || hasSubgroupField
+        ? {
+            cdgruit: resolvedCategory,
+            subgru: resolvedSubgroup,
+          }
+        : {}),
 
       preco: dto.salePrice,
       custo: dto.costPrice,
@@ -880,8 +1764,26 @@ export class TItensService {
       diasent: dto.leadTimeDays,
       qtembitem: dto.qtembitem,
 
-      itprodsn: dto.itprodsn,
-      matprima: dto.matprima,
+      itprodsn:
+        dto.itprodsn !== undefined || dto.isComposed !== undefined
+          ? this.toSNFlag(dto.itprodsn, dto.isComposed, 'N')
+          : undefined,
+      matprima:
+        dto.matprima !== undefined || dto.isRawMaterial !== undefined
+          ? this.toSNFlag(dto.matprima, dto.isRawMaterial, 'N')
+          : undefined,
+      combosn:
+        dto.combosn !== undefined || dto.isCombo !== undefined
+          ? this.toSNFlag(dto.combosn, dto.isCombo, 'N')
+          : undefined,
+      ativosn:
+        dto.ativosn !== undefined || dto.isActive !== undefined
+          ? this.toSNFlag(dto.ativosn, dto.isActive, 'S')
+          : undefined,
+      negativo:
+        dto.negativo !== undefined || dto.isNegative !== undefined
+          ? this.toSNFlag(dto.negativo, dto.isNegative, 'S')
+          : undefined,
 
       obsitem: dto.notes,
 
@@ -889,7 +1791,7 @@ export class TItensService {
     };
 
     if (dto.imagePath !== undefined) {
-      data.locfotitem = dto.imagePath;
+      data.locfotitem = imagePath;
     } else if (hasImagesPayload) {
       data.locfotitem = primaryImageUrl;
     } else if (primaryImageUrl) {
@@ -914,6 +1816,7 @@ export class TItensService {
     if (hasImagesPayload) {
       await this.syncItemImages(prisma, uuid, imageInputs);
     }
+    await this.ensurePrimaryImageRecord(prisma, uuid, updated.locfotitem);
     return this.ensureCdemp(updated, cdemp);
   }
 
@@ -927,7 +1830,7 @@ export class TItensService {
     const existing = await prisma.t_itens.findFirst({
       where: {
         cdemp,
-        ID: id,
+        id: id,
       },
       select: { cditem: true },
     });

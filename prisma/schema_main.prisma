@@ -4,12 +4,12 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlserver"
+  provider = "postgresql"
   url      = env("DATABASE_ACESSOS")
 }
 
 model t_acessos {
-  id          Int      @id(map: "PK_t_acessos") @default(autoincrement())
+  id          Int      @id(map: "pk_t_acessos") @default(autoincrement())
   login       String?  @db.VarChar(60)
   senha       String?  @db.VarChar(15)
   nome        String?  @db.VarChar(30)
@@ -22,36 +22,9 @@ model t_acessos {
   cnpj        String?  @db.VarChar(18)
   ddd         String?  @db.VarChar(2)
   whatsapp    String?  @db.VarChar(10)
-  createdAt   DateTime @default(now(), map: "DF_t_acessos_createdAt") @db.DateTime
-  Empresa     String?  @db.VarChar(100)
-  logoUrl     String?  @db.VarChar(Max)
-  imagem_capa String?  @db.VarChar(255)
+  createdat   DateTime @default(now()) @db.Timestamp(6)
+  empresa     String?  @db.VarChar(100)
+  logourl     String?  @db.VarChar(250)
+  imagem_capa String?  @db.VarChar(250)
   subdominio  String?  @db.VarChar(60)
-
-  @@map("t_acessos")
-}
-
-model t_banco {
-  id     Int       @id(map: "PK_T_BANCOS") @default(autoincrement())
-  banco  String?   @db.VarChar(50)
-  hscode String?   @db.VarChar(30)
-  data   DateTime? @db.DateTime
-}
-
-model t_log {
-  reglog  Int       @id(map: "PK_t_log") @default(autoincrement())
-  data    DateTime? @db.DateTime
-  login   String    @db.VarChar(60)
-  usuario String?   @db.VarChar(30)
-  empresa String?   @db.VarChar(40)
-  loja    String?   @db.VarChar(20)
-  motivo  String?   @db.VarChar(120)
-}
-
-/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
-model versao {
-  aplicativo String?   @db.VarChar(50)
-  compilacao DateTime? @db.DateTime
-
-  @@ignore
 }

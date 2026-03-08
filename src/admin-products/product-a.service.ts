@@ -81,7 +81,7 @@ export class ProductAService extends ProductBaseService {
       throw new BadRequestException('Item pertence a produtos compostos.');
     }
 
-    if (item.ComboSN === 'S') {
+    if (item.combosn === 'S') {
       throw new BadRequestException('Item pertence a produtos combo.');
     }
 

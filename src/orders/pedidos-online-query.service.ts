@@ -53,10 +53,10 @@ export class PedidosOnlineQueryService {
     });
 
     return rows.map((row) => ({
-      id: row.ID,
+      id: row.id,
       pedido: this.toNumber(row.PEDIDO),
       cdemp: row.CDEMP ?? null,
-      idCliente: row.ID_CLIENTE ?? null,
+      idCliente: row.id_cliente ?? null,
       idEndereco: row.ID_ENDERECO ?? null,
       canal: row.CANAL ?? null,
       status: row.STATUS,
@@ -69,7 +69,7 @@ export class PedidosOnlineQueryService {
         deliveryFee: this.toNumber(row.TAXA_ENTREGA),
         total: this.toNumber(row.TOTAL_LIQ),
       },
-      idVenda: row.ID_VENDA ?? null,
+      idVenda: row.id_venda ?? null,
       dtConfirmacao: row.DT_CONFIRMACAO ?? null,
       confirmadoPor: row.CONFIRMADO_POR ?? null,
       cliente: {
@@ -109,24 +109,24 @@ export class PedidosOnlineQueryService {
       const choices =
         await this.pedidosOnlineComboRepo.listEscolhasByPedidoItemId(
           tenant,
-          item.ID,
+          item.id,
         );
 
-      choicesByPedidoItem.set(item.ID, choices);
+      choicesByPedidoItem.set(item.id, choices);
       choices.forEach((choice) =>
         allChoiceItemIds.add(choice.ID_ITEM_ESCOLHIDO),
       );
     }
 
     const allItemIds = new Set<string>();
-    itens.forEach((item) => allItemIds.add(item.ID_ITEM));
+    itens.forEach((item) => allItemIds.add(item.id_item));
     allChoiceItemIds.forEach((itemId) => allItemIds.add(itemId));
 
     const itemRecords = allItemIds.size
       ? await prisma.t_itens.findMany({
-          where: { ID: { in: Array.from(allItemIds) } },
+          where: { id: { in: Array.from(allItemIds) } },
           select: {
-            ID: true,
+            id: true,
             cditem: true,
             deitem: true,
             locfotitem: true,
@@ -136,18 +136,18 @@ export class PedidosOnlineQueryService {
 
     const itemMap = new Map(
       itemRecords
-        .filter((record) => Boolean(record.ID))
-        .map((record) => [record.ID as string, record]),
+        .filter((record) => Boolean(record.id))
+        .map((record) => [record.id as string, record]),
     );
 
     const itemsDetailed = await Promise.all(
       itens.map(async (item) => {
-        const record = itemMap.get(item.ID_ITEM);
-        const choicesRaw = choicesByPedidoItem.get(item.ID) ?? [];
+        const record = itemMap.get(item.id_item);
+        const choicesRaw = choicesByPedidoItem.get(item.id) ?? [];
 
         return {
-          id: item.ID,
-          idItem: item.ID_ITEM,
+          id: item.id,
+          idItem: item.id_item,
           cditem: record?.cditem ?? null,
           descricao: record?.deitem ?? null,
           imagem: record?.locfotitem ?? null,
@@ -160,7 +160,7 @@ export class PedidosOnlineQueryService {
           escolhas: choicesRaw.map((choice) => {
             const choiceRecord = itemMap.get(choice.ID_ITEM_ESCOLHIDO);
             return {
-              id: choice.ID,
+              id: choice.id,
               idItemEscolhido: choice.ID_ITEM_ESCOLHIDO,
               cdgru: choice.CDGRU ?? null,
               quantity: this.toNumber(choice.QTDE),
@@ -173,10 +173,10 @@ export class PedidosOnlineQueryService {
     );
 
     return {
-      id: pedido.ID,
+      id: pedido.id,
       pedido: this.toNumber(pedido.PEDIDO),
       cdemp: pedido.CDEMP ?? null,
-      idCliente: pedido.ID_CLIENTE ?? null,
+      idCliente: pedido.id_cliente ?? null,
       idEndereco: pedido.ID_ENDERECO ?? null,
       canal: pedido.CANAL ?? null,
       status: pedido.STATUS,
@@ -189,7 +189,7 @@ export class PedidosOnlineQueryService {
         deliveryFee: this.toNumber(pedido.TAXA_ENTREGA),
         total: this.toNumber(pedido.TOTAL_LIQ),
       },
-      idVenda: pedido.ID_VENDA ?? null,
+      idVenda: pedido.id_venda ?? null,
       dtConfirmacao: pedido.DT_CONFIRMACAO ?? null,
       confirmadoPor: pedido.CONFIRMADO_POR ?? null,
       obs: pedido.OBS ?? null,

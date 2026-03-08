@@ -16,7 +16,7 @@ export class PublicPaymentsService {
   async listTpgto(tenant: string) {
     const prisma = await this.getPrisma(tenant);
     const records = await prisma.t_tpgto.findMany({
-      where: { OnLineSN: 'S' },
+      where: { onlinesn: 'S' },
       orderBy: { detpg: 'asc' },
     });
 
@@ -28,7 +28,7 @@ export class PublicPaymentsService {
   async listFpgto(tenant: string) {
     const prisma = await this.getPrisma(tenant);
     const records = await prisma.t_fpgto.findMany({
-      where: { OnLineSN: 'S' },
+      where: { onlinesn: 'S' },
       orderBy: { defpg: 'asc' },
     });
 

@@ -8,10 +8,13 @@ import { TenantDbService } from '../tenant-db/tenant-db.service';
 
 export type PedidoOnlineRow = {
   ID: string;
+  id: string;
   PEDIDO?: number | null;
   CDEMP: number | null;
   ID_CLIENTE: string | null;
+  id_cliente: string | null;
   ID_ENDERECO?: string | null;
+  id_endereco?: string | null;
   CANAL?: string | null;
   STATUS: string;
   DT_PEDIDO?: Date | null;
@@ -22,6 +25,7 @@ export type PedidoOnlineRow = {
   TOTAL_LIQ: unknown;
   OBS: string | null;
   ID_VENDA?: string | null;
+  id_venda?: string | null;
   DT_CONFIRMACAO?: Date | null;
   CONFIRMADO_POR?: string | null;
   TrocoPara?: unknown;
@@ -56,6 +60,17 @@ export class PedidosOnlineRepository {
     return this.tenantDbService.getTenantClient(tenant);
   }
 
+  private asUuid(value: string) {
+    return TenantPrisma.sql`${value}::uuid`;
+  }
+
+  private asNullableUuid(value: string | null | undefined) {
+    if (value === null || value === undefined || !String(value).trim()) {
+      return TenantPrisma.sql`NULL`;
+    }
+    return this.asUuid(String(value).trim());
+  }
+
   // TEMP: After db pull substitute with Prisma models.
   async findById(
     tenant: string,
@@ -67,26 +82,30 @@ export class PedidosOnlineRepository {
     const rows = await prisma.$queryRaw<PedidoOnlineRow[]>(
       TenantPrisma.sql`
         SELECT
-          ID,
-          Pedido AS PEDIDO,
-          CDEMP,
-          ID_CLIENTE,
-          ID_ENDERECO,
-          CANAL,
-          STATUS,
-          DT_PEDIDO,
-          TOTAL_BRUTO,
-          DESCONTO,
-          TAXA_ENTREGA,
-          TOTAL_LIQ,
-          OBS,
-          ID_VENDA,
-          DT_CONFIRMACAO,
-          CONFIRMADO_POR,
-          TrocoPara,
-          TipoPagto
+          ID AS "ID",
+          ID AS "id",
+          Pedido AS "PEDIDO",
+          CDEMP AS "CDEMP",
+          ID_CLIENTE AS "ID_CLIENTE",
+          ID_CLIENTE AS "id_cliente",
+          ID_ENDERECO AS "ID_ENDERECO",
+          ID_ENDERECO AS "id_endereco",
+          CANAL AS "CANAL",
+          STATUS AS "STATUS",
+          DT_PEDIDO AS "DT_PEDIDO",
+          TOTAL_BRUTO AS "TOTAL_BRUTO",
+          DESCONTO AS "DESCONTO",
+          TAXA_ENTREGA AS "TAXA_ENTREGA",
+          TOTAL_LIQ AS "TOTAL_LIQ",
+          OBS AS "OBS",
+          ID_VENDA AS "ID_VENDA",
+          ID_VENDA AS "id_venda",
+          DT_CONFIRMACAO AS "DT_CONFIRMACAO",
+          CONFIRMADO_POR AS "CONFIRMADO_POR",
+          TrocoPara AS "TrocoPara",
+          TipoPagto AS "TipoPagto"
         FROM T_PedidosOnLine
-        WHERE ID = ${id}
+        WHERE ID = ${this.asUuid(id)}
       `,
     );
 
@@ -116,34 +135,38 @@ export class PedidosOnlineRepository {
         UPDATE T_PedidosOnLine
         SET
           STATUS = 'CONFIRMADO',
-          DT_CONFIRMACAO = SYSDATETIME(),
-          ID_VENDA = ${payload.idVenda},
+          DT_CONFIRMACAO = CURRENT_TIMESTAMP,
+          ID_VENDA = ${this.asUuid(payload.idVenda)},
           CONFIRMADO_POR = ${payload.confirmadoPor},
           TOTAL_BRUTO = ${payload.totals.subtotal},
           DESCONTO = ${payload.totals.desconto},
           TAXA_ENTREGA = ${payload.totals.taxaEntrega},
           TOTAL_LIQ = ${payload.totals.total}
-        OUTPUT
-          INSERTED.ID,
-          INSERTED.Pedido AS PEDIDO,
-          INSERTED.CDEMP,
-          INSERTED.ID_CLIENTE,
-          INSERTED.ID_ENDERECO,
-          INSERTED.CANAL,
-          INSERTED.STATUS,
-          INSERTED.DT_PEDIDO,
-          INSERTED.TOTAL_BRUTO,
-          INSERTED.DESCONTO,
-          INSERTED.TAXA_ENTREGA,
-          INSERTED.TOTAL_LIQ,
-          INSERTED.OBS,
-          INSERTED.ID_VENDA,
-          INSERTED.DT_CONFIRMACAO,
-          INSERTED.CONFIRMADO_POR,
-          INSERTED.TrocoPara,
-          INSERTED.TipoPagto
-        WHERE ID = ${payload.id}
+        WHERE ID = ${this.asUuid(payload.id)}
           AND STATUS = 'ABERTO'
+        RETURNING
+          ID AS "ID",
+          ID AS "id",
+          Pedido AS "PEDIDO",
+          CDEMP AS "CDEMP",
+          ID_CLIENTE AS "ID_CLIENTE",
+          ID_CLIENTE AS "id_cliente",
+          ID_ENDERECO AS "ID_ENDERECO",
+          ID_ENDERECO AS "id_endereco",
+          CANAL AS "CANAL",
+          STATUS AS "STATUS",
+          DT_PEDIDO AS "DT_PEDIDO",
+          TOTAL_BRUTO AS "TOTAL_BRUTO",
+          DESCONTO AS "DESCONTO",
+          TAXA_ENTREGA AS "TAXA_ENTREGA",
+          TOTAL_LIQ AS "TOTAL_LIQ",
+          OBS AS "OBS",
+          ID_VENDA AS "ID_VENDA",
+          ID_VENDA AS "id_venda",
+          DT_CONFIRMACAO AS "DT_CONFIRMACAO",
+          CONFIRMADO_POR AS "CONFIRMADO_POR",
+          TrocoPara AS "TrocoPara",
+          TipoPagto AS "TipoPagto"
       `,
     );
 
@@ -188,27 +211,10 @@ export class PedidosOnlineRepository {
           TrocoPara,
           TipoPagto
         )
-        OUTPUT
-          INSERTED.ID,
-          INSERTED.Pedido AS PEDIDO,
-          INSERTED.CDEMP,
-          INSERTED.ID_CLIENTE,
-          INSERTED.ID_ENDERECO,
-          INSERTED.CANAL,
-          INSERTED.STATUS,
-          INSERTED.DT_PEDIDO,
-          INSERTED.PUBLIC_TOKEN,
-          INSERTED.TOTAL_BRUTO,
-          INSERTED.DESCONTO,
-          INSERTED.TAXA_ENTREGA,
-          INSERTED.TOTAL_LIQ,
-          INSERTED.OBS,
-          INSERTED.TrocoPara,
-          INSERTED.TipoPagto
         VALUES (
           ${payload.cdemp},
-          ${payload.idCliente ?? null},
-          ${payload.idEndereco ?? null},
+          ${this.asNullableUuid(payload.idCliente)},
+          ${this.asNullableUuid(payload.idEndereco)},
           ${payload.canal ?? 'EPDV'},
           'ABERTO',
           ${payload.totals.subtotal},
@@ -219,6 +225,26 @@ export class PedidosOnlineRepository {
           ${payload.trocoPara ?? null},
           ${payload.tipoPagto ?? null}
         )
+        RETURNING
+          ID AS "ID",
+          ID AS "id",
+          Pedido AS "PEDIDO",
+          CDEMP AS "CDEMP",
+          ID_CLIENTE AS "ID_CLIENTE",
+          ID_CLIENTE AS "id_cliente",
+          ID_ENDERECO AS "ID_ENDERECO",
+          ID_ENDERECO AS "id_endereco",
+          CANAL AS "CANAL",
+          STATUS AS "STATUS",
+          DT_PEDIDO AS "DT_PEDIDO",
+          PUBLIC_TOKEN AS "PUBLIC_TOKEN",
+          TOTAL_BRUTO AS "TOTAL_BRUTO",
+          DESCONTO AS "DESCONTO",
+          TAXA_ENTREGA AS "TAXA_ENTREGA",
+          TOTAL_LIQ AS "TOTAL_LIQ",
+          OBS AS "OBS",
+          TrocoPara AS "TrocoPara",
+          TipoPagto AS "TipoPagto"
       `,
     );
 
@@ -238,28 +264,36 @@ export class PedidosOnlineRepository {
     return prisma.$queryRaw<PedidoOnlineListRow[]>(
       TenantPrisma.sql`
         SELECT
-          p.ID,
-          p.Pedido AS PEDIDO,
-          p.CDEMP,
-          p.ID_CLIENTE,
-          p.ID_ENDERECO,
-          p.CANAL,
-          p.STATUS,
-          p.DT_PEDIDO,
-          p.TOTAL_BRUTO,
-          p.DESCONTO,
-          p.TAXA_ENTREGA,
-          p.TOTAL_LIQ,
-          p.OBS,
-          p.ID_VENDA,
-          p.DT_CONFIRMACAO,
-          p.CONFIRMADO_POR,
-          p.TrocoPara,
-          p.TipoPagto,
-          c.decli AS CLIENTE_NOME,
-          CONCAT(ISNULL(c.dddcli, ''), ISNULL(COALESCE(NULLIF(c.celcli, ''), c.fonecli), '')) AS CLIENTE_FONE,
-          c.emailcli AS CLIENTE_EMAIL,
-          ISNULL(i.ITEMS_COUNT, 0) AS ITEMS_COUNT
+          p.ID AS "ID",
+          p.ID AS "id",
+          ID AS "id",
+          p.Pedido AS "PEDIDO",
+          p.CDEMP AS "CDEMP",
+          p.ID_CLIENTE AS "ID_CLIENTE",
+          p.ID_CLIENTE AS "id_cliente",
+          ID_CLIENTE AS "id_cliente",
+          p.ID_ENDERECO AS "ID_ENDERECO",
+          p.ID_ENDERECO AS "id_endereco",
+          ID_ENDERECO AS "id_endereco",
+          p.CANAL AS "CANAL",
+          p.STATUS AS "STATUS",
+          p.DT_PEDIDO AS "DT_PEDIDO",
+          p.TOTAL_BRUTO AS "TOTAL_BRUTO",
+          p.DESCONTO AS "DESCONTO",
+          p.TAXA_ENTREGA AS "TAXA_ENTREGA",
+          p.TOTAL_LIQ AS "TOTAL_LIQ",
+          p.OBS AS "OBS",
+          p.ID_VENDA AS "ID_VENDA",
+          p.ID_VENDA AS "id_venda",
+          ID_VENDA AS "id_venda",
+          p.DT_CONFIRMACAO AS "DT_CONFIRMACAO",
+          p.CONFIRMADO_POR AS "CONFIRMADO_POR",
+          p.TrocoPara AS "TrocoPara",
+          p.TipoPagto AS "TipoPagto",
+          c.decli AS "CLIENTE_NOME",
+          CONCAT(COALESCE(c.dddcli, ''), COALESCE(NULLIF(c.celcli, ''), c.fonecli, '')) AS "CLIENTE_FONE",
+          c.emailcli AS "CLIENTE_EMAIL",
+          COALESCE(i.ITEMS_COUNT, 0) AS "ITEMS_COUNT"
         FROM T_PedidosOnLine p
         LEFT JOIN t_cli c ON c.id = p.ID_CLIENTE
         LEFT JOIN (
@@ -267,9 +301,9 @@ export class PedidosOnlineRepository {
           FROM T_PedidosOnLineItens
           GROUP BY ID_PEDIDO
         ) i ON i.ID_PEDIDO = p.ID
-        WHERE p.ID_CLIENTE = ${payload.idCliente}
+        WHERE p.ID_CLIENTE = ${this.asUuid(payload.idCliente)}
         ORDER BY p.DT_PEDIDO DESC, p.ID DESC
-        OFFSET 0 ROWS FETCH NEXT ${payload.limit} ROWS ONLY
+        LIMIT ${payload.limit}
       `,
     );
   }
@@ -288,28 +322,36 @@ export class PedidosOnlineRepository {
     return prisma.$queryRaw<PedidoOnlineListRow[]>(
       TenantPrisma.sql`
         SELECT
-          p.ID,
-          p.Pedido AS PEDIDO,
-          p.CDEMP,
-          p.ID_CLIENTE,
-          p.ID_ENDERECO,
-          p.CANAL,
-          p.STATUS,
-          p.DT_PEDIDO,
-          p.TOTAL_BRUTO,
-          p.DESCONTO,
-          p.TAXA_ENTREGA,
-          p.TOTAL_LIQ,
-          p.OBS,
-          p.ID_VENDA,
-          p.DT_CONFIRMACAO,
-          p.CONFIRMADO_POR,
-          p.TrocoPara,
-          p.TipoPagto,
-          c.decli AS CLIENTE_NOME,
-          CONCAT(ISNULL(c.dddcli, ''), ISNULL(COALESCE(NULLIF(c.celcli, ''), c.fonecli), '')) AS CLIENTE_FONE,
-          c.emailcli AS CLIENTE_EMAIL,
-          ISNULL(i.ITEMS_COUNT, 0) AS ITEMS_COUNT
+          p.ID AS "ID",
+          p.ID AS "id",
+          ID AS "id",
+          p.Pedido AS "PEDIDO",
+          p.CDEMP AS "CDEMP",
+          p.ID_CLIENTE AS "ID_CLIENTE",
+          p.ID_CLIENTE AS "id_cliente",
+          ID_CLIENTE AS "id_cliente",
+          p.ID_ENDERECO AS "ID_ENDERECO",
+          p.ID_ENDERECO AS "id_endereco",
+          ID_ENDERECO AS "id_endereco",
+          p.CANAL AS "CANAL",
+          p.STATUS AS "STATUS",
+          p.DT_PEDIDO AS "DT_PEDIDO",
+          p.TOTAL_BRUTO AS "TOTAL_BRUTO",
+          p.DESCONTO AS "DESCONTO",
+          p.TAXA_ENTREGA AS "TAXA_ENTREGA",
+          p.TOTAL_LIQ AS "TOTAL_LIQ",
+          p.OBS AS "OBS",
+          p.ID_VENDA AS "ID_VENDA",
+          p.ID_VENDA AS "id_venda",
+          ID_VENDA AS "id_venda",
+          p.DT_CONFIRMACAO AS "DT_CONFIRMACAO",
+          p.CONFIRMADO_POR AS "CONFIRMADO_POR",
+          p.TrocoPara AS "TrocoPara",
+          p.TipoPagto AS "TipoPagto",
+          c.decli AS "CLIENTE_NOME",
+          CONCAT(COALESCE(c.dddcli, ''), COALESCE(NULLIF(c.celcli, ''), c.fonecli, '')) AS "CLIENTE_FONE",
+          c.emailcli AS "CLIENTE_EMAIL",
+          COALESCE(i.ITEMS_COUNT, 0) AS "ITEMS_COUNT"
         FROM T_PedidosOnLine p
         LEFT JOIN t_cli c ON c.id = p.ID_CLIENTE
         LEFT JOIN (
@@ -320,7 +362,7 @@ export class PedidosOnlineRepository {
         WHERE (${payload.status ?? null} IS NULL OR p.STATUS = ${payload.status ?? null})
           AND (${payload.cdemp ?? null} IS NULL OR p.CDEMP = ${payload.cdemp ?? null})
         ORDER BY p.DT_PEDIDO ASC, p.ID ASC
-        OFFSET 0 ROWS FETCH NEXT ${payload.limit} ROWS ONLY
+        LIMIT ${payload.limit}
       `,
     );
   }
@@ -334,37 +376,45 @@ export class PedidosOnlineRepository {
 
     const rows = await prisma.$queryRaw<PedidoOnlineDetailsRow[]>(
       TenantPrisma.sql`
-        SELECT TOP 1
-          p.ID,
-          p.Pedido AS PEDIDO,
-          p.CDEMP,
-          p.ID_CLIENTE,
-          p.ID_ENDERECO,
-          p.CANAL,
-          p.STATUS,
-          p.DT_PEDIDO,
-          p.TOTAL_BRUTO,
-          p.DESCONTO,
-          p.TAXA_ENTREGA,
-          p.TOTAL_LIQ,
-          p.OBS,
-          p.ID_VENDA,
-          p.DT_CONFIRMACAO,
-          p.CONFIRMADO_POR,
-          p.TrocoPara,
-          p.TipoPagto,
-          c.decli AS CLIENTE_NOME,
-          CONCAT(ISNULL(c.dddcli, ''), ISNULL(COALESCE(NULLIF(c.celcli, ''), c.fonecli), '')) AS CLIENTE_FONE,
-          c.emailcli AS CLIENTE_EMAIL,
-          e.CEP AS END_CEP,
-          e.LOGRADOURO AS END_LOGRADOURO,
-          e.NUMERO AS END_NUMERO,
-          e.BAIRRO AS END_BAIRRO,
-          e.CIDADE AS END_CIDADE,
-          e.UF AS END_UF,
-          e.COMPLEMENTO AS END_COMPLEMENTO,
-          e.PONTO_REFERENCIA AS END_REFERENCIA,
-          ISNULL(i.ITEMS_COUNT, 0) AS ITEMS_COUNT
+        SELECT
+          p.ID AS "ID",
+          p.ID AS "id",
+          ID AS "id",
+          p.Pedido AS "PEDIDO",
+          p.CDEMP AS "CDEMP",
+          p.ID_CLIENTE AS "ID_CLIENTE",
+          p.ID_CLIENTE AS "id_cliente",
+          ID_CLIENTE AS "id_cliente",
+          p.ID_ENDERECO AS "ID_ENDERECO",
+          p.ID_ENDERECO AS "id_endereco",
+          ID_ENDERECO AS "id_endereco",
+          p.CANAL AS "CANAL",
+          p.STATUS AS "STATUS",
+          p.DT_PEDIDO AS "DT_PEDIDO",
+          p.TOTAL_BRUTO AS "TOTAL_BRUTO",
+          p.DESCONTO AS "DESCONTO",
+          p.TAXA_ENTREGA AS "TAXA_ENTREGA",
+          p.TOTAL_LIQ AS "TOTAL_LIQ",
+          p.OBS AS "OBS",
+          p.ID_VENDA AS "ID_VENDA",
+          p.ID_VENDA AS "id_venda",
+          ID_VENDA AS "id_venda",
+          p.DT_CONFIRMACAO AS "DT_CONFIRMACAO",
+          p.CONFIRMADO_POR AS "CONFIRMADO_POR",
+          p.TrocoPara AS "TrocoPara",
+          p.TipoPagto AS "TipoPagto",
+          c.decli AS "CLIENTE_NOME",
+          CONCAT(COALESCE(c.dddcli, ''), COALESCE(NULLIF(c.celcli, ''), c.fonecli, '')) AS "CLIENTE_FONE",
+          c.emailcli AS "CLIENTE_EMAIL",
+          e.CEP AS "END_CEP",
+          e.LOGRADOURO AS "END_LOGRADOURO",
+          e.NUMERO AS "END_NUMERO",
+          e.BAIRRO AS "END_BAIRRO",
+          e.CIDADE AS "END_CIDADE",
+          e.UF AS "END_UF",
+          e.COMPLEMENTO AS "END_COMPLEMENTO",
+          e.PONTO_REFERENCIA AS "END_REFERENCIA",
+          COALESCE(i.ITEMS_COUNT, 0) AS "ITEMS_COUNT"
         FROM T_PedidosOnLine p
         LEFT JOIN t_cli c ON c.id = p.ID_CLIENTE
         LEFT JOIN T_ENDCLI e ON e.ID = p.ID_ENDERECO
@@ -373,7 +423,8 @@ export class PedidosOnlineRepository {
           FROM T_PedidosOnLineItens
           GROUP BY ID_PEDIDO
         ) i ON i.ID_PEDIDO = p.ID
-        WHERE p.ID = ${id}
+        WHERE p.ID = ${this.asUuid(id)}
+        LIMIT 1
       `,
     );
 

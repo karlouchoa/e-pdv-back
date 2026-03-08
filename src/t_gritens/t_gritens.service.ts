@@ -19,6 +19,8 @@ export class TGritensService {
         degru: dto.degru,
         ativo: dto.ativo,
         perccomgru: dto.perccomgru,
+        comlinha: dto.comlinha,
+        impressoradaseparacao: dto.impressoradaseparacao,
         createdat: new Date(),
       },
     });

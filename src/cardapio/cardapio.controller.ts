@@ -1,19 +1,28 @@
-import { Controller, Get, NotFoundException, Param, Req } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  NotFoundException,
+  Param,
+  Query,
+  Req,
+} from '@nestjs/common';
 import type { Request } from 'express';
 import { Public } from '../auth/decorators/public.decorator';
 import { TenantDbService } from '../tenant-db/tenant-db.service';
 import { resolvePublicSubdomainFromRequest } from '../public/tenant-resolver';
+import { ListarProdutosCardapioQueryDto } from './dto/listar-produtos-cardapio-query.dto';
 
 type CardapioItemRecord = {
-  ID: string | null;
+  id: string | null;
   cditem: number;
   deitem: string | null;
   defat: string | null;
   preco: unknown;
   locfotitem: string | null;
   itprodsn: string | null;
-  ComboSN: string | null;
-  t_imgitens: Array<{ URL: string | null }>;
+  combosn: string | null;
+  negativo: string | null;
+  t_imgitens: Array<{ url: string | null }>;
   t_formulas: Array<{
     autocod: number;
     cditem: number | null;
@@ -24,15 +33,64 @@ type CardapioItemRecord = {
     undmp: string | null;
     empitemmp: number | null;
     deitem_iv: string | null;
-    ID_ITEM: string | null;
+    id_item: string | null;
   }>;
-  T_ItensCombo: Array<{
-    ID: string;
-    ID_ITEM: string;
-    CDGRU: number;
-    QTDE: unknown;
+  t_itenscombo: Array<{
+    id: string;
+    id_item: string;
+    cdgru: number;
+    qtde: unknown;
+    id_subgrupo: string | null;
+    CDGRU?: number;
+    QTDE?: unknown;
+    ID_SUBGRUPO?: string | null;
   }>;
   cdgruit: number | null;
+  subgru: number | null;
+};
+
+type CardapioItemResponse = Omit<
+  CardapioItemRecord,
+  't_imgitens' | 't_formulas' | 't_itenscombo'
+> & {
+  saldo: number | null;
+  locfotitem: string | null;
+  imageUrls: string[];
+  categoria: { cdgru: number; degru: string | null } | null;
+  t_formulas?: CardapioItemRecord['t_formulas'];
+  t_itenscombo?: Array<
+    CardapioItemRecord['t_itenscombo'][number] & {
+      grupo: { cdgru: number; degru: string | null } | null;
+    }
+  >;
+};
+
+type CardapioCategoryResponse = {
+  code: number | null;
+  label: string;
+};
+
+type CardapioComboRecord = {
+  id: string | null;
+  cditem: number;
+  deitem: string | null;
+  defat: string | null;
+  undven: string | null;
+  preco: unknown;
+  negativo: string | null;
+  t_imgitens: Array<{ url: string | null }>;
+};
+
+type CardapioComboResponse = {
+  id: string | null;
+  CDITEM: number;
+  DEITEM: string | null;
+  defat: string | null;
+  undven: string | null;
+  preco: number | null;
+  NEGATIVO: string | null;
+  SALDO: number | null;
+  url: string | null;
 };
 
 type TenantCompanyProfile = {
@@ -40,7 +98,7 @@ type TenantCompanyProfile = {
   companyCode: number | null;
   companyId: string | null;
   taxaEntrega: number | null;
-  logoUrl: string | null;
+  logourl: string | null;
   coverUrl: string | null;
   phone: string | null;
   whatsapp: string | null;
@@ -65,6 +123,10 @@ type TenantCompanyProfile = {
 @Controller('cardapio')
 export class CardapioController {
   constructor(private readonly tenantDbService: TenantDbService) {}
+  private readonly categoryCollator = new Intl.Collator('pt-BR', {
+    sensitivity: 'base',
+    numeric: true,
+  });
 
   private stringifyScalar(value: unknown): string {
     if (typeof value === 'string') return value;
@@ -91,6 +153,16 @@ export class CardapioController {
     return Number.isFinite(parsed) ? parsed : null;
   }
 
+  private normalizeUuid(value: unknown): string | null {
+    const normalized = String(value ?? '').trim();
+    if (!normalized) return null;
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      normalized,
+    )
+      ? normalized.toLowerCase()
+      : null;
+  }
+
   private joinNonEmpty(
     parts: Array<string | null | undefined>,
     separator: string,
@@ -110,6 +182,51 @@ export class CardapioController {
     return phoneValue ?? null;
   }
 
+  private normalizeCategoryLabel(value: unknown) {
+    const text = this.normalizeText(value, 80);
+    return text ?? 'Outros';
+  }
+
+  private categorySortKey(value: string) {
+    return value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .trim();
+  }
+
+  private resolveCategoryLabel(item: {
+    categoria?: { degru: string | null } | null;
+  }) {
+    return this.normalizeCategoryLabel(item.categoria?.degru);
+  }
+
+  private buildSortedCategories(
+    items: CardapioItemResponse[],
+  ): CardapioCategoryResponse[] {
+    const uniqueByKey = new Map<string, CardapioCategoryResponse>();
+
+    for (const item of items) {
+      const label = this.resolveCategoryLabel(item);
+      const code =
+        typeof item.cdgruit === 'number' && Number.isFinite(item.cdgruit)
+          ? item.cdgruit
+          : null;
+      const key =
+        code === null ? `label:${this.categorySortKey(label)}` : `code:${code}`;
+      if (uniqueByKey.has(key)) continue;
+      uniqueByKey.set(key, { code, label });
+    }
+
+    return Array.from(uniqueByKey.values()).sort((a, b) => {
+      const byLabel = this.categoryCollator.compare(a.label, b.label);
+      if (byLabel !== 0) return byLabel;
+      const aCode = a.code ?? Number.MAX_SAFE_INTEGER;
+      const bCode = b.code ?? Number.MAX_SAFE_INTEGER;
+      return aCode - bCode;
+    });
+  }
+
   private async resolveTenantProfile(
     subdomain: string,
     prisma: Awaited<ReturnType<TenantDbService['getTenantClient']>>,
@@ -122,7 +239,7 @@ export class CardapioController {
         where: { matriz: 'S' },
         select: {
           cdemp: true,
-          ID: true,
+          id: true,
           deemp: true,
           fantemp: true,
           endemp: true,
@@ -141,7 +258,7 @@ export class CardapioController {
           imagem_capa: true,
           latitude: true,
           longitude: true,
-          Taxa_Entrega: true,
+          taxa_entrega: true,
         },
         orderBy: { cdemp: 'asc' },
       }),
@@ -178,9 +295,9 @@ export class CardapioController {
         typeof company?.cdemp === 'number' && Number.isFinite(company.cdemp)
           ? company.cdemp
           : null,
-      companyId: this.normalizeText(company?.ID, 64),
-      taxaEntrega: this.toNumber(company?.Taxa_Entrega),
-      logoUrl: logoFromCompany ?? this.normalizeText(acesso?.logoUrl, 1000),
+      companyId: this.normalizeText(company?.id, 64),
+      taxaEntrega: this.toNumber(company?.taxa_entrega),
+      logourl: logoFromCompany ?? this.normalizeText(acesso?.logoUrl, 1000),
       coverUrl: coverFromCompany ?? this.normalizeText(acesso?.coverUrl, 255),
       phone,
       whatsapp: phone,
@@ -206,7 +323,26 @@ export class CardapioController {
   private async mapCardapioItems(
     prisma: Awaited<ReturnType<TenantDbService['getTenantClient']>>,
     items: CardapioItemRecord[],
-  ) {
+  ): Promise<CardapioItemResponse[]> {
+    const itemCditems = [
+      ...new Set(
+        items
+          .map((item) => item.cditem)
+          .filter((cditem): cditem is number => typeof cditem === 'number'),
+      ),
+    ];
+    const balances = itemCditems.length
+      ? await prisma.t_saldoit.groupBy({
+          by: ['cditem'],
+          where: { cditem: { in: itemCditems } },
+          _sum: { saldo: true },
+        })
+      : [];
+    const saldoByCditem = new Map<number, number>();
+    for (const entry of balances) {
+      saldoByCditem.set(entry.cditem, this.toNumber(entry._sum.saldo) ?? 0);
+    }
+
     const categoryIds = [
       ...new Set(
         items
@@ -215,36 +351,77 @@ export class CardapioController {
       ),
     ];
 
-    const comboGroupIds = [
+    const comboSubgroupCodes = [
       ...new Set(
         items
-          .filter((item) => item.ComboSN === 'S')
-          .flatMap((item) => item.T_ItensCombo ?? [])
-          .map((combo) => combo.CDGRU)
+          .filter((item) => item.combosn === 'S')
+          .flatMap((item) => item.t_itenscombo ?? [])
+          .map((combo) => combo.cdgru)
           .filter((id): id is number => typeof id === 'number'),
       ),
     ];
+    const comboSubgroupUuids = [
+      ...new Set(
+        items
+          .filter((item) => item.combosn === 'S')
+          .flatMap((item) => item.t_itenscombo ?? [])
+          .map((combo) => this.normalizeUuid(combo.id_subgrupo))
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
 
-    const groupIds = [...new Set([...categoryIds, ...comboGroupIds])];
+    const subgroupIds = [
+      ...new Set(
+        [
+          ...items
+            .map((item) => item.subgru)
+            .filter((id): id is number => typeof id === 'number'),
+          ...comboSubgroupCodes,
+        ].filter((id) => Number.isFinite(id)),
+      ),
+    ];
 
-    const groups = groupIds.length
+    const categories = categoryIds.length
       ? await prisma.t_gritens.findMany({
-          where: { cdgru: { in: groupIds } },
+          where: { cdgru: { in: categoryIds } },
           select: { cdgru: true, degru: true },
         })
       : [];
-    const groupMap = new Map(groups.map((group) => [group.cdgru, group]));
+    const categoryMap = new Map(
+      categories.map((category) => [category.cdgru, category]),
+    );
+
+    const subgroups =
+      subgroupIds.length || comboSubgroupUuids.length
+      ? await prisma.t_subgr.findMany({
+          where: {
+            OR: [
+              ...(subgroupIds.length ? [{ cdsub: { in: subgroupIds } }] : []),
+              ...(comboSubgroupUuids.length ? [{ id: { in: comboSubgroupUuids } }] : []),
+            ],
+          },
+          select: { cdsub: true, desub: true, id: true },
+        })
+      : [];
+    const subgroupMapByCode = new Map(
+      subgroups.map((subgroup) => [subgroup.cdsub, subgroup]),
+    );
+    const subgroupMapById = new Map(
+      subgroups
+        .filter((subgroup) => Boolean(subgroup.id))
+        .map((subgroup) => [String(subgroup.id).toLowerCase(), subgroup]),
+    );
 
     return items.map((item) => {
       const {
         t_imgitens: rawImages,
         t_formulas: rawFormulas,
-        T_ItensCombo: rawCombos,
+        t_itenscombo: rawCombos,
         ...rest
       } = item;
 
       const imageUrls = (rawImages ?? [])
-        .map((image) => (image.URL ?? '').trim())
+        .map((image) => (image.url ?? '').trim())
         .filter((url) => url.length > 0);
       if (!imageUrls.length) {
         const fallback = item.locfotitem?.trim();
@@ -255,47 +432,73 @@ export class CardapioController {
       const primaryImage = imageUrls[0] ?? item.locfotitem ?? null;
       const categoria =
         typeof item.cdgruit === 'number'
-          ? (groupMap.get(item.cdgruit) ?? null)
+          ? (categoryMap.get(item.cdgruit) ?? null)
           : null;
       const formulas = item.itprodsn === 'S' ? (rawFormulas ?? []) : undefined;
       const combos =
-        item.ComboSN === 'S'
+        item.combosn === 'S'
           ? (rawCombos ?? []).map((combo) => ({
-              ...combo,
-              grupo:
-                typeof combo.CDGRU === 'number'
-                  ? (groupMap.get(combo.CDGRU) ?? null)
-                  : null,
+              ...((): CardapioItemRecord['t_itenscombo'][number] & {
+                grupo: { cdgru: number; degru: string | null } | null;
+              } => {
+                const subgroupId = this.normalizeUuid(combo.id_subgrupo);
+                const subgroup =
+                  (subgroupId ? subgroupMapById.get(subgroupId) : null) ??
+                  (typeof combo.cdgru === 'number'
+                    ? subgroupMapByCode.get(combo.cdgru)
+                    : null);
+
+                const resolvedCdgru =
+                  typeof subgroup?.cdsub === 'number'
+                    ? subgroup.cdsub
+                    : combo.cdgru;
+                const resolvedSubgroupId =
+                  subgroup?.id ?? combo.id_subgrupo ?? null;
+
+                return {
+                  ...combo,
+                  cdgru: resolvedCdgru,
+                  id_subgrupo: resolvedSubgroupId,
+                  CDGRU: resolvedCdgru,
+                  QTDE: combo.qtde,
+                  ID_SUBGRUPO: resolvedSubgroupId,
+                  grupo: subgroup
+                    ? { cdgru: subgroup.cdsub, degru: subgroup.desub }
+                    : null,
+                };
+              })(),
             }))
           : undefined;
 
       return {
         ...rest,
+        saldo: saldoByCditem.get(item.cditem) ?? 0,
         locfotitem: primaryImage,
         imageUrls,
         categoria,
         t_formulas: formulas,
-        T_ItensCombo: combos,
+        t_itenscombo: combos,
       };
     });
   }
 
   private buildItemSelect() {
     return {
-      ID: true,
+      id: true,
       cditem: true,
       deitem: true,
       defat: true,
       preco: true,
       locfotitem: true,
       itprodsn: true,
-      ComboSN: true,
+      combosn: true,
+      negativo: true,
       t_imgitens: {
         select: {
-          URL: true,
+          url: true,
         },
         orderBy: {
-          AUTOCOD: 'asc' as const,
+          autocod: 'asc' as const,
         },
       },
       t_formulas: {
@@ -309,36 +512,69 @@ export class CardapioController {
           undmp: true,
           empitemmp: true,
           deitem_iv: true,
-          ID_ITEM: true,
+          id_item: true,
         },
         orderBy: {
           autocod: 'asc' as const,
         },
       },
-      T_ItensCombo: {
+      t_itenscombo: {
         select: {
-          ID: true,
-          ID_ITEM: true,
-          CDGRU: true,
-          QTDE: true,
+          id: true,
+          id_item: true,
+          cdgru: true,
+          qtde: true,
+          id_subgrupo: true,
         },
       },
       cdgruit: true,
+      subgru: true,
     };
+  }
+
+  private async mapComboRows(
+    prisma: Awaited<ReturnType<TenantDbService['getTenantClient']>>,
+    combos: CardapioComboRecord[],
+  ): Promise<CardapioComboResponse[]> {
+    if (!combos.length) {
+      return [];
+    }
+
+    const comboCditems = Array.from(new Set(combos.map((item) => item.cditem)));
+    const balances = await prisma.t_saldoit.groupBy({
+      by: ['cditem'],
+      where: { cditem: { in: comboCditems } },
+      _sum: { saldo: true },
+    });
+
+    const stockByCditem = new Map<number, number>();
+    for (const entry of balances) {
+      stockByCditem.set(entry.cditem, this.toNumber(entry._sum.saldo) ?? 0);
+    }
+
+    return combos.flatMap((item) =>
+      (item.t_imgitens ?? []).map((image) => ({
+        id: item.id,
+        CDITEM: item.cditem,
+        DEITEM: item.deitem,
+        defat: item.defat,
+        undven: item.undven,
+        preco: this.toNumber(item.preco),
+        NEGATIVO: item.negativo,
+        SALDO: stockByCditem.get(item.cditem) ?? 0,
+        url: image.url,
+      })),
+    );
   }
 
   @Public()
   @Get('produtos')
-  async listarProdutos(@Req() req: Request) {
-    const pageSize = 50;
-    const pageParam = Array.isArray(req.query.page)
-      ? req.query.page[0]
-      : req.query.page;
-    const parsedPage = Number(pageParam);
-    const page =
-      Number.isFinite(parsedPage) && parsedPage > 0
-        ? Math.floor(parsedPage)
-        : 1;
+  async listarProdutos(
+    @Req() req: Request,
+    @Query() query: ListarProdutosCardapioQueryDto,
+  ) {
+    const pageSize = query.pageSize ?? 24;
+    const page = query.page ?? 1;
     const skip = (page - 1) * pageSize;
     const tenantSubdomain = resolvePublicSubdomainFromRequest(req);
     const prisma =
@@ -350,23 +586,68 @@ export class CardapioController {
       where,
       skip,
       take: pageSize,
+      orderBy: [{ cditem: 'asc' }],
       select: this.buildItemSelect(),
     })) as CardapioItemRecord[];
 
     const itemsWithImages = await this.mapCardapioItems(prisma, items);
+    const categories = this.buildSortedCategories(itemsWithImages);
     const tenantProfile = await this.resolveTenantProfile(
       tenantSubdomain,
       prisma,
     );
+    const totalPages = Math.ceil(total / pageSize);
+    const hasNextPage = page < totalPages;
+    const hasPreviousPage = page > 1 && totalPages > 0;
 
     return {
       tenant: tenantProfile,
       page,
       pageSize,
       total,
-      totalPages: Math.ceil(total / pageSize),
+      totalPages,
+      hasNextPage,
+      hasPreviousPage,
+      categories,
       items: itemsWithImages,
     };
+  }
+
+  @Public()
+  @Get('combos')
+  async listarCombos(@Req() req: Request) {
+    const tenantSubdomain = resolvePublicSubdomainFromRequest(req);
+    const prisma =
+      await this.tenantDbService.getTenantClientBySubdomain(tenantSubdomain);
+
+    const combos = (await prisma.t_itens.findMany({
+      where: {
+        ativosn: 'S',
+        combosn: 'S',
+        t_itenscombo: { some: {} },
+        t_imgitens: { some: {} },
+      },
+      orderBy: [{ cditem: 'asc' }],
+      select: {
+        id: true,
+        cditem: true,
+        deitem: true,
+        defat: true,
+        undven: true,
+        preco: true,
+        negativo: true,
+        t_imgitens: {
+          select: {
+            url: true,
+          },
+          orderBy: {
+            autocod: 'asc' as const,
+          },
+        },
+      },
+    })) as CardapioComboRecord[];
+
+    return this.mapComboRows(prisma, combos);
   }
 
   @Public()
@@ -393,9 +674,9 @@ export class CardapioController {
         trimmed,
       );
 
-    const orFilters: Array<{ ID: string } | { cditem: number }> = [];
+    const orFilters: Array<{ id: string } | { cditem: number }> = [];
     if (isUuid) {
-      orFilters.push({ ID: trimmed });
+      orFilters.push({ id: trimmed });
     }
     if (byCode) {
       orFilters.push({ cditem: byCode });

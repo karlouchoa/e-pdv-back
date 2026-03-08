@@ -11,6 +11,7 @@ export interface TenantTableConfig {
 
 export const TENANT_TABLE_CONFIGS: TenantTableConfig[] = [
   { name: 't_gritens', primaryKeys: [{ name: 'cdgru', type: 'number' }] },
+  { name: 't_subgr', primaryKeys: [{ name: 'cdsub', type: 'number' }] },
   { name: 't_emp', primaryKeys: [{ name: 'cdemp', type: 'number' }] },
   { name: 't_cli', primaryKeys: [{ name: 'id', type: 'string' }] },
   {
@@ -45,6 +46,7 @@ export const TENANT_TABLE_CONFIGS: TenantTableConfig[] = [
   { name: 't_users', primaryKeys: [{ name: 'codigo', type: 'number' }] },
   { name: 't_tpgto', primaryKeys: [{ name: 'cdtpg', type: 'number' }] },
   { name: 't_fpgto', primaryKeys: [{ name: 'cdfpg', type: 'number' }] },
+  { name: 't_config', primaryKeys: [{ name: 'autocod', type: 'number' }] },
   { name: 't_formacao', primaryKeys: [{ name: 'autocod', type: 'number' }] },
   {
     name: 't_rec',

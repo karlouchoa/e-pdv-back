@@ -17,6 +17,9 @@ export class TItensComboResponseDto {
   QTDE!: number;
 
   @Expose()
+  ID_SUBGRUPO!: string | null;
+
+  @Expose()
   CREATEDAT!: Date;
 
   @Expose()

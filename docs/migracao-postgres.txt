@@ -1,0 +1,26 @@
+Plano fechado para começar na **quinta-feira, 26/02/2026**.
+
+Sugestão de execução, focada em comercialização:
+1. `Dia 1`: infraestrutura de conexão (`tenant-db.service`), `datasource` Prisma para PostgreSQL e build passando.
+2. `Dia 2-3`: conversão dos SQLs manuais críticos de venda (`orders`, `public`, `auth`, `company-config`, `t_itpromo`, `t_itenscombo`).
+3. `Dia 4`: ajustes finais de queries, testes e validação dos fluxos de pedido/pagamento.
+4. `Dia 5`: homologação e checklist de go-live.
+
+Para amanhã já render rápido, deixe definido:
+1. URLs PostgreSQL de `main` e `tenant`.
+2. Estratégia multitenant no Postgres (`1 banco por tenant` ou `1 schema por tenant`).
+3. Quais fluxos são “bloqueadores” para comercializar no primeiro release.
+
+Quando você chamar amanhã, eu já começo pela etapa 1 direto no código.
+
+Com essa preparação de amanhã (26/02/2026), já conseguimos iniciar a migração do backend sem perder tempo.
+
+Quando voltar, traga só estes dados para começarmos direto:
+
+DATABASE_ACESSOS (Postgres) e DATABASE_MODELO (template) em formato URL.
+Como o tenant será resolvido no Postgres (troca de database vs schema).
+Nome do banco de exemplo migrado para validar os fluxos.
+Quais módulos precisam funcionar primeiro para comercialização.
+A partir disso, eu começo pela adaptação de conexão e Prisma e sigo para os SQLs críticos.
+
+

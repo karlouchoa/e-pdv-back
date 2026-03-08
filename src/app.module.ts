@@ -11,6 +11,7 @@ import { TFormulasModule } from './t_formulas/t_formulas.module';
 import { TGritensModule } from './t_gritens/t_gritens.module';
 import { TItensComboModule } from './t_itenscombo/t_itenscombo.module';
 import { TItpromoModule } from './t_itpromo/t_itpromo.module';
+import { TSubgrModule } from './t_subgr/t_subgr.module';
 import { TenantTablesModule } from './tenant-tables/tenant-tables.module';
 import { ProductionModule } from './production/production.module';
 import { InventoryModule } from './inventory/inventory.module';
@@ -38,6 +39,7 @@ import { AdminOperationsModule } from './admin-operations/admin-operations.modul
     TItensModule,
     TFormulasModule,
     TGritensModule,
+    TSubgrModule,
     TItensComboModule,
     TItpromoModule,
     TenantTablesModule,

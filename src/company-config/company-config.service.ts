@@ -195,7 +195,7 @@ export class CompanyConfigService {
   }
 
   private quoteIdentifier(value: string) {
-    return `[${value.replace(/]/g, ']]')}]`;
+    return `"${value.replace(/"/g, '""')}"`;
   }
 
   private rawColumn(value: string) {
@@ -224,14 +224,15 @@ export class CompanyConfigService {
     if (
       [
         'time',
-        'datetime',
-        'datetime2',
-        'smalldatetime',
-        'datetimeoffset',
+        'time without time zone',
+        'time with time zone',
+        'timestamp',
+        'timestamp without time zone',
+        'timestamp with time zone',
       ].includes(dataType)
     ) {
       // Normalize to HH:mm:ss to avoid timezone/date conversion side-effects.
-      return TenantPrisma.sql`CONVERT(varchar(8), ${columnRef}, 108) AS ${aliasRef}`;
+      return TenantPrisma.sql`to_char((${columnRef})::time, 'HH24:MI:SS') AS ${aliasRef}`;
     }
 
     return TenantPrisma.sql`${columnRef} AS ${aliasRef}`;
@@ -560,6 +561,21 @@ export class CompanyConfigService {
       return parsed;
     }
 
+    if (normalizedType === 'uuid') {
+      const normalized = String(value).trim();
+      const isUuid =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+          normalized,
+        );
+      if (!isUuid) {
+        throw new BadRequestException(
+          `Valor invalido para coluna UUID ${column}.`,
+        );
+      }
+
+      return TenantPrisma.sql`${normalized}::uuid`;
+    }
+
     return value;
   }
 
@@ -599,7 +615,9 @@ export class CompanyConfigService {
     const prisma = await this.getPrisma(tenant);
     const tableRows = await prisma.$queryRaw<AnyRecord[]>(
       TenantPrisma.sql`
-        SELECT TABLE_SCHEMA, TABLE_NAME
+        SELECT
+          TABLE_SCHEMA AS "TABLE_SCHEMA",
+          TABLE_NAME AS "TABLE_NAME"
         FROM INFORMATION_SCHEMA.TABLES
         WHERE TABLE_TYPE = 'BASE TABLE'
       `,
@@ -627,7 +645,9 @@ export class CompanyConfigService {
 
     const columnRows = await prisma.$queryRaw<AnyRecord[]>(
       TenantPrisma.sql`
-        SELECT COLUMN_NAME, DATA_TYPE
+        SELECT
+          COLUMN_NAME AS "COLUMN_NAME",
+          DATA_TYPE AS "DATA_TYPE"
         FROM INFORMATION_SCHEMA.COLUMNS
         WHERE TABLE_SCHEMA = ${tableSchema}
           AND TABLE_NAME = ${tableName}
@@ -691,27 +711,27 @@ export class CompanyConfigService {
 
     const fields = [
       idColumn
-        ? TenantPrisma.sql`${this.rawColumn(idColumn)} AS [id]`
-        : TenantPrisma.sql`NULL AS [id]`,
-      TenantPrisma.sql`${this.rawColumn(dayColumn)} AS [dayOfWeek]`,
+        ? TenantPrisma.sql`${this.rawColumn(idColumn)} AS "id"`
+        : TenantPrisma.sql`NULL AS "id"`,
+      TenantPrisma.sql`${this.rawColumn(dayColumn)} AS "dayOfWeek"`,
       openColumn
         ? this.buildTimeSelectClause(metadata, openColumn, 'openTime')
-        : TenantPrisma.sql`NULL AS [openTime]`,
+        : TenantPrisma.sql`NULL AS "openTime"`,
       closeColumn
         ? this.buildTimeSelectClause(metadata, closeColumn, 'closeTime')
-        : TenantPrisma.sql`NULL AS [closeTime]`,
+        : TenantPrisma.sql`NULL AS "closeTime"`,
       closedColumn
-        ? TenantPrisma.sql`${this.rawColumn(closedColumn)} AS [isClosed]`
-        : TenantPrisma.sql`CAST(0 AS bit) AS [isClosed]`,
+        ? TenantPrisma.sql`${this.rawColumn(closedColumn)} AS "isClosed"`
+        : TenantPrisma.sql`FALSE AS "isClosed"`,
       companyIdColumn
-        ? TenantPrisma.sql`${this.rawColumn(companyIdColumn)} AS [companyId]`
-        : TenantPrisma.sql`NULL AS [companyId]`,
+        ? TenantPrisma.sql`${this.rawColumn(companyIdColumn)} AS "companyId"`
+        : TenantPrisma.sql`NULL AS "companyId"`,
       companyCodeColumn
-        ? TenantPrisma.sql`${this.rawColumn(companyCodeColumn)} AS [companyCode]`
-        : TenantPrisma.sql`NULL AS [companyCode]`,
+        ? TenantPrisma.sql`${this.rawColumn(companyCodeColumn)} AS "companyCode"`
+        : TenantPrisma.sql`NULL AS "companyCode"`,
       cdempColumn
-        ? TenantPrisma.sql`${this.rawColumn(cdempColumn)} AS [cdemp]`
-        : TenantPrisma.sql`NULL AS [cdemp]`,
+        ? TenantPrisma.sql`${this.rawColumn(cdempColumn)} AS "cdemp"`
+        : TenantPrisma.sql`NULL AS "cdemp"`,
     ];
 
     return {
@@ -1128,10 +1148,10 @@ export class CompanyConfigService {
       }
     }
     if (select.createdAtColumn) {
-      pushEntry(select.createdAtColumn, 'GETDATE()', true);
+      pushEntry(select.createdAtColumn, 'CURRENT_TIMESTAMP', true);
     }
     if (select.updatedAtColumn) {
-      pushEntry(select.updatedAtColumn, 'GETDATE()', true);
+      pushEntry(select.updatedAtColumn, 'CURRENT_TIMESTAMP', true);
     }
 
     const columnsSql = entries.map((entry) => this.rawColumn(entry.column));
@@ -1150,8 +1170,8 @@ export class CompanyConfigService {
         TenantPrisma.sql`
           INSERT INTO ${TenantPrisma.raw(metadata.tableRef)}
             (${TenantPrisma.join(columnsSql, ', ')})
-          OUTPUT ${TenantPrisma.raw(`INSERTED.${this.quoteIdentifier(select.idColumn)}`)} AS [id]
           VALUES (${TenantPrisma.join(valuesSql, ', ')})
+          RETURNING ${TenantPrisma.raw(this.quoteIdentifier(select.idColumn))} AS "id"
         `,
       );
 
@@ -1255,7 +1275,7 @@ export class CompanyConfigService {
     }
 
     if (select.updatedAtColumn) {
-      pushSet(select.updatedAtColumn, 'GETDATE()', true);
+      pushSet(select.updatedAtColumn, 'CURRENT_TIMESTAMP', true);
     }
 
     if (!setParts.length) {

@@ -65,15 +65,15 @@ export class ProductionService {
       markup: true,
       post_sale_tax: true,
       custom_validate_date: true,
-      OP: true,
+      op: true,
       author_user: true,
       ingredients: true,
       labor: true,
       packaging: true,
       taxes: true,
-      Overhead: true,
-      totalCost: true,
-      unitCost: true,
+      overhead: true,
+      totalcost: true,
+      unitcost: true,
     };
 
   private buildOrderSelect(options?: {
@@ -86,15 +86,17 @@ export class ProductionService {
     };
 
     if (options?.statuses) {
-      base.statuses = { orderBy: [{ event_time: 'desc' }, { id: 'desc' }] };
+      base.production_order_status = {
+        orderBy: [{ event_time: 'desc' }, { id: 'desc' }],
+      };
     }
 
     if (options?.finishedGoods) {
-      base.finished_goods = { orderBy: { posted_at: 'desc' } };
+      base.order_finished_goods = { orderBy: { posted_at: 'desc' } };
     }
 
     if (options?.rawMaterials) {
-      base.raw_materials = {
+      base.order_raw_materials = {
         orderBy: { consumed_at: 'desc' },
         select: {
           id: true,
@@ -747,7 +749,7 @@ export class ProductionService {
       component_code: item.component_code,
       description: item.description ?? null,
       quantity_used: item.quantity_used,
-      unit: item.unit ?? dto.unit, // fallback para unidade da OP
+      unit: item.unit ?? dto.unit, // fallback para unidade da op
       unit_cost: item.unit_cost,
       warehouse: item.warehouse ?? null,
     }));
@@ -782,14 +784,14 @@ export class ProductionService {
           labor,
           packaging,
           taxes,
-          totalCost,
-          unitCost,
+          totalcost: totalCost,
+          unitcost: unitCost,
 
-          raw_materials: {
+          order_raw_materials: {
             create: rawMaterialsToInsert,
           },
 
-          statuses: {
+          production_order_status: {
             create: {
               status: this.defaultOrderStatus,
               responsible: this.systemStatusResponsible,
@@ -838,7 +840,7 @@ export class ProductionService {
       return { order };
     });
 
-    const latestStatus = created.statuses?.[0]?.status ?? null;
+    const latestStatus = created.production_order_status?.[0]?.status ?? null;
     const productName = await this.getProductDescription(
       tenant,
       created.product_code,
@@ -848,7 +850,7 @@ export class ProductionService {
       productName,
       current_status: latestStatus,
       status: latestStatus ?? (created as any).status,
-      statusHistory: created.statuses ?? [],
+      statusHistory: created.production_order_status ?? [],
     };
   }
 
@@ -873,7 +875,7 @@ export class ProductionService {
 
     const enriched = await Promise.all(
       orders.map(async (order) => {
-        const latestStatus = order.statuses?.[0]?.status ?? null;
+        const latestStatus = order.production_order_status?.[0]?.status ?? null;
         const productName = await this.getProductDescription(
           tenant,
           order.product_code,
@@ -884,7 +886,7 @@ export class ProductionService {
           productName,
           current_status: latestStatus,
           status: latestStatus ?? (order as any).status,
-          statusHistory: order.statuses ?? [],
+          statusHistory: order.production_order_status ?? [],
         };
       }),
     );
@@ -897,7 +899,7 @@ export class ProductionService {
 
     const orders = await db.production_orders.findMany({
       where: {
-        statuses: {
+        production_order_status: {
           some: { status },
         },
       },
@@ -908,7 +910,7 @@ export class ProductionService {
 
     const enriched = await Promise.all(
       orders.map(async (order) => {
-        const latestStatus = order.statuses?.[0]?.status ?? null;
+        const latestStatus = order.production_order_status?.[0]?.status ?? null;
         if (latestStatus !== status) {
           return null;
         }
@@ -923,7 +925,7 @@ export class ProductionService {
           productName,
           current_status: latestStatus,
           status: latestStatus ?? (order as any).status,
-          statusHistory: order.statuses ?? [],
+          statusHistory: order.production_order_status ?? [],
         };
       }),
     );
@@ -945,13 +947,13 @@ export class ProductionService {
   async getOrder(tenant: string, idOrOp: string) {
     const db = await this.prisma(tenant);
 
-    console.log('Getting order for ID/OP:', idOrOp);
+    console.log('Getting order for ID/op:', idOrOp);
 
     const asNumber = Number(idOrOp);
     const byOp = Number.isFinite(asNumber);
 
     const order = await db.production_orders.findFirst({
-      where: byOp ? { OP: asNumber } : { id: idOrOp },
+      where: byOp ? { op: asNumber } : { id: idOrOp },
       select: this.buildOrderSelect({
         statuses: true,
         finishedGoods: true,
@@ -961,10 +963,10 @@ export class ProductionService {
 
     if (!order)
       throw new NotFoundException(
-        `Ordem '${idOrOp}' não encontrada (${byOp ? 'OP' : 'UUID'}).`,
+        `Ordem '${idOrOp}' não encontrada (${byOp ? 'op' : 'UUID'}).`,
       );
 
-    const latestStatus = order.statuses?.[0]?.status ?? null;
+    const latestStatus = order.production_order_status?.[0]?.status ?? null;
     const productName = await this.getProductDescription(
       tenant,
       order.product_code,
@@ -974,11 +976,11 @@ export class ProductionService {
       ...order,
       productName,
       batchNumber: order.lote ?? null,
-      production_unit_cost: (order as any).unitCost ?? null,
-      production_total_cost: (order as any).totalCost ?? null,
+      production_unit_cost: (order as any).unitcost ?? null,
+      production_total_cost: (order as any).totalcost ?? null,
       current_status: latestStatus,
       status: latestStatus ?? (order as any).status,
-      statusHistory: order.statuses ?? [],
+      statusHistory: order.production_order_status ?? [],
     };
   }
 
@@ -1129,7 +1131,7 @@ export class ProductionService {
     const responsible = dto.responsible ?? this.systemStatusResponsible;
     const orderDocumentDate =
       order.start_date ?? order.due_date ?? order.created_at ?? new Date();
-    const orderNumber = order.OP;
+    const orderNumber = order.op;
 
     const movements: Array<{
       component_code: string;
@@ -1182,7 +1184,7 @@ export class ProductionService {
             : undefined;
 
       const movement = await this.inventoryService.createMovement(tenant, {
-        itemId: item.ID as string,
+        itemId: item.id as string,
         type: 'S',
         quantity,
         unitPrice: unitCost ?? undefined,
@@ -1257,7 +1259,7 @@ export class ProductionService {
     const postedAt = dto.posted_at ?? new Date().toISOString();
 
     const movement = await this.inventoryService.createMovement(tenant, {
-      itemId: item.ID as string,
+      itemId: item.id as string,
       type: 'E',
       quantity,
       unitPrice: dto.unit_cost,
@@ -1404,7 +1406,7 @@ export class ProductionService {
     ];
 
     if (this.isGuid(normalized)) {
-      search.unshift({ ID: normalized });
+      search.unshift({ id: normalized });
     }
 
     if (!Number.isNaN(numericCode)) {
@@ -1416,10 +1418,10 @@ export class ProductionService {
         OR: search,
         NOT: { isdeleted: true },
       },
-      select: { ID: true, cditem: true, deitem: true },
+      select: { id: true, cditem: true, deitem: true },
     });
 
-    if (!item?.ID) {
+    if (!item?.id) {
       throw new NotFoundException(`Item '${code}' nÇœo encontrado.`);
     }
 
