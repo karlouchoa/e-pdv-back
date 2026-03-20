@@ -121,18 +121,7 @@ exports.Prisma.TransactionIsolationLevel = makeStrictEnum({
   Serializable: 'Serializable'
 });
 
-exports.Prisma.Regras_Transicao_ReformaScalarFieldEnum = {
-  id: 'id',
-  ano: 'ano',
-  cclasstrib: 'cclasstrib',
-  descricao: 'descricao',
-  aliq_ibs: 'aliq_ibs',
-  aliq_cbs: 'aliq_cbs',
-  aliq_total_estimada: 'aliq_total_estimada'
-};
-
 exports.Prisma.Bom_headersScalarFieldEnum = {
-  id: 'id',
   tenant_id: 'tenant_id',
   product_code: 'product_code',
   version: 'version',
@@ -144,12 +133,12 @@ exports.Prisma.Bom_headersScalarFieldEnum = {
   margin_achieved: 'margin_achieved',
   notes: 'notes',
   created_at: 'created_at',
-  updated_at: 'updated_at'
+  updated_at: 'updated_at',
+  autocod: 'autocod'
 };
 
 exports.Prisma.Bom_itemsScalarFieldEnum = {
   id: 'id',
-  bom_id: 'bom_id',
   line_number: 'line_number',
   component_code: 'component_code',
   description: 'description',
@@ -382,8 +371,8 @@ exports.Prisma.FuncionariosScalarFieldEnum = {
   agencia: 'agencia',
   conta: 'conta',
   htrabalho: 'htrabalho',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.Meta_vendaScalarFieldEnum = {
@@ -394,13 +383,13 @@ exports.Prisma.Meta_vendaScalarFieldEnum = {
   percvenda: 'percvenda',
   perspectiva: 'perspectiva',
   percpersp: 'percpersp',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  autocod: 'autocod'
 };
 
 exports.Prisma.Order_finished_goodsScalarFieldEnum = {
   id: 'id',
-  order_id: 'order_id',
   product_code: 'product_code',
   lot_number: 'lot_number',
   quantity_good: 'quantity_good',
@@ -411,7 +400,6 @@ exports.Prisma.Order_finished_goodsScalarFieldEnum = {
 
 exports.Prisma.Order_raw_materialsScalarFieldEnum = {
   id: 'id',
-  order_id: 'order_id',
   component_code: 'component_code',
   description: 'description',
   quantity_used: 'quantity_used',
@@ -432,8 +420,9 @@ exports.Prisma.PontoScalarFieldEnum = {
   saida: 'saida',
   interde: 'interde',
   interas: 'interas',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  data_: 'data_'
 };
 
 exports.Prisma.Pro_cheScalarFieldEnum = {
@@ -459,8 +448,8 @@ exports.Prisma.Pro_cheScalarFieldEnum = {
   che_usu: 'che_usu',
   che_obs1: 'che_obs1',
   che_obs2: 'che_obs2',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.Pro_grucScalarFieldEnum = {
@@ -468,8 +457,8 @@ exports.Prisma.Pro_grucScalarFieldEnum = {
   grc_nom: 'grc_nom',
   grc_cad: 'grc_cad',
   grc_usu: 'grc_usu',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.Pro_grufScalarFieldEnum = {
@@ -477,8 +466,8 @@ exports.Prisma.Pro_grufScalarFieldEnum = {
   grf_nom: 'grf_nom',
   grf_cad: 'grf_cad',
   grf_usu: 'grf_usu',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.Pro_pgsScalarFieldEnum = {
@@ -493,8 +482,8 @@ exports.Prisma.Pro_pgsScalarFieldEnum = {
   pgs_usu: 'pgs_usu',
   pgs_por: 'pgs_por',
   pgs_st: 'pgs_st',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.Pro_tpgcfScalarFieldEnum = {
@@ -502,8 +491,9 @@ exports.Prisma.Pro_tpgcfScalarFieldEnum = {
   prz_cod: 'prz_cod',
   acres: 'acres',
   reddes: 'reddes',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  autocod: 'autocod'
 };
 
 exports.Prisma.Pro_vndmScalarFieldEnum = {
@@ -512,13 +502,12 @@ exports.Prisma.Pro_vndmScalarFieldEnum = {
   met_ano: 'met_ano',
   met_mes: 'met_mes',
   met_val: 'met_val',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.Production_order_statusScalarFieldEnum = {
   id: 'id',
-  order_id: 'order_id',
   status: 'status',
   event_time: 'event_time',
   responsible: 'responsible',
@@ -527,7 +516,6 @@ exports.Prisma.Production_order_statusScalarFieldEnum = {
 };
 
 exports.Prisma.Production_ordersScalarFieldEnum = {
-  id: 'id',
   external_code: 'external_code',
   product_code: 'product_code',
   quantity_planned: 'quantity_planned',
@@ -546,16 +534,15 @@ exports.Prisma.Production_ordersScalarFieldEnum = {
   markup: 'markup',
   post_sale_tax: 'post_sale_tax',
   custom_validate_date: 'custom_validate_date',
-  op: 'op',
+  OP: 'OP',
   author_user: 'author_user',
   ingredients: 'ingredients',
   labor: 'labor',
   packaging: 'packaging',
   taxes: 'taxes',
-  overhead: 'overhead',
-  totalcost: 'totalcost',
-  unitcost: 'unitcost',
-  bom_header_id: 'bom_header_id'
+  Overhead: 'Overhead',
+  totalCost: 'totalCost',
+  unitCost: 'unitCost'
 };
 
 exports.Prisma.SoliextrasScalarFieldEnum = {
@@ -566,41 +553,42 @@ exports.Prisma.SoliextrasScalarFieldEnum = {
   liberadosn: 'liberadosn',
   usuliberou: 'usuliberou',
   registro: 'registro',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  autocod: 'autocod'
 };
 
 exports.Prisma.StorehoursScalarFieldEnum = {
-  id: 'id',
-  store_id: 'store_id',
   cdemp: 'cdemp',
   day_of_week: 'day_of_week',
   open_time: 'open_time',
   close_time: 'close_time',
   is_closed: 'is_closed',
-  id_empresa: 'id_empresa'
+  autocod: 'autocod'
 };
 
 exports.Prisma.T_acessequipScalarFieldEnum = {
   cdacess: 'cdacess',
   cdequip: 'cdequip',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  autocod: 'autocod'
 };
 
 exports.Prisma.T_acessorioScalarFieldEnum = {
   autocod: 'autocod',
   descacess: 'descacess',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_adesaoprogressivaScalarFieldEnum = {
-  ano: 'ano',
-  percibs: 'percibs',
-  percicms_iss: 'percicms_iss',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  Ano: 'Ano',
+  PercIBS: 'PercIBS',
+  PercICMS_ISS: 'PercICMS_ISS',
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  autocod: 'autocod'
 };
 
 exports.Prisma.T_agendaScalarFieldEnum = {
@@ -618,8 +606,8 @@ exports.Prisma.T_agendaScalarFieldEnum = {
   obs4: 'obs4',
   pubsn: 'pubsn',
   usuario: 'usuario',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_alocScalarFieldEnum = {
@@ -629,29 +617,16 @@ exports.Prisma.T_alocScalarFieldEnum = {
   cditem: 'cditem',
   qtde: 'qtde',
   data: 'data',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  data_: 'data_'
 };
 
 exports.Prisma.T_arquivoScalarFieldEnum = {
   autocod: 'autocod',
   arquivo: 'arquivo',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
-};
-
-exports.Prisma.T_auditoriaestoqueScalarFieldEnum = {
-  id: 'id',
-  data: 'data',
-  usuario: 'usuario',
-  cdemp: 'cdemp',
-  cditem: 'cditem',
-  qtde: 'qtde',
-  tipo: 'tipo',
-  saldo_ant: 'saldo_ant',
-  saldo_atual: 'saldo_atual',
-  origem: 'origem',
-  id_movest: 'id_movest'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_automovelScalarFieldEnum = {
@@ -695,8 +670,8 @@ exports.Prisma.T_automovelScalarFieldEnum = {
   tipodepropriedade: 'tipodepropriedade',
   capacidade: 'capacidade',
   precolavagem: 'precolavagem',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_baiScalarFieldEnum = {
@@ -706,8 +681,8 @@ exports.Prisma.T_baiScalarFieldEnum = {
   cep: 'cep',
   codzona: 'codzona',
   cdbaiext: 'cdbaiext',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_baixalocScalarFieldEnum = {
@@ -718,8 +693,9 @@ exports.Prisma.T_baixalocScalarFieldEnum = {
   qtde: 'qtde',
   data: 'data',
   cdemp: 'cdemp',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  data_: 'data_'
 };
 
 exports.Prisma.T_bcoScalarFieldEnum = {
@@ -763,9 +739,9 @@ exports.Prisma.T_bcoScalarFieldEnum = {
   psp: 'psp',
   ambiente: 'ambiente',
   digital: 'digital',
-  cnpjconta: 'cnpjconta',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CNPJConta: 'CNPJConta',
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_bloqScalarFieldEnum = {
@@ -773,8 +749,8 @@ exports.Prisma.T_bloqScalarFieldEnum = {
   debloq: 'debloq',
   lib_opr: 'lib_opr',
   cdbloqext: 'cdbloqext',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_cadindicScalarFieldEnum = {
@@ -795,24 +771,24 @@ exports.Prisma.T_cadindicScalarFieldEnum = {
   ctaind: 'ctaind',
   cnpj_cpfind: 'cnpj_cpfind',
   venind: 'venind',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_cargoScalarFieldEnum = {
   autocod: 'autocod',
   desccargo: 'desccargo',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_cclasstribScalarFieldEnum = {
-  id: 'id',
-  cst_ibs_cbs: 'cst_ibs_cbs',
-  cclasstrib: 'cclasstrib',
-  descricao: 'descricao',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  ID: 'ID',
+  CST_IBS_CBS: 'CST_IBS_CBS',
+  CCLASSTRIB: 'CCLASSTRIB',
+  DESCRICAO: 'DESCRICAO',
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_cepScalarFieldEnum = {
@@ -825,8 +801,8 @@ exports.Prisma.T_cepScalarFieldEnum = {
   cidade: 'cidade',
   estado: 'estado',
   uf: 'uf',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_cestScalarFieldEnum = {
@@ -834,8 +810,8 @@ exports.Prisma.T_cestScalarFieldEnum = {
   cest: 'cest',
   ncm: 'ncm',
   descricao: 'descricao',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_cfopScalarFieldEnum = {
@@ -860,8 +836,8 @@ exports.Prisma.T_cfopScalarFieldEnum = {
   simples_remessa: 'simples_remessa',
   remessa_conserto: 'remessa_conserto',
   retorno_mercadoria: 'retorno_mercadoria',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_chequesScalarFieldEnum = {
@@ -899,8 +875,8 @@ exports.Prisma.T_chequesScalarFieldEnum = {
   nrlanext: 'nrlanext',
   dtstatus: 'dtstatus',
   dtlanext: 'dtlanext',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_chlistScalarFieldEnum = {
@@ -914,8 +890,8 @@ exports.Prisma.T_chlistScalarFieldEnum = {
   tipo: 'tipo',
   modelo: 'modelo',
   descricao: 'descricao',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_cidScalarFieldEnum = {
@@ -927,8 +903,8 @@ exports.Prisma.T_cidScalarFieldEnum = {
   cduf: 'cduf',
   cdcidext: 'cdcidext',
   zonafranca: 'zonafranca',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_clasfisScalarFieldEnum = {
@@ -938,8 +914,8 @@ exports.Prisma.T_clasfisScalarFieldEnum = {
   rest_icms: 'rest_icms',
   codgen: 'codgen',
   valorpercentual: 'valorpercentual',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_cliScalarFieldEnum = {
@@ -1133,13 +1109,12 @@ exports.Prisma.T_cliScalarFieldEnum = {
   isdeleted: 'isdeleted',
   createdat: 'createdat',
   updatedat: 'updatedat',
-  id: 'id',
-  descfunrural: 'descfunrural',
-  calcularicmsst: 'calcularicmsst',
-  entidadegov: 'entidadegov',
-  tpentgov: 'tpentgov',
-  tpopgov: 'tpopgov',
-  percredibs: 'percredibs',
+  DescFunRural: 'DescFunRural',
+  CalcularIcmsST: 'CalcularIcmsST',
+  EntidadeGov: 'EntidadeGov',
+  TPEntGov: 'TPEntGov',
+  TPOpGov: 'TPOpGov',
+  PercRedIBS: 'PercRedIBS',
   orgao_do_governo: 'orgao_do_governo',
   suframa_ativa: 'suframa_ativa',
   tipo_op_gov: 'tipo_op_gov',
@@ -1147,10 +1122,10 @@ exports.Prisma.T_cliScalarFieldEnum = {
 };
 
 exports.Prisma.T_codclasstribScalarFieldEnum = {
-  id: 'id',
-  cclasstrib: 'cclasstrib',
-  descricao: 'descricao',
-  ativo: 'ativo'
+  ID: 'ID',
+  CCLASSTRIB: 'CCLASSTRIB',
+  DESCRICAO: 'DESCRICAO',
+  ATIVO: 'ATIVO'
 };
 
 exports.Prisma.T_coletaScalarFieldEnum = {
@@ -1178,8 +1153,8 @@ exports.Prisma.T_coletaScalarFieldEnum = {
   dtcanc: 'dtcanc',
   motivocanc: 'motivocanc',
   computador: 'computador',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_coletaitemScalarFieldEnum = {
@@ -1191,8 +1166,8 @@ exports.Prisma.T_coletaitemScalarFieldEnum = {
   peso: 'peso',
   cdemp: 'cdemp',
   empitem: 'empitem',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_comandaScalarFieldEnum = {
@@ -1215,8 +1190,8 @@ exports.Prisma.T_comandaScalarFieldEnum = {
   cdempag: 'cdempag',
   cdusu: 'cdusu',
   vlracresc: 'vlracresc',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_comandaitScalarFieldEnum = {
@@ -1236,8 +1211,8 @@ exports.Prisma.T_comandaitScalarFieldEnum = {
   cdagendait: 'cdagendait',
   mp: 'mp',
   descricao: 'descricao',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_comandapgScalarFieldEnum = {
@@ -1248,8 +1223,9 @@ exports.Prisma.T_comandapgScalarFieldEnum = {
   valor: 'valor',
   cdusu: 'cdusu',
   codcx: 'codcx',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  data_: 'data_'
 };
 
 exports.Prisma.T_comcompScalarFieldEnum = {
@@ -1268,8 +1244,8 @@ exports.Prisma.T_comcompScalarFieldEnum = {
   empcli: 'empcli',
   empven: 'empven',
   codindic: 'codindic',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_compitensScalarFieldEnum = {
@@ -1278,8 +1254,9 @@ exports.Prisma.T_compitensScalarFieldEnum = {
   quantidade: 'quantidade',
   percperda: 'percperda',
   cdemp: 'cdemp',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  autocod: 'autocod'
 };
 
 exports.Prisma.T_comvenScalarFieldEnum = {
@@ -1291,8 +1268,8 @@ exports.Prisma.T_comvenScalarFieldEnum = {
   valor: 'valor',
   st: 'st',
   tipo: 'tipo',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_configScalarFieldEnum = {
@@ -1413,10 +1390,10 @@ exports.Prisma.T_configScalarFieldEnum = {
   obsitemnavenda: 'obsitemnavenda',
   permiteduplicaritem: 'permiteduplicaritem',
   faturamentopornf: 'faturamentopornf',
-  cadredsociais: 'cadredsociais',
-  createdat: 'createdat',
-  updatedat: 'updatedat',
-  versao_db: 'versao_db'
+  CadRedSociais: 'CadRedSociais',
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  VERSAO_DB: 'VERSAO_DB'
 };
 
 exports.Prisma.T_contatoScalarFieldEnum = {
@@ -1451,8 +1428,8 @@ exports.Prisma.T_contatoScalarFieldEnum = {
   grupocli: 'grupocli',
   midia: 'midia',
   status: 'status',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_convundScalarFieldEnum = {
@@ -1460,15 +1437,16 @@ exports.Prisma.T_convundScalarFieldEnum = {
   fator: 'fator',
   cdundfin: 'cdundfin',
   qtdorg: 'qtdorg',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  autocod: 'autocod'
 };
 
 exports.Prisma.T_cotaaliquotaencargoScalarFieldEnum = {
   autocod: 'autocod',
   valor: 'valor',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_cotaassocScalarFieldEnum = {
@@ -1479,15 +1457,15 @@ exports.Prisma.T_cotaassocScalarFieldEnum = {
   codred: 'codred',
   valor: 'valor',
   descricao: 'descricao',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_cotasalariofamiliaScalarFieldEnum = {
   autocod: 'autocod',
   valor: 'valor',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_cstScalarFieldEnum = {
@@ -1504,16 +1482,15 @@ exports.Prisma.T_cstScalarFieldEnum = {
   cfopext: 'cfopext',
   dtaltcst: 'dtaltcst',
   autocst: 'autocst',
-  reduzbc: 'reduzbc',
-  createdat: 'createdat',
-  updatedat: 'updatedat',
-  id: 'id'
+  REDUZBC: 'REDUZBC',
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_cst_ibs_cbsScalarFieldEnum = {
-  id: 'id',
-  cst_ibs_cbs: 'cst_ibs_cbs',
-  descricao: 'descricao'
+  ID: 'ID',
+  CST_IBS_CBS: 'CST_IBS_CBS',
+  DESCRICAO: 'DESCRICAO'
 };
 
 exports.Prisma.T_cxabeScalarFieldEnum = {
@@ -1534,8 +1511,8 @@ exports.Prisma.T_cxabeScalarFieldEnum = {
   retsn: 'retsn',
   dataret: 'dataret',
   userrestcx: 'userrestcx',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_cxdocScalarFieldEnum = {
@@ -1557,8 +1534,8 @@ exports.Prisma.T_cxdocScalarFieldEnum = {
   codordem: 'codordem',
   empordem: 'empordem',
   hostname: 'hostname',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_debcrecliScalarFieldEnum = {
@@ -1577,8 +1554,8 @@ exports.Prisma.T_debcrecliScalarFieldEnum = {
   tipopg: 'tipopg',
   formapg: 'formapg',
   dataalteracao: 'dataalteracao',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_dependenteScalarFieldEnum = {
@@ -1589,8 +1566,8 @@ exports.Prisma.T_dependenteScalarFieldEnum = {
   sexo: 'sexo',
   tipo: 'tipo',
   codcli: 'codcli',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_dependentefuncionarioScalarFieldEnum = {
@@ -1601,8 +1578,8 @@ exports.Prisma.T_dependentefuncionarioScalarFieldEnum = {
   datanascimento: 'datanascimento',
   datacadastro: 'datacadastro',
   deficiente: 'deficiente',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_desbScalarFieldEnum = {
@@ -1620,8 +1597,9 @@ exports.Prisma.T_desbScalarFieldEnum = {
   desconto: 'desconto',
   empven: 'empven',
   empcli: 'empcli',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  data_: 'data_'
 };
 
 exports.Prisma.T_diScalarFieldEnum = {
@@ -1641,8 +1619,8 @@ exports.Prisma.T_diScalarFieldEnum = {
   tpintermedio: 'tpintermedio',
   ufterceiro: 'ufterceiro',
   cexportador: 'cexportador',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_empScalarFieldEnum = {
@@ -1790,11 +1768,10 @@ exports.Prisma.T_empScalarFieldEnum = {
   perfilsped: 'perfilsped',
   contabilizatroca: 'contabilizatroca',
   cstreducaobc: 'cstreducaobc',
-  gertitnavend: 'gertitnavend',
+  GerTitNaVend: 'GerTitNaVend',
   isdeleted: 'isdeleted',
   createdat: 'createdat',
   updatedat: 'updatedat',
-  id: 'id',
   cadastro_suframa: 'cadastro_suframa',
   suframa_ativa: 'suframa_ativa',
   path_img_capa: 'path_img_capa',
@@ -1802,7 +1779,8 @@ exports.Prisma.T_empScalarFieldEnum = {
   imagem_capa: 'imagem_capa',
   latitude: 'latitude',
   longitude: 'longitude',
-  taxa_entrega: 'taxa_entrega'
+  Taxa_Entrega: 'Taxa_Entrega',
+  location: 'location'
 };
 
 exports.Prisma.T_encargocalculoScalarFieldEnum = {
@@ -1811,31 +1789,32 @@ exports.Prisma.T_encargocalculoScalarFieldEnum = {
   salariode: 'salariode',
   salarioate: 'salarioate',
   incidirsalario: 'incidirsalario',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_endcliScalarFieldEnum = {
-  autocod: 'autocod',
-  id: 'id',
-  id_cliente: 'id_cliente',
-  cep: 'cep',
-  logradouro: 'logradouro',
-  numero: 'numero',
-  bairro: 'bairro',
-  cidade: 'cidade',
-  uf: 'uf',
-  complemento: 'complemento',
-  ponto_referencia: 'ponto_referencia',
-  tipo_local: 'tipo_local',
-  instrucoes_entrega: 'instrucoes_entrega',
-  latitude: 'latitude',
-  longitude: 'longitude',
-  cdusu: 'cdusu',
-  tipo_endereco: 'tipo_endereco',
-  createdat: 'createdat',
-  updatedat: 'updatedat',
-  isdeleted: 'isdeleted'
+  AUTOCOD: 'AUTOCOD',
+  CEP: 'CEP',
+  LOGRADOURO: 'LOGRADOURO',
+  NUMERO: 'NUMERO',
+  BAIRRO: 'BAIRRO',
+  CIDADE: 'CIDADE',
+  UF: 'UF',
+  COMPLEMENTO: 'COMPLEMENTO',
+  PONTO_REFERENCIA: 'PONTO_REFERENCIA',
+  TIPO_LOCAL: 'TIPO_LOCAL',
+  INSTRUCOES_ENTREGA: 'INSTRUCOES_ENTREGA',
+  LATITUDE: 'LATITUDE',
+  LONGITUDE: 'LONGITUDE',
+  CDUSU: 'CDUSU',
+  TIPO_ENDERECO: 'TIPO_ENDERECO',
+  CREATEDAT: 'CREATEDAT',
+  UPDATEDAT: 'UPDATEDAT',
+  ISDELETED: 'ISDELETED',
+  CDCLI: 'CDCLI',
+  ENDCLI: 'ENDCLI',
+  location: 'location'
 };
 
 exports.Prisma.T_endentScalarFieldEnum = {
@@ -1850,8 +1829,8 @@ exports.Prisma.T_endentScalarFieldEnum = {
   pref: 'pref',
   regendent: 'regendent',
   nome: 'nome',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_endent_tmpScalarFieldEnum = {
@@ -1865,8 +1844,9 @@ exports.Prisma.T_endent_tmpScalarFieldEnum = {
   pref: 'pref',
   cdemp: 'cdemp',
   cdven: 'cdven',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  autocod: 'autocod'
 };
 
 exports.Prisma.T_entimedScalarFieldEnum = {
@@ -1878,8 +1858,8 @@ exports.Prisma.T_entimedScalarFieldEnum = {
   hostname: 'hostname',
   st: 'st',
   hora: 'hora',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_entimeditScalarFieldEnum = {
@@ -1893,8 +1873,8 @@ exports.Prisma.T_entimeditScalarFieldEnum = {
   total: 'total',
   conferente: 'conferente',
   nrsep: 'nrsep',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_equipScalarFieldEnum = {
@@ -1930,8 +1910,8 @@ exports.Prisma.T_equipScalarFieldEnum = {
   foneequip: 'foneequip',
   hostname: 'hostname',
   usuario: 'usuario',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_equipamentoScalarFieldEnum = {
@@ -1960,8 +1940,8 @@ exports.Prisma.T_equipamentoScalarFieldEnum = {
   foto4: 'foto4',
   proxrevisao: 'proxrevisao',
   tipodepropriedade: 'tipodepropriedade',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_equipcliScalarFieldEnum = {
@@ -1972,23 +1952,24 @@ exports.Prisma.T_equipcliScalarFieldEnum = {
   cdmodelo: 'cdmodelo',
   cdmarca: 'cdmarca',
   cdos: 'cdos',
-  id_cli: 'id_cli',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  autocod: 'autocod'
 };
 
 exports.Prisma.T_especialidadeScalarFieldEnum = {
   autocod: 'autocod',
   descesp: 'descesp',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_esptecnicoScalarFieldEnum = {
   cdtec: 'cdtec',
   cdesp: 'cdesp',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  autocod: 'autocod'
 };
 
 exports.Prisma.T_familiaitScalarFieldEnum = {
@@ -2000,18 +1981,19 @@ exports.Prisma.T_familiaitScalarFieldEnum = {
   idfamit: 'idfamit',
   st: 'st',
   dtaltfam: 'dtaltfam',
-  cdfamivarchar: 'cdfamivarchar',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  cdfamitext: 'cdfamitext',
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_fasetesteScalarFieldEnum = {
-  ano: 'ano',
-  percibs: 'percibs',
-  perccbs: 'perccbs',
-  perctotal: 'perctotal',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  Ano: 'Ano',
+  PercIBS: 'PercIBS',
+  PercCBS: 'PercCBS',
+  PercTotal: 'PercTotal',
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  autocod: 'autocod'
 };
 
 exports.Prisma.T_fluxocxScalarFieldEnum = {
@@ -2034,8 +2016,8 @@ exports.Prisma.T_fluxocxScalarFieldEnum = {
   dtstatus: 'dtstatus',
   nrlanext: 'nrlanext',
   dtlanext: 'dtlanext',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_forScalarFieldEnum = {
@@ -2098,7 +2080,6 @@ exports.Prisma.T_forScalarFieldEnum = {
   idsession: 'idsession',
   userrest: 'userrest',
   dtnascfor: 'dtnascfor',
-  id: 'id',
   isdeleted: 'isdeleted',
   createdat: 'createdat',
   updatedat: 'updatedat'
@@ -2132,8 +2113,9 @@ exports.Prisma.T_formacaoScalarFieldEnum = {
   autocod: 'autocod',
   precoatac: 'precoatac',
   nprecoatac: 'nprecoatac',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  data_: 'data_'
 };
 
 exports.Prisma.T_formula_comandaScalarFieldEnum = {
@@ -2155,8 +2137,8 @@ exports.Prisma.T_formula_comandaScalarFieldEnum = {
   precpra: 'precpra',
   custo: 'custo',
   id_comandait: 'id_comandait',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_formula_orcScalarFieldEnum = {
@@ -2182,8 +2164,8 @@ exports.Prisma.T_formula_orcScalarFieldEnum = {
   quant: 'quant',
   tipo: 'tipo',
   id_itorc: 'id_itorc',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_formula_pedidoScalarFieldEnum = {
@@ -2205,8 +2187,8 @@ exports.Prisma.T_formula_pedidoScalarFieldEnum = {
   precpra: 'precpra',
   custo: 'custo',
   id_itsven: 'id_itsven',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_formulasScalarFieldEnum = {
@@ -2220,10 +2202,8 @@ exports.Prisma.T_formulasScalarFieldEnum = {
   empitemmp: 'empitemmp',
   deitem_iv: 'deitem_iv',
   cdemp: 'cdemp',
-  createdat: 'createdat',
-  updatedat: 'updatedat',
-  id_item: 'id_item',
-  id_matprima: 'id_matprima'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_fpgtoScalarFieldEnum = {
@@ -2239,10 +2219,9 @@ exports.Prisma.T_fpgtoScalarFieldEnum = {
   ativosn: 'ativosn',
   dtaltfpg: 'dtaltfpg',
   cdfpgext: 'cdfpgext',
-  createdat: 'createdat',
-  updatedat: 'updatedat',
-  id: 'id',
-  onlinesn: 'onlinesn'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  OnLineSN: 'OnLineSN'
 };
 
 exports.Prisma.T_fpgto2ScalarFieldEnum = {
@@ -2251,10 +2230,8 @@ exports.Prisma.T_fpgto2ScalarFieldEnum = {
   percparc: 'percparc',
   acrefin: 'acrefin',
   seqparc: 'seqparc',
-  createdat: 'createdat',
-  updatedat: 'updatedat',
-  id: 'id',
-  id_fpgto: 'id_fpgto'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_frotaScalarFieldEnum = {
@@ -2268,8 +2245,9 @@ exports.Prisma.T_frotaScalarFieldEnum = {
   codred: 'codred',
   litroskm: 'litroskm',
   cartego: 'cartego',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  autocod: 'autocod'
 };
 
 exports.Prisma.T_funcionarioScalarFieldEnum = {
@@ -2286,8 +2264,9 @@ exports.Prisma.T_funcionarioScalarFieldEnum = {
   demisao: 'demisao',
   foto: 'foto',
   obs: 'obs',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  autocod: 'autocod'
 };
 
 exports.Prisma.T_grafcaixaScalarFieldEnum = {
@@ -2295,8 +2274,9 @@ exports.Prisma.T_grafcaixaScalarFieldEnum = {
   cdtpg: 'cdtpg',
   detpg: 'detpg',
   total: 'total',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  autocod: 'autocod'
 };
 
 exports.Prisma.T_grafdespScalarFieldEnum = {
@@ -2304,8 +2284,9 @@ exports.Prisma.T_grafdespScalarFieldEnum = {
   codred: 'codred',
   total: 'total',
   conta: 'conta',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  autocod: 'autocod'
 };
 
 exports.Prisma.T_grafdiaadiaScalarFieldEnum = {
@@ -2318,8 +2299,8 @@ exports.Prisma.T_grafdiaadiaScalarFieldEnum = {
   totfatant: 'totfatant',
   cdemp: 'cdemp',
   autocod: 'autocod',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_graffatbaiScalarFieldEnum = {
@@ -2327,8 +2308,9 @@ exports.Prisma.T_graffatbaiScalarFieldEnum = {
   bairro: 'bairro',
   total: 'total',
   cidade: 'cidade',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  autocod: 'autocod'
 };
 
 exports.Prisma.T_graffatcliScalarFieldEnum = {
@@ -2337,16 +2319,18 @@ exports.Prisma.T_graffatcliScalarFieldEnum = {
   empcli: 'empcli',
   decli: 'decli',
   total: 'total',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  autocod: 'autocod'
 };
 
 exports.Prisma.T_graffatsegScalarFieldEnum = {
   cdemp: 'cdemp',
   segmento: 'segmento',
   total: 'total',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  autocod: 'autocod'
 };
 
 exports.Prisma.T_graffatvenScalarFieldEnum = {
@@ -2354,8 +2338,9 @@ exports.Prisma.T_graffatvenScalarFieldEnum = {
   cdven: 'cdven',
   deven: 'deven',
   total: 'total',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  autocod: 'autocod'
 };
 
 exports.Prisma.T_grafitemdiaScalarFieldEnum = {
@@ -2364,8 +2349,9 @@ exports.Prisma.T_grafitemdiaScalarFieldEnum = {
   empitem: 'empitem',
   deitem: 'deitem',
   total: 'total',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  autocod: 'autocod'
 };
 
 exports.Prisma.T_grafligdiaScalarFieldEnum = {
@@ -2373,8 +2359,9 @@ exports.Prisma.T_grafligdiaScalarFieldEnum = {
   dia: 'dia',
   lig: 'lig',
   ret: 'ret',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  autocod: 'autocod'
 };
 
 exports.Prisma.T_grafmesamesScalarFieldEnum = {
@@ -2385,8 +2372,9 @@ exports.Prisma.T_grafmesamesScalarFieldEnum = {
   anofatant: 'anofatant',
   totfatant: 'totfatant',
   cdemp: 'cdemp',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  autocod: 'autocod'
 };
 
 exports.Prisma.T_grafpagdiaScalarFieldEnum = {
@@ -2394,8 +2382,8 @@ exports.Prisma.T_grafpagdiaScalarFieldEnum = {
   dia: 'dia',
   total: 'total',
   autocod: 'autocod',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_grafrecdiaScalarFieldEnum = {
@@ -2403,8 +2391,8 @@ exports.Prisma.T_grafrecdiaScalarFieldEnum = {
   dia: 'dia',
   total: 'total',
   autocod: 'autocod',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_gritensScalarFieldEnum = {
@@ -2420,30 +2408,29 @@ exports.Prisma.T_gritensScalarFieldEnum = {
   dtaltgri: 'dtaltgri',
   impressoradaseparacao: 'impressoradaseparacao',
   cdgruext: 'cdgruext',
-  id: 'id',
   isdeleted: 'isdeleted',
   createdat: 'createdat',
   updatedat: 'updatedat'
 };
 
 exports.Prisma.T_grupotributacaoScalarFieldEnum = {
-  id: 'id',
-  cfop: 'cfop',
-  ncm: 'ncm',
-  uf: 'uf',
-  cst_icms: 'cst_icms',
-  cst_ibs_cbs: 'cst_ibs_cbs',
-  cclasstrib: 'cclasstrib',
-  obs: 'obs'
+  ID: 'ID',
+  CFOP: 'CFOP',
+  NCM: 'NCM',
+  UF: 'UF',
+  CST_ICMS: 'CST_ICMS',
+  CST_IBS_CBS: 'CST_IBS_CBS',
+  CCLASSTRIB: 'CCLASSTRIB',
+  OBS: 'OBS'
 };
 
 exports.Prisma.T_imgitensScalarFieldEnum = {
-  autocod: 'autocod',
-  id: 'id',
-  id_item: 'id_item',
-  url: 'url',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  AUTOCOD: 'AUTOCOD',
+  URL: 'URL',
+  CREATEDAT: 'CREATEDAT',
+  UPDATEDAT: 'UPDATEDAT',
+  CDITEM: 'CDITEM',
+  EMPITEM: 'EMPITEM'
 };
 
 exports.Prisma.T_imovelScalarFieldEnum = {
@@ -2478,8 +2465,8 @@ exports.Prisma.T_imovelScalarFieldEnum = {
   proxvistoria: 'proxvistoria',
   proxiptu: 'proxiptu',
   tipodepropriedade: 'tipodepropriedade',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_impfiscalScalarFieldEnum = {
@@ -2487,23 +2474,23 @@ exports.Prisma.T_impfiscalScalarFieldEnum = {
   descricao: 'descricao',
   serie: 'serie',
   cdemp: 'cdemp',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_insulmofuncionarioScalarFieldEnum = {
   autocod: 'autocod',
   descencargo: 'descencargo',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_insulmosalariofuncionarioScalarFieldEnum = {
   autocod: 'autocod',
   codred: 'codred',
   salario: 'salario',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_inventarioScalarFieldEnum = {
@@ -2521,10 +2508,12 @@ exports.Prisma.T_inventarioScalarFieldEnum = {
   cdemp: 'cdemp',
   dtinvent: 'dtinvent',
   autocod: 'autocod',
-  entradas: 'entradas',
-  saidas: 'saidas',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  ENTRADAS: 'ENTRADAS',
+  SAIDAS: 'SAIDAS',
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  data_: 'data_',
+  total_: 'total_'
 };
 
 exports.Prisma.T_itensScalarFieldEnum = {
@@ -2660,9 +2649,8 @@ exports.Prisma.T_itensScalarFieldEnum = {
   abrircomp: 'abrircomp',
   grupocomp: 'grupocomp',
   maxcomp: 'maxcomp',
-  cclasstrib: 'cclasstrib',
-  cclasstrib_id: 'cclasstrib_id',
-  id: 'id',
+  CCLASSTRIB: 'CCLASSTRIB',
+  CCLASSTRIB_ID: 'CCLASSTRIB_ID',
   isdeleted: 'isdeleted',
   createdat: 'createdat',
   updatedat: 'updatedat',
@@ -2672,7 +2660,7 @@ exports.Prisma.T_itensScalarFieldEnum = {
   fiscal_validado: 'fiscal_validado',
   fiscal_validado_em: 'fiscal_validado_em',
   fiscal_origem: 'fiscal_origem',
-  combosn: 'combosn'
+  ComboSN: 'ComboSN'
 };
 
 exports.Prisma.T_itensavariaScalarFieldEnum = {
@@ -2681,19 +2669,17 @@ exports.Prisma.T_itensavariaScalarFieldEnum = {
   qtde: 'qtde',
   obs: 'obs',
   empitem: 'empitem',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  autocod: 'autocod'
 };
 
 exports.Prisma.T_itenscomboScalarFieldEnum = {
-  autocod: 'autocod',
-  id: 'id',
-  id_item: 'id_item',
-  cdgru: 'cdgru',
-  qtde: 'qtde',
-  createdat: 'createdat',
-  updatedat: 'updatedat',
-  id_subgrupo: 'id_subgrupo'
+  AUTOCOD: 'AUTOCOD',
+  CDGRU: 'CDGRU',
+  QTDE: 'QTDE',
+  CREATEDAT: 'CREATEDAT',
+  UPDATEDAT: 'UPDATEDAT'
 };
 
 exports.Prisma.T_itnfcScalarFieldEnum = {
@@ -2731,8 +2717,11 @@ exports.Prisma.T_itnfcScalarFieldEnum = {
   hostname: 'hostname',
   codusu: 'codusu',
   seqitpdv: 'seqitpdv',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  nrven_: 'nrven_',
+  cdcli_: 'cdcli_',
+  st_: 'st_'
 };
 
 exports.Prisma.T_itnfsScalarFieldEnum = {
@@ -2799,24 +2788,24 @@ exports.Prisma.T_itnfsScalarFieldEnum = {
   vicms: 'vicms',
   bcst: 'bcst',
   vst: 'vst',
-  percpisitnfs: 'percpisitnfs',
-  vlpisitnfs: 'vlpisitnfs',
-  percconfinsitnfs: 'percconfinsitnfs',
-  vlcofinsitnfs: 'vlcofinsitnfs',
-  bcalcitnfs: 'bcalcitnfs',
-  vlcontitnfs: 'vlcontitnfs',
-  vloutrasitnfs: 'vloutrasitnfs',
-  pstitnfs: 'pstitnfs',
-  bcalcstitnfs: 'bcalcstitnfs',
-  vlicmsstitnfs: 'vlicmsstitnfs',
-  vldescicmsitnfs: 'vldescicmsitnfs',
-  vldescpisitnfs: 'vldescpisitnfs',
-  vldesccofisitnfs: 'vldesccofisitnfs',
-  vlacrescimoitnfs: 'vlacrescimoitnfs',
-  vlfreteitnfs: 'vlfreteitnfs',
-  rest_icmsitnfs: 'rest_icmsitnfs',
-  createdat: 'createdat',
-  updatedat: 'updatedat',
+  percPisItNFs: 'percPisItNFs',
+  vlPisItNFs: 'vlPisItNFs',
+  percConfinsItNFs: 'percConfinsItNFs',
+  vlCofinsItNFs: 'vlCofinsItNFs',
+  bcalcItNFs: 'bcalcItNFs',
+  vlContItNFs: 'vlContItNFs',
+  vlOutrasItNFs: 'vlOutrasItNFs',
+  pStItNFs: 'pStItNFs',
+  bcalcStItNFs: 'bcalcStItNFs',
+  vlIcmsStItNFs: 'vlIcmsStItNFs',
+  vldescIcmsItNFs: 'vldescIcmsItNFs',
+  vlDescPISItNFs: 'vlDescPISItNFs',
+  vlDescCofisItNFs: 'vlDescCofisItNFs',
+  VlAcrescimoItNFs: 'VlAcrescimoItNFs',
+  VlFreteItNFs: 'VlFreteItNFs',
+  rest_icmsItNFs: 'rest_icmsItNFs',
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
   uf_origem: 'uf_origem',
   uf_destino: 'uf_destino',
   regime_emitente: 'regime_emitente',
@@ -2825,12 +2814,15 @@ exports.Prisma.T_itnfsScalarFieldEnum = {
   cst_ibs_cbs: 'cst_ibs_cbs',
   aliq_ibs: 'aliq_ibs',
   aliq_cbs: 'aliq_cbs',
-  vibs: 'vibs',
-  vcbs: 'vcbs',
+  vIBS: 'vIBS',
+  vCBS: 'vCBS',
   ano_emissao: 'ano_emissao',
   fundamento_json: 'fundamento_json',
   hash_regra_fiscal: 'hash_regra_fiscal',
-  gerado_por: 'gerado_por'
+  gerado_por: 'gerado_por',
+  nrven_: 'nrven_',
+  cdcli_: 'cdcli_',
+  st_: 'st_'
 };
 
 exports.Prisma.T_itnfsvScalarFieldEnum = {
@@ -2879,8 +2871,11 @@ exports.Prisma.T_itnfsvScalarFieldEnum = {
   csll: 'csll',
   infoadic2: 'infoadic2',
   retiss: 'retiss',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  nrven_: 'nrven_',
+  cdcli_: 'cdcli_',
+  st_: 'st_'
 };
 
 exports.Prisma.T_itorcScalarFieldEnum = {
@@ -2912,8 +2907,8 @@ exports.Prisma.T_itorcScalarFieldEnum = {
   mp: 'mp',
   temform: 'temform',
   seqext: 'seqext',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_itpdcScalarFieldEnum = {
@@ -2997,14 +2992,14 @@ exports.Prisma.T_itpdcScalarFieldEnum = {
   pmvast: 'pmvast',
   vbcst: 'vbcst',
   vicmsst: 'vicmsst',
-  itbarcode: 'itbarcode',
-  undcmp: 'undcmp',
-  qtdcmp: 'qtdcmp',
-  fatconv: 'fatconv',
-  deitemcmp: 'deitemcmp',
-  precorig: 'precorig',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  ITBARCODE: 'ITBARCODE',
+  UNDCMP: 'UNDCMP',
+  QTDCMP: 'QTDCMP',
+  FATCONV: 'FATCONV',
+  DEITEMCMP: 'DEITEMCMP',
+  PRECORIG: 'PRECORIG',
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_itpedcmpScalarFieldEnum = {
@@ -3045,8 +3040,8 @@ exports.Prisma.T_itpedcmpScalarFieldEnum = {
   oldvenda: 'oldvenda',
   empitem: 'empitem',
   emprec: 'emprec',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_itpromoScalarFieldEnum = {
@@ -3064,11 +3059,9 @@ exports.Prisma.T_itpromoScalarFieldEnum = {
   autocodext: 'autocodext',
   hostname: 'hostname',
   ip: 'ip',
-  createdat: 'createdat',
-  updatedat: 'updatedat',
-  data_promo: 'data_promo',
-  id_item: 'id_item',
-  id: 'id'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  DATA_PROMO: 'DATA_PROMO'
 };
 
 exports.Prisma.T_itromScalarFieldEnum = {
@@ -3077,8 +3070,9 @@ exports.Prisma.T_itromScalarFieldEnum = {
   empitem: 'empitem',
   cdemp: 'cdemp',
   empven: 'empven',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  autocod: 'autocod'
 };
 
 exports.Prisma.T_itsepScalarFieldEnum = {
@@ -3102,8 +3096,8 @@ exports.Prisma.T_itsepScalarFieldEnum = {
   stsep: 'stsep',
   lote: 'lote',
   caixa: 'caixa',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_itsreqScalarFieldEnum = {
@@ -3122,8 +3116,9 @@ exports.Prisma.T_itsreqScalarFieldEnum = {
   empcli: 'empcli',
   st: 'st',
   dtaltreq: 'dtaltreq',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  data_: 'data_'
 };
 
 exports.Prisma.T_itsrqvScalarFieldEnum = {
@@ -3138,8 +3133,8 @@ exports.Prisma.T_itsrqvScalarFieldEnum = {
   empven: 'empven',
   deitem_iv: 'deitem_iv',
   registroext: 'registroext',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_itsvenScalarFieldEnum = {
@@ -3222,16 +3217,9 @@ exports.Prisma.T_itsvenScalarFieldEnum = {
   perctribfed: 'perctribfed',
   percicms: 'percicms',
   perccusto: 'perccusto',
-  id: 'id',
   isdeleted: 'isdeleted',
   createdat: 'createdat',
-  updatedat: 'updatedat',
-  id_venda: 'id_venda',
-  id_empresa: 'id_empresa',
-  id_item: 'id_item',
-  id_grupo: 'id_grupo',
-  id_cst: 'id_cst',
-  id_vendedor: 'id_vendedor'
+  updatedat: 'updatedat'
 };
 
 exports.Prisma.T_itsven_tmpScalarFieldEnum = {
@@ -3292,8 +3280,8 @@ exports.Prisma.T_itsven_tmpScalarFieldEnum = {
   credicms: 'credicms',
   fator: 'fator',
   vencporent: 'vencporent',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_ittransfScalarFieldEnum = {
@@ -3308,8 +3296,8 @@ exports.Prisma.T_ittransfScalarFieldEnum = {
   nrreq: 'nrreq',
   empreq: 'empreq',
   autocodreq: 'autocodreq',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_lancapicmsScalarFieldEnum = {
@@ -3318,10 +3306,10 @@ exports.Prisma.T_lancapicmsScalarFieldEnum = {
   comp: 'comp',
   lan: 'lan',
   sublan: 'sublan',
-  varcharo: 'varcharo',
+  texto: 'texto',
   valor: 'valor',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_ligcliScalarFieldEnum = {
@@ -3360,8 +3348,9 @@ exports.Prisma.T_ligcliScalarFieldEnum = {
   cdequip: 'cdequip',
   dddcli: 'dddcli',
   nrrota: 'nrrota',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  data_: 'data_'
 };
 
 exports.Prisma.T_linhaproducaoScalarFieldEnum = {
@@ -3369,8 +3358,8 @@ exports.Prisma.T_linhaproducaoScalarFieldEnum = {
   maq: 'maq',
   velprod: 'velprod',
   cdemp: 'cdemp',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_lispresScalarFieldEnum = {
@@ -3387,8 +3376,9 @@ exports.Prisma.T_lispresScalarFieldEnum = {
   usuario: 'usuario',
   data: 'data',
   qtdeven: 'qtdeven',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  data_: 'data_'
 };
 
 exports.Prisma.T_locacaoScalarFieldEnum = {
@@ -3431,8 +3421,8 @@ exports.Prisma.T_locacaoScalarFieldEnum = {
   codred: 'codred',
   hostname: 'hostname',
   comissao: 'comissao',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_locacaochkScalarFieldEnum = {
@@ -3440,8 +3430,8 @@ exports.Prisma.T_locacaochkScalarFieldEnum = {
   locacao: 'locacao',
   descricao: 'descricao',
   sim: 'sim',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_loteScalarFieldEnum = {
@@ -3460,8 +3450,9 @@ exports.Prisma.T_loteScalarFieldEnum = {
   usuario: 'usuario',
   entregue: 'entregue',
   pedido: 'pedido',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  data_: 'data_'
 };
 
 exports.Prisma.T_loteenvScalarFieldEnum = {
@@ -3478,8 +3469,9 @@ exports.Prisma.T_loteenvScalarFieldEnum = {
   conferente: 'conferente',
   obs: 'obs',
   usuario: 'usuario',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  data_: 'data_'
 };
 
 exports.Prisma.T_lventScalarFieldEnum = {
@@ -3587,9 +3579,10 @@ exports.Prisma.T_lventScalarFieldEnum = {
   vl_cofins_st: 'vl_cofins_st',
   icmsntf: 'icmsntf',
   vlrntf: 'vlrntf',
-  createdat: 'createdat',
-  updatedat: 'updatedat',
-  picmsfrete: 'picmsfrete'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  PICMSFrete: 'PICMSFrete',
+  ref_: 'ref_'
 };
 
 exports.Prisma.T_lventitemScalarFieldEnum = {
@@ -3648,16 +3641,16 @@ exports.Prisma.T_lventitemScalarFieldEnum = {
   vicmsst: 'vicmsst',
   icmsntf: 'icmsntf',
   vlrntf: 'vlrntf',
-  itbarcode: 'itbarcode',
-  cstcmp: 'cstcmp',
-  undcmp: 'undcmp',
-  qtdcmp: 'qtdcmp',
-  fatconv: 'fatconv',
-  deitemcmp: 'deitemcmp',
-  precorig: 'precorig',
-  createdat: 'createdat',
-  updatedat: 'updatedat',
-  und: 'und'
+  ITBARCODE: 'ITBARCODE',
+  CSTCMP: 'CSTCMP',
+  UNDCMP: 'UNDCMP',
+  QTDCMP: 'QTDCMP',
+  FATCONV: 'FATCONV',
+  DEITEMCMP: 'DEITEMCMP',
+  PRECORIG: 'PRECORIG',
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  UND: 'UND'
 };
 
 exports.Prisma.T_lventrefScalarFieldEnum = {
@@ -3670,8 +3663,8 @@ exports.Prisma.T_lventrefScalarFieldEnum = {
   modelo: 'modelo',
   dtent: 'dtent',
   idnfe: 'idnfe',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_lvsaiScalarFieldEnum = {
@@ -3745,22 +3738,22 @@ exports.Prisma.T_lvsaiScalarFieldEnum = {
   cod_sit: 'cod_sit',
   coderro: 'coderro',
   impsn: 'impsn',
-  createdat: 'createdat',
-  updatedat: 'updatedat',
-  vl_doc: 'vl_doc',
-  vl_merc: 'vl_merc',
-  vl_bc_icms: 'vl_bc_icms',
-  vl_icms: 'vl_icms',
-  vl_bc_icms_st: 'vl_bc_icms_st',
-  vl_icms_st: 'vl_icms_st',
-  vl_ipi: 'vl_ipi',
-  vl_pis: 'vl_pis',
-  vl_cofins: 'vl_cofins',
-  vl_pis_st: 'vl_pis_st',
-  vl_cofins_st: 'vl_cofins_st',
-  picmsfrete: 'picmsfrete',
-  icmsntf: 'icmsntf',
-  vlrntf: 'vlrntf'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  VL_DOC: 'VL_DOC',
+  VL_MERC: 'VL_MERC',
+  VL_BC_ICMS: 'VL_BC_ICMS',
+  VL_ICMS: 'VL_ICMS',
+  VL_BC_ICMS_ST: 'VL_BC_ICMS_ST',
+  VL_ICMS_ST: 'VL_ICMS_ST',
+  VL_IPI: 'VL_IPI',
+  VL_PIS: 'VL_PIS',
+  VL_COFINS: 'VL_COFINS',
+  VL_PIS_ST: 'VL_PIS_ST',
+  VL_COFINS_ST: 'VL_COFINS_ST',
+  PICMSFrete: 'PICMSFrete',
+  icmsNtf: 'icmsNtf',
+  VlrNtf: 'VlrNtf'
 };
 
 exports.Prisma.T_mailsScalarFieldEnum = {
@@ -3770,8 +3763,9 @@ exports.Prisma.T_mailsScalarFieldEnum = {
   obs: 'obs',
   data: 'data',
   endip: 'endip',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  data_: 'data_'
 };
 
 exports.Prisma.T_maqScalarFieldEnum = {
@@ -3781,52 +3775,53 @@ exports.Prisma.T_maqScalarFieldEnum = {
   dataqaquisicao: 'dataqaquisicao',
   valorhh: 'valorhh',
   especializacao: 'especializacao',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_marcaScalarFieldEnum = {
   autocod: 'autocod',
   descmarca: 'descmarca',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_marcaautomovelScalarFieldEnum = {
   cdmarca: 'cdmarca',
   descmarca: 'descmarca',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_menusysScalarFieldEnum = {
   cdrot: 'cdrot',
   derot: 'derot',
   modulo: 'modulo',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  autocod: 'autocod'
 };
 
 exports.Prisma.T_modeloScalarFieldEnum = {
   autocod: 'autocod',
   cdmarca: 'cdmarca',
   descmodelo: 'descmodelo',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_modeloautomovelScalarFieldEnum = {
   cdmodelo: 'cdmodelo',
   descmodelo: 'descmodelo',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_motchamScalarFieldEnum = {
   autocod: 'autocod',
   descricao: 'descricao',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_movestScalarFieldEnum = {
@@ -3861,12 +3856,10 @@ exports.Prisma.T_movestScalarFieldEnum = {
   userrest: 'userrest',
   seqit: 'seqit',
   compra: 'compra',
-  id: 'id',
   isdeleted: 'isdeleted',
   createdat: 'createdat',
   updatedat: 'updatedat',
-  id_item: 'id_item',
-  id_empresa: 'id_empresa'
+  data_: 'data_'
 };
 
 exports.Prisma.T_nfcScalarFieldEnum = {
@@ -3928,8 +3921,8 @@ exports.Prisma.T_nfcScalarFieldEnum = {
   tiponfe: 'tiponfe',
   finalidadenfe: 'finalidadenfe',
   vldescamb: 'vldescamb',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_nfsScalarFieldEnum = {
@@ -4006,11 +3999,11 @@ exports.Prisma.T_nfsScalarFieldEnum = {
   cod_sit: 'cod_sit',
   coderro: 'coderro',
   impsn: 'impsn',
-  createdat: 'createdat',
-  updatedat: 'updatedat',
-  bcibscbs: 'bcibscbs',
-  vltotibs: 'vltotibs',
-  vltotcbs: 'vltotcbs'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  bcIbsCbs: 'bcIbsCbs',
+  vlTotIbs: 'vlTotIbs',
+  vlTotCbs: 'vlTotCbs'
 };
 
 exports.Prisma.T_nfsvScalarFieldEnum = {
@@ -4077,8 +4070,8 @@ exports.Prisma.T_nfsvScalarFieldEnum = {
   pdesccon: 'pdesccon',
   pdescinc: 'pdescinc',
   poutdesc: 'poutdesc',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_obrasScalarFieldEnum = {
@@ -4105,8 +4098,8 @@ exports.Prisma.T_obrasScalarFieldEnum = {
   emailobra: 'emailobra',
   gerarcr: 'gerarcr',
   obs2: 'obs2',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_obsScalarFieldEnum = {
@@ -4114,16 +4107,17 @@ exports.Prisma.T_obsScalarFieldEnum = {
   cdemp: 'cdemp',
   comp: 'comp',
   descricao: 'descricao',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_obsagupScalarFieldEnum = {
   nrven: 'nrven',
   obsagrup: 'obsagrup',
   empven: 'empven',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  autocod: 'autocod'
 };
 
 exports.Prisma.T_ofsScalarFieldEnum = {
@@ -4142,8 +4136,9 @@ exports.Prisma.T_ofsScalarFieldEnum = {
   prvini: 'prvini',
   usuabe: 'usuabe',
   cdemp: 'cdemp',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  autocod: 'autocod'
 };
 
 exports.Prisma.T_orcScalarFieldEnum = {
@@ -4198,8 +4193,9 @@ exports.Prisma.T_orcScalarFieldEnum = {
   tpentorc: 'tpentorc',
   nomecx: 'nomecx',
   storc: 'storc',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  data_: 'data_'
 };
 
 exports.Prisma.T_osScalarFieldEnum = {
@@ -4211,8 +4207,8 @@ exports.Prisma.T_osScalarFieldEnum = {
   datacadastro: 'datacadastro',
   situacao: 'situacao',
   dataentrega: 'dataentrega',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_ositensScalarFieldEnum = {
@@ -4224,8 +4220,9 @@ exports.Prisma.T_ositensScalarFieldEnum = {
   quant: 'quant',
   valoritem: 'valoritem',
   valormaoobra: 'valormaoobra',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  autocod: 'autocod'
 };
 
 exports.Prisma.T_pagScalarFieldEnum = {
@@ -4261,8 +4258,8 @@ exports.Prisma.T_pagScalarFieldEnum = {
   empfor: 'empfor',
   autpagcaixa: 'autpagcaixa',
   hostname: 'hostname',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_pagbScalarFieldEnum = {
@@ -4282,8 +4279,8 @@ exports.Prisma.T_pagbScalarFieldEnum = {
   portbaixa: 'portbaixa',
   pedcmp: 'pedcmp',
   emppag: 'emppag',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_pagbfuncScalarFieldEnum = {
@@ -4294,8 +4291,8 @@ exports.Prisma.T_pagbfuncScalarFieldEnum = {
   codusu: 'codusu',
   codpor: 'codpor',
   dtregistro: 'dtregistro',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_pagfuncScalarFieldEnum = {
@@ -4312,8 +4309,8 @@ exports.Prisma.T_pagfuncScalarFieldEnum = {
   ususta: 'ususta',
   registro: 'registro',
   prioridadeordenacao: 'prioridadeordenacao',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_pdcScalarFieldEnum = {
@@ -4452,8 +4449,8 @@ exports.Prisma.T_pdcScalarFieldEnum = {
   coderro: 'coderro',
   hostname: 'hostname',
   vlrntf: 'vlrntf',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_pdvScalarFieldEnum = {
@@ -4467,8 +4464,8 @@ exports.Prisma.T_pdvScalarFieldEnum = {
   usucarga: 'usucarga',
   caminhodir: 'caminhodir',
   cdemp: 'cdemp',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_pedcmpScalarFieldEnum = {
@@ -4538,52 +4535,52 @@ exports.Prisma.T_pedcmpScalarFieldEnum = {
   vl_bc_icms_st: 'vl_bc_icms_st',
   vl_icms_st: 'vl_icms_st',
   vl_ipi: 'vl_ipi',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_pedidosonlineScalarFieldEnum = {
-  id: 'id',
-  cdemp: 'cdemp',
-  id_cliente: 'id_cliente',
-  id_endereco: 'id_endereco',
-  canal: 'canal',
-  status: 'status',
-  dt_pedido: 'dt_pedido',
-  public_token: 'public_token',
-  total_bruto: 'total_bruto',
-  desconto: 'desconto',
-  taxa_entrega: 'taxa_entrega',
-  total_liq: 'total_liq',
-  obs: 'obs',
-  id_venda: 'id_venda',
-  dt_confirmacao: 'dt_confirmacao',
-  confirmado_por: 'confirmado_por',
-  dt_cancelamento: 'dt_cancelamento',
-  cancelado_por: 'cancelado_por',
-  motivo_cancel: 'motivo_cancel',
-  pedido: 'pedido',
-  trocopara: 'trocopara',
-  tipopagto: 'tipopagto'
+  ID: 'ID',
+  CDEMP: 'CDEMP',
+  CDCLI: 'CDCLI',
+  EMPCLI: 'EMPCLI',
+  ENDERECO: 'ENDERECO',
+  CANAL: 'CANAL',
+  STATUS: 'STATUS',
+  DT_PEDIDO: 'DT_PEDIDO',
+  TOTAL_BRUTO: 'TOTAL_BRUTO',
+  DESCONTO: 'DESCONTO',
+  TAXA_ENTREGA: 'TAXA_ENTREGA',
+  TOTAL_LIQ: 'TOTAL_LIQ',
+  OBS: 'OBS',
+  NRVEN: 'NRVEN',
+  EMPVEN: 'EMPVEN',
+  DT_CONFIRMACAO: 'DT_CONFIRMACAO',
+  CONFIRMADO_POR: 'CONFIRMADO_POR',
+  DT_CANCELAMENTO: 'DT_CANCELAMENTO',
+  CANCELADO_POR: 'CANCELADO_POR',
+  MOTIVO_CANCEL: 'MOTIVO_CANCEL'
 };
 
 exports.Prisma.T_pedidosonlinecomboescolhasScalarFieldEnum = {
-  id: 'id',
-  id_pedido_item: 'id_pedido_item',
-  cdgru: 'cdgru',
-  id_item_escolhido: 'id_item_escolhido',
-  qtde: 'qtde'
+  ID: 'ID',
+  ID_PEDIDO_ITEM: 'ID_PEDIDO_ITEM',
+  CDGRU: 'CDGRU',
+  CDITEM_ESCOLHIDO: 'CDITEM_ESCOLHIDO',
+  EMPITEM_ESCOLHIDO: 'EMPITEM_ESCOLHIDO',
+  QTDE: 'QTDE'
 };
 
 exports.Prisma.T_pedidosonlineitensScalarFieldEnum = {
-  id: 'id',
-  id_pedido: 'id_pedido',
-  id_item: 'id_item',
-  qtde: 'qtde',
-  vlr_unit_calc: 'vlr_unit_calc',
-  vlr_total_calc: 'vlr_total_calc',
-  obs_item: 'obs_item',
-  eh_combo: 'eh_combo'
+  ID: 'ID',
+  ID_PEDIDO: 'ID_PEDIDO',
+  CDITEM: 'CDITEM',
+  EMPITEM: 'EMPITEM',
+  QTDE: 'QTDE',
+  VLR_UNIT_CALC: 'VLR_UNIT_CALC',
+  VLR_TOTAL_CALC: 'VLR_TOTAL_CALC',
+  OBS_ITEM: 'OBS_ITEM',
+  EH_COMBO: 'EH_COMBO'
 };
 
 exports.Prisma.T_pessoalScalarFieldEnum = {
@@ -4591,8 +4588,8 @@ exports.Prisma.T_pessoalScalarFieldEnum = {
   nome: 'nome',
   funcao: 'funcao',
   valorhora: 'valorhora',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_pgcaixaScalarFieldEnum = {
@@ -4613,9 +4610,10 @@ exports.Prisma.T_pgcaixaScalarFieldEnum = {
   data: 'data',
   codrec: 'codrec',
   totaltaxa: 'totaltaxa',
-  createdat: 'createdat',
-  updatedat: 'updatedat',
-  valorant: 'valorant'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  valorant: 'valorant',
+  data_: 'data_'
 };
 
 exports.Prisma.T_placonScalarFieldEnum = {
@@ -4633,7 +4631,6 @@ exports.Prisma.T_placonScalarFieldEnum = {
   transf: 'transf',
   custofixo: 'custofixo',
   codhist: 'codhist',
-  id: 'id',
   isdeleted: 'isdeleted',
   createdat: 'createdat',
   updatedat: 'updatedat'
@@ -4645,22 +4642,24 @@ exports.Prisma.T_printersScalarFieldEnum = {
   descricao: 'descricao',
   cdemp: 'cdemp',
   lista_sn: 'lista_sn',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  local_: 'local_'
 };
 
 exports.Prisma.T_procScalarFieldEnum = {
   autocod: 'autocod',
   descproc: 'descproc',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_procreclacliScalarFieldEnum = {
   cdproc: 'cdproc',
   cdrecl: 'cdrecl',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  autocod: 'autocod'
 };
 
 exports.Prisma.T_recScalarFieldEnum = {
@@ -4733,8 +4732,8 @@ exports.Prisma.T_recScalarFieldEnum = {
   barcode: 'barcode',
   linkboleto: 'linkboleto',
   idextbol: 'idextbol',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_recbScalarFieldEnum = {
@@ -4754,8 +4753,8 @@ exports.Prisma.T_recbScalarFieldEnum = {
   saldo: 'saldo',
   cdemp: 'cdemp',
   emprec: 'emprec',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_receitasScalarFieldEnum = {
@@ -4793,9 +4792,8 @@ exports.Prisma.T_receitasScalarFieldEnum = {
   dtsta: 'dtsta',
   adic: 'adic',
   adicesq: 'adicesq',
-  createdat: 'createdat',
-  updatedat: 'updatedat',
-  id: 'id'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_reciboScalarFieldEnum = {
@@ -4817,8 +4815,9 @@ exports.Prisma.T_reciboScalarFieldEnum = {
   cepfor: 'cepfor',
   cidfor: 'cidfor',
   cnpjfor: 'cnpjfor',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  data_: 'data_'
 };
 
 exports.Prisma.T_reclacliScalarFieldEnum = {
@@ -4830,8 +4829,8 @@ exports.Prisma.T_reclacliScalarFieldEnum = {
   cdemp: 'cdemp',
   descrecla: 'descrecla',
   datacadastro: 'datacadastro',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_reclotScalarFieldEnum = {
@@ -4846,26 +4845,27 @@ exports.Prisma.T_reclotScalarFieldEnum = {
   fin: 'fin',
   ini: 'ini',
   status: 'status',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_redesoccliScalarFieldEnum = {
-  autocod: 'autocod',
-  cdcli: 'cdcli',
-  cdemp: 'cdemp',
-  nome: 'nome',
-  facebook: 'facebook',
-  instagram: 'instagram',
-  twitter: 'twitter',
-  whatsapp: 'whatsapp',
-  data: 'data',
-  dia: 'dia',
-  mes: 'mes',
-  autorizasn: 'autorizasn',
-  cdusu: 'cdusu',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  AUTOCOD: 'AUTOCOD',
+  CDCLI: 'CDCLI',
+  CDEMP: 'CDEMP',
+  NOME: 'NOME',
+  FACEBOOK: 'FACEBOOK',
+  INSTAGRAM: 'INSTAGRAM',
+  TWITTER: 'TWITTER',
+  WHATSAPP: 'WHATSAPP',
+  DATA: 'DATA',
+  DIA: 'DIA',
+  MES: 'MES',
+  AUTORIZASN: 'AUTORIZASN',
+  CDUSU: 'CDUSU',
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  DATA_: 'DATA_'
 };
 
 exports.Prisma.T_relcontaScalarFieldEnum = {
@@ -4879,8 +4879,9 @@ exports.Prisma.T_relcontaScalarFieldEnum = {
   custop: 'custop',
   transf: 'transf',
   restrita: 'restrita',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  autocod: 'autocod'
 };
 
 exports.Prisma.T_reqScalarFieldEnum = {
@@ -4896,8 +4897,8 @@ exports.Prisma.T_reqScalarFieldEnum = {
   usuate: 'usuate',
   nrven: 'nrven',
   empven: 'empven',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_romfreScalarFieldEnum = {
@@ -4923,15 +4924,16 @@ exports.Prisma.T_romfreScalarFieldEnum = {
   usuautorizou: 'usuautorizou',
   usubaixou: 'usubaixou',
   dtbaixa: 'dtbaixa',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  data_: 'data_'
 };
 
 exports.Prisma.T_rotaScalarFieldEnum = {
   codrota: 'codrota',
   descrota: 'descrota',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_rotatecScalarFieldEnum = {
@@ -4942,8 +4944,9 @@ exports.Prisma.T_rotatecScalarFieldEnum = {
   data: 'data',
   hostname: 'hostname',
   ip: 'ip',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  data_: 'data_'
 };
 
 exports.Prisma.T_rotatecitScalarFieldEnum = {
@@ -4964,8 +4967,9 @@ exports.Prisma.T_rotatecitScalarFieldEnum = {
   cliente: 'cliente',
   agenda: 'agenda',
   equipamento: 'equipamento',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  data_: 'data_'
 };
 
 exports.Prisma.T_salariofuncionarioScalarFieldEnum = {
@@ -4975,8 +4979,9 @@ exports.Prisma.T_salariofuncionarioScalarFieldEnum = {
   cdcargo: 'cdcargo',
   datainicio: 'datainicio',
   datafinal: 'datafinal',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  autocod: 'autocod'
 };
 
 exports.Prisma.T_saldoitScalarFieldEnum = {
@@ -4992,17 +4997,16 @@ exports.Prisma.T_saldoitScalarFieldEnum = {
   dtaltsld: 'dtaltsld',
   enviar: 'enviar',
   cdsaldoit: 'cdsaldoit',
-  createdat: 'createdat',
-  updatedat: 'updatedat',
-  id_item: 'id_item',
-  id_empresa: 'id_empresa'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_senhaScalarFieldEnum = {
   senha: 'senha',
   nome: 'nome',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  autocod: 'autocod'
 };
 
 exports.Prisma.T_sepconScalarFieldEnum = {
@@ -5019,31 +5023,32 @@ exports.Prisma.T_sepconScalarFieldEnum = {
   cdsub: 'cdsub',
   desub: 'desub',
   ativosn: 'ativosn',
-  createdat: 'createdat',
-  updatedat: 'updatedat',
-  id: 'id'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_servScalarFieldEnum = {
   autocod: 'autocod',
   descserv: 'descserv',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_serv_osScalarFieldEnum = {
   cdos: 'cdos',
   cdserv: 'cdserv',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  autocod: 'autocod'
 };
 
 exports.Prisma.T_servitensScalarFieldEnum = {
   cditem: 'cditem',
   cdemp: 'cdemp',
   cdserv: 'cdserv',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  autocod: 'autocod'
 };
 
 exports.Prisma.T_socioScalarFieldEnum = {
@@ -5072,8 +5077,8 @@ exports.Prisma.T_socioScalarFieldEnum = {
   chavepix: 'chavepix',
   tpchavepix: 'tpchavepix',
   dtautorizacao: 'dtautorizacao',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_solicitacaoScalarFieldEnum = {
@@ -5088,8 +5093,8 @@ exports.Prisma.T_solicitacaoScalarFieldEnum = {
   codcli: 'codcli',
   cdemp: 'cdemp',
   empcli: 'empcli',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_statusScalarFieldEnum = {
@@ -5098,16 +5103,16 @@ exports.Prisma.T_statusScalarFieldEnum = {
   calcularemos: 'calcularemos',
   excluiros: 'excluiros',
   permitirtrocatecnico: 'permitirtrocatecnico',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_subdepScalarFieldEnum = {
   cdsbdep: 'cdsbdep',
   cdemp: 'cdemp',
   desbdep: 'desbdep',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_subgrScalarFieldEnum = {
@@ -5118,10 +5123,8 @@ exports.Prisma.T_subgrScalarFieldEnum = {
   idsugr: 'idsugr',
   dtaltsub: 'dtaltsub',
   cdsubext: 'cdsubext',
-  createdat: 'createdat',
-  updatedat: 'updatedat',
-  id_grupo: 'id_grupo',
-  id: 'id'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_tabprecoScalarFieldEnum = {
@@ -5130,8 +5133,8 @@ exports.Prisma.T_tabprecoScalarFieldEnum = {
   txtab: 'txtab',
   tptaxa: 'tptaxa',
   codtabext: 'codtabext',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_tecnicoScalarFieldEnum = {
@@ -5144,8 +5147,8 @@ exports.Prisma.T_tecnicoScalarFieldEnum = {
   senha: 'senha',
   email: 'email',
   ativo: 'ativo',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_tecnicoitemosScalarFieldEnum = {
@@ -5154,8 +5157,9 @@ exports.Prisma.T_tecnicoitemosScalarFieldEnum = {
   cdtecnico: 'cdtecnico',
   cdemp: 'cdemp',
   cditem: 'cditem',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  autocod: 'autocod'
 };
 
 exports.Prisma.T_tempfuncionerioScalarFieldEnum = {
@@ -5169,8 +5173,9 @@ exports.Prisma.T_tempfuncionerioScalarFieldEnum = {
   salario: 'salario',
   admisao: 'admisao',
   diastrabalhado: 'diastrabalhado',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  autocod: 'autocod'
 };
 
 exports.Prisma.T_temphoraextraScalarFieldEnum = {
@@ -5181,27 +5186,27 @@ exports.Prisma.T_temphoraextraScalarFieldEnum = {
   cdusu: 'cdusu',
   aliquota: 'aliquota',
   totalhoratrabalhada: 'totalhoratrabalhada',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_tipoentegovScalarFieldEnum = {
-  id: 'id',
-  codigo: 'codigo',
-  descricao: 'descricao'
+  ID: 'ID',
+  CODIGO: 'CODIGO',
+  DESCRICAO: 'DESCRICAO'
 };
 
 exports.Prisma.T_tipoequipamentoScalarFieldEnum = {
   cdtipo: 'cdtipo',
   desctipo: 'desctipo',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_tipoopergovScalarFieldEnum = {
-  id: 'id',
-  codigo: 'codigo',
-  descricao: 'descricao'
+  ID: 'ID',
+  CODIGO: 'CODIGO',
+  DESCRICAO: 'DESCRICAO'
 };
 
 exports.Prisma.T_tpgtoScalarFieldEnum = {
@@ -5234,19 +5239,19 @@ exports.Prisma.T_tpgtoScalarFieldEnum = {
   tipo: 'tipo',
   comrecsn: 'comrecsn',
   cdtpgext: 'cdtpgext',
-  tef: 'tef',
-  pix: 'pix',
-  createdat: 'createdat',
-  updatedat: 'updatedat',
-  id: 'id',
-  onlinesn: 'onlinesn'
+  TEF: 'TEF',
+  PIX: 'PIX',
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  OnLineSN: 'OnLineSN'
 };
 
 exports.Prisma.T_tpgtoitpromoScalarFieldEnum = {
   cdtpg: 'cdtpg',
   cditem: 'cditem',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  autocod: 'autocod'
 };
 
 exports.Prisma.T_transfScalarFieldEnum = {
@@ -5263,8 +5268,8 @@ exports.Prisma.T_transfScalarFieldEnum = {
   transfsn: 'transfsn',
   motorista: 'motorista',
   host: 'host',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_undmedScalarFieldEnum = {
@@ -5276,15 +5281,14 @@ exports.Prisma.T_undmedScalarFieldEnum = {
   cdund: 'cdund',
   compsn: 'compsn',
   cdundext: 'cdundext',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_usereScalarFieldEnum = {
   codusu: 'codusu',
   codemp: 'codemp',
   autocod: 'autocod',
-  id: 'id',
   isdeleted: 'isdeleted',
   createdat: 'createdat',
   updatedat: 'updatedat'
@@ -5312,7 +5316,6 @@ exports.Prisma.T_usersScalarFieldEnum = {
   email: 'email',
   ddduser: 'ddduser',
   foneuser: 'foneuser',
-  id: 'id',
   isdeleted: 'isdeleted',
   createdat: 'createdat',
   updatedat: 'updatedat'
@@ -5322,7 +5325,6 @@ exports.Prisma.T_usersnScalarFieldEnum = {
   codusu: 'codusu',
   codrot: 'codrot',
   autocod: 'autocod',
-  id: 'id',
   isdeleted: 'isdeleted',
   createdat: 'createdat',
   updatedat: 'updatedat'
@@ -5447,20 +5449,15 @@ exports.Prisma.T_vendasScalarFieldEnum = {
   nrcoman: 'nrcoman',
   cpfnfc: 'cpfnfc',
   codcoman: 'codcoman',
-  id: 'id',
   isdeleted: 'isdeleted',
   createdat: 'createdat',
   updatedat: 'updatedat',
-  id_cliente: 'id_cliente',
-  id_fpgto: 'id_fpgto',
-  id_tpgto: 'id_tpgto',
-  id_empresa: 'id_empresa',
-  id_vendedor: 'id_vendedor',
-  id_usuario: 'id_usuario',
-  id_conferente: 'id_conferente',
-  id_separador: 'id_separador',
-  id_newvenda: 'id_newvenda',
-  id_receita: 'id_receita'
+  ID_CLIENTE: 'ID_CLIENTE',
+  ID_EMPRESA: 'ID_EMPRESA',
+  ID_FPGTO: 'ID_FPGTO',
+  ID_TPGTO: 'ID_TPGTO',
+  ID_VENDEDOR: 'ID_VENDEDOR',
+  ID_USUARIO: 'ID_USUARIO'
 };
 
 exports.Prisma.T_vendas_tmpScalarFieldEnum = {
@@ -5556,8 +5553,8 @@ exports.Prisma.T_vendas_tmpScalarFieldEnum = {
   zona: 'zona',
   sttmp: 'sttmp',
   stprod: 'stprod',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_vendeScalarFieldEnum = {
@@ -5595,7 +5592,6 @@ exports.Prisma.T_vendeScalarFieldEnum = {
   idsession: 'idsession',
   dtultsinc: 'dtultsinc',
   dddven: 'dddven',
-  id: 'id',
   isdeleted: 'isdeleted',
   createdat: 'createdat',
   updatedat: 'updatedat'
@@ -5607,16 +5603,16 @@ exports.Prisma.T_versaoScalarFieldEnum = {
   ipservidor: 'ipservidor',
   usuario: 'usuario',
   senha: 'senha',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.T_zonaScalarFieldEnum = {
   codzona: 'codzona',
   codrota: 'codrota',
   desczona: 'desczona',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt'
 };
 
 exports.Prisma.UsupontoScalarFieldEnum = {
@@ -5635,8 +5631,34 @@ exports.Prisma.UsupontoScalarFieldEnum = {
   msnfunc: 'msnfunc',
   hextra: 'hextra',
   ferias: 'ferias',
-  createdat: 'createdat',
-  updatedat: 'updatedat'
+  CreatedAt: 'CreatedAt',
+  UpdatedAt: 'UpdatedAt',
+  autocod: 'autocod'
+};
+
+exports.Prisma.Regras_transicao_reformaScalarFieldEnum = {
+  ID: 'ID',
+  Ano: 'Ano',
+  cClassTrib: 'cClassTrib',
+  Descricao: 'Descricao',
+  Aliq_IBS: 'Aliq_IBS',
+  Aliq_CBS: 'Aliq_CBS',
+  Aliq_Total_Estimada: 'Aliq_Total_Estimada'
+};
+
+exports.Prisma.T_auditoriaEstoqueScalarFieldEnum = {
+  data: 'data',
+  usuario: 'usuario',
+  cdemp: 'cdemp',
+  cditem: 'cditem',
+  qtde: 'qtde',
+  tipo: 'tipo',
+  saldo_ant: 'saldo_ant',
+  saldo_atual: 'saldo_atual',
+  origem: 'origem',
+  NRLAN: 'NRLAN',
+  autocod: 'autocod',
+  data_: 'data_'
 };
 
 exports.Prisma.SortOrder = {
@@ -5656,7 +5678,6 @@ exports.Prisma.NullsOrder = {
 
 
 exports.Prisma.ModelName = {
-  Regras_Transicao_Reforma: 'Regras_Transicao_Reforma',
   bom_headers: 'bom_headers',
   bom_items: 'bom_items',
   daoclientes: 'daoclientes',
@@ -5681,7 +5702,6 @@ exports.Prisma.ModelName = {
   t_agenda: 't_agenda',
   t_aloc: 't_aloc',
   t_arquivo: 't_arquivo',
-  t_auditoriaestoque: 't_auditoriaestoque',
   t_automovel: 't_automovel',
   t_bai: 't_bai',
   t_baixaloc: 't_baixaloc',
@@ -5876,7 +5896,9 @@ exports.Prisma.ModelName = {
   t_vende: 't_vende',
   t_versao: 't_versao',
   t_zona: 't_zona',
-  usuponto: 'usuponto'
+  usuponto: 'usuponto',
+  regras_transicao_reforma: 'regras_transicao_reforma',
+  t_auditoriaEstoque: 't_auditoriaEstoque'
 };
 
 /**
