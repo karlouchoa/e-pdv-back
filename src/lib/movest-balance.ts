@@ -13,8 +13,6 @@ export type MovestBalanceInput = {
   qtde?: unknown;
   st?: unknown;
   isdeleted?: unknown;
-  id_item?: unknown;
-  id_empresa?: unknown;
 };
 
 type BalanceDelta = {
@@ -22,8 +20,6 @@ type BalanceDelta = {
   cditem: number;
   empitem: number;
   delta: number;
-  idItem: string | null;
-  idEmpresa: string | null;
 };
 
 const ZERO_EPSILON = 0.0000001;
@@ -34,7 +30,10 @@ function toOptionalNumber(value: unknown): number | null {
   if (typeof value === 'bigint') return Number(value);
 
   if (typeof value === 'object') {
-    const numericLike = value as { toNumber?: () => number; toString?: () => string };
+    const numericLike = value as {
+      toNumber?: () => number;
+      toString?: () => string;
+    };
     if (typeof numericLike.toNumber === 'function') {
       const parsed = Number(numericLike.toNumber());
       return Number.isFinite(parsed) ? parsed : null;
@@ -115,8 +114,6 @@ function toBalanceDelta(
     cditem,
     empitem,
     delta,
-    idItem: toOptionalText(movement.id_item),
-    idEmpresa: toOptionalText(movement.id_empresa),
   };
 }
 
@@ -133,8 +130,6 @@ function mergeDeltas(input: BalanceDelta[]): BalanceDelta[] {
     }
 
     existing.delta = round4(existing.delta + row.delta);
-    if (!existing.idItem && row.idItem) existing.idItem = row.idItem;
-    if (!existing.idEmpresa && row.idEmpresa) existing.idEmpresa = row.idEmpresa;
   }
 
   return Array.from(grouped.values()).filter(
@@ -153,8 +148,6 @@ async function upsertSaldoDelta(
         cditem,
         empitem,
         saldo,
-        id_item,
-        id_empresa,
         dtaltsld,
         createdat,
         updatedat
@@ -164,8 +157,6 @@ async function upsertSaldoDelta(
         ${row.cditem},
         ${row.empitem},
         ${row.delta},
-        ${row.idItem},
-        ${row.idEmpresa},
         CURRENT_TIMESTAMP,
         CURRENT_TIMESTAMP,
         CURRENT_TIMESTAMP
@@ -174,9 +165,7 @@ async function upsertSaldoDelta(
       DO UPDATE SET
         saldo = COALESCE(t_saldoit.saldo, 0) + COALESCE(EXCLUDED.saldo, 0),
         dtaltsld = CURRENT_TIMESTAMP,
-        updatedat = CURRENT_TIMESTAMP,
-        id_item = COALESCE(EXCLUDED.id_item, t_saldoit.id_item),
-        id_empresa = COALESCE(EXCLUDED.id_empresa, t_saldoit.id_empresa)
+        updatedat = CURRENT_TIMESTAMP
     `,
   );
 }

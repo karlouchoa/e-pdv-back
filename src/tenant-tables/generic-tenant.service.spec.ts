@@ -21,10 +21,37 @@ describe('GenericTenantService', () => {
 
     const prisma = {
       [config.name]: delegate,
-      $queryRaw: jest
-        .fn()
-        .mockResolvedValueOnce([{ hasLocation: 1 }])
-        .mockResolvedValueOnce([{ TABLE_SCHEMA: 'dbo', TABLE_NAME: 't_emp' }]),
+      $queryRaw: jest.fn().mockImplementation((query: any) => {
+        const sql = Array.isArray(query?.strings)
+          ? query.strings.join(' ')
+          : String(query);
+
+        if (sql.includes('SELECT column_name')) {
+          return Promise.resolve([
+            { column_name: 'cdemp' },
+            { column_name: 'deemp' },
+            { column_name: 'cnpjemp' },
+            { column_name: 'apelido' },
+            { column_name: 'logonfe' },
+            { column_name: 'imagem_capa' },
+            { column_name: 'latitude' },
+            { column_name: 'longitude' },
+            { column_name: 'location' },
+          ]);
+        }
+
+        if (sql.includes('SELECT 1 AS "hasLocation"')) {
+          return Promise.resolve([{ hasLocation: 1 }]);
+        }
+
+        if (sql.includes('TABLE_SCHEMA AS "TABLE_SCHEMA"')) {
+          return Promise.resolve([
+            { TABLE_SCHEMA: 'dbo', TABLE_NAME: 't_emp' },
+          ]);
+        }
+
+        return Promise.resolve([]);
+      }),
       $executeRaw: jest.fn().mockResolvedValue(1),
     };
 
@@ -58,14 +85,16 @@ describe('GenericTenantService', () => {
       },
     );
 
-    expect(delegate.update).toHaveBeenCalledWith({
-      where: { cdemp: 1 },
-      data: {
-        deemp: 'EMPRESA TESTE',
-        latitude: -3.12,
-        longitude: -60.02,
-      },
-    });
+    expect(delegate.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { cdemp: 1 },
+        data: {
+          deemp: 'EMPRESA TESTE',
+          latitude: -3.12,
+          longitude: -60.02,
+        },
+      }),
+    );
 
     expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
   });
@@ -88,12 +117,14 @@ describe('GenericTenantService', () => {
       longitute: '-60.02020202',
     });
 
-    expect(delegate.create).toHaveBeenCalledWith({
-      data: {
-        latitude: -3.12121212,
-        longitude: -60.02020202,
-      },
-    });
+    expect(delegate.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: {
+          latitude: -3.12121212,
+          longitude: -60.02020202,
+        },
+      }),
+    );
     expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
   });
 
@@ -122,7 +153,7 @@ describe('GenericTenantService', () => {
     expect(mainPrisma.t_acessos.update).toHaveBeenCalledWith({
       where: { id: 7 },
       data: {
-        logoUrl: 'https://cdn/logo.png',
+        logourl: 'https://cdn/logo.png',
         imagem_capa: 'https://cdn/capa.png',
       },
     });

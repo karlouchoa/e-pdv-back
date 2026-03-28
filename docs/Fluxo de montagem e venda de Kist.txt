@@ -1,0 +1,58 @@
+📘 Contexto do Sistema: Arquitetura de Kits (Fórmulas/Composição)
+
+Objetivo: Atuar como especialista no módulo de "Kits" do ERP. Diferente dos "Combos" (escolhidos no checkout), o Kit é um produto de composição fixa de matérias-primas definida previamente no Admin.
+1. Definição e Cadastro de Item Principal
+
+    Identificador: Um produto é elegível para ser um Kit se itprodsn: "S" (indica "Possui Composição").
+
+    Mapeamento de UI: Checkbox em src/app/admin/itens/novo/page.tsx#L1396.
+
+    Persistência: O payload de criação do item deve conter itprodsn: "S" para habilitar o fluxo de fórmulas (src/app/admin/itens/novo/page.tsx linhas 408, 433, 440).
+
+2. Tela de Montagem de Kit (/admin/formulas)
+
+    Filtro de Busca: A tela de fórmulas filtra apenas produtos onde itprodsn: "S" (src/app/admin/formulas/page.tsx#L664).
+
+    Carregamento: Ao selecionar um produto, o sistema busca a composição existente via GET /t_formulas/:id.
+
+        Se retornar linhas: Kit montado.
+
+        Se vazio: Kit novo (src/app/admin/formulas/page.tsx#L273).
+
+    Seleção de Componentes: As matérias-primas são filtradas por matprima: "S" (src/app/admin/formulas/page.tsx#L791).
+
+    Normalização: Dados vindos do backend passam por normalizeFormulaLine (src/app/admin/formulas/page.tsx#L186).
+
+3. Lógica de Negócio e Cálculos
+
+    Estrutura da Linha: Cada componente armazena matprima, qtdemp (quantidade) e undmp (unidade).
+
+    Cálculos em Tempo Real: A UI soma Custo, Preço e Preço Mínimo dos componentes para sugerir valores ao item principal (src/app/admin/formulas/page.tsx linhas 598, 1023, 1063).
+
+    Sincronização de Preços: O flag updateItemPrices permite que o salvamento da fórmula atualize também o preço de venda do item principal (src/app/admin/formulas/page.tsx#L241).
+
+4. Persistência e Exclusão
+
+    Validações Pré-Envio: Verifica se há produto selecionado, se o código é numérico e se todas as linhas têm quantidade positiva (src/app/admin/formulas/page.tsx#L480).
+
+    Payload (POST /t_formulas):
+
+        Header: idItem, cditem, empitem, undven, updateItemPrices, itemPrices.
+
+        Linhas: Array de objetos com matprima, qtdemp, undmp, empitemmp, deitem_iv.
+
+    Exclusão: Limpa a composição via DELETE /t_formulas/:idItem.
+
+5. Fluxo de Venda (Caixa)
+
+    Comportamento: O frontend não explode o kit no momento da venda.
+
+    Payload de Venda: Envia apenas o ID do item principal, quantidade e preço (src/app/admin/caixa/page.tsx linhas 301, 345, 425).
+
+    Responsabilidade do Backend: A baixa de estoque das matérias-primas e a leitura da tabela t_formulas ocorrem exclusivamente no servidor após o POST para /admin/caixa/finalizar.
+
+6. Diferenciação Crucial
+Característica	Combo	Kit (Fórmula)
+Decisão de Itens	No momento da venda (Cliente)	No cadastro (Admin)
+Flexibilidade	Dinâmica (subgrupos/escolhas)	Estática (composição fixa)
+Frontend	Envia comboChoices no payload	Envia apenas o ID do item principal

@@ -16,6 +16,9 @@ import {
 import { UpdateTItemDto } from './dto/update-t_itens.dto';
 import { NotFoundException } from '@nestjs/common';
 import { applyMovestBalanceFromCreates } from '../lib/movest-balance';
+import {
+  buildCompatibleScalarSelect,
+} from '../lib/tenant-schema-compat';
 
 const T_ITENS_SYNC_NUMERIC_FIELDS = [
   'cdemp',
@@ -121,6 +124,24 @@ export class TItensService {
     return this.tenantDbService.getTenantClient(tenant);
   }
 
+  private async buildTItensSelect(
+    prisma: TenantClientLike,
+    options?: {
+      fields?: Iterable<string>;
+      includeImages?: boolean;
+    },
+  ): Promise<PrismaTypes.t_itensSelect> {
+    const select = {
+      ...(await buildCompatibleScalarSelect(
+        prisma,
+        't_itens',
+        options?.fields,
+      )),
+    } as PrismaTypes.t_itensSelect;
+
+    return select;
+  }
+
   private async getCompanyId(
     tenant: string,
     prisma: TenantClient,
@@ -170,27 +191,16 @@ export class TItensService {
       typeof cdempParam === 'string' ? cdempParam.trim() : undefined;
 
     if (candidate) {
-      let company: { cdemp: number } | null = null;
-
-      if (this.isGuid(candidate)) {
-        company = await prisma.t_emp.findFirst({
-          where: { id: candidate },
-          select: { cdemp: true },
-        });
-      }
-
-      if (!company) {
-        company = await prisma.t_emp.findFirst({
-          where: {
-            OR: [
-              { numemp: candidate },
-              { apelido: candidate },
-              { deemp: candidate },
-            ],
-          },
-          select: { cdemp: true },
-        });
-      }
+      const company = await prisma.t_emp.findFirst({
+        where: {
+          OR: [
+            { numemp: candidate },
+            { apelido: candidate },
+            { deemp: candidate },
+          ],
+        },
+        select: { cdemp: true },
+      });
 
       if (company?.cdemp !== undefined && company.cdemp !== null) {
         return company.cdemp;
@@ -332,14 +342,10 @@ export class TItensService {
   }
 
   private buildWhere(
-    cdemp: number,
     cditem: number,
   ): PrismaTypes.t_itensWhereUniqueInput {
     return {
-      cdemp_cditem: {
-        cdemp,
-        cditem,
-      },
+      cditem,
     };
   }
 
@@ -384,10 +390,6 @@ export class TItensService {
       data.isdeleted = payload.isdeleted;
     }
 
-    if (payload.id) {
-      data.id = payload.id.trim();
-    }
-
     return data;
   }
 
@@ -407,25 +409,35 @@ export class TItensService {
     prisma: TenantClientLike,
     idEmpresaRaw: string | null | undefined,
     fieldName: 'id_empresa' | 'ID_EMPRESA_SALDO',
-  ): Promise<{ companyId: string | null; companyCdemp: number | null }> {
-    const idEmpresa = this.normalizeGuid(idEmpresaRaw ?? null);
-    if (!idEmpresa) {
-      return { companyId: null, companyCdemp: null };
+  ): Promise<{ companyCdemp: number | null }> {
+    const candidate = this.normalizeGuid(idEmpresaRaw ?? null);
+    if (!candidate) {
+      return { companyCdemp: null };
+    }
+
+    const numericCdemp = this.toOptionalNumber(candidate);
+    if (numericCdemp !== null) {
+      return { companyCdemp: Math.floor(numericCdemp) };
     }
 
     const company = await prisma.t_emp.findFirst({
-      where: { id: idEmpresa },
-      select: { id: true, cdemp: true },
+      where: {
+        OR: [
+          { numemp: candidate },
+          { apelido: candidate },
+          { deemp: candidate },
+        ],
+      },
+      select: { cdemp: true },
     });
 
-    if (!company?.id) {
+    if (company?.cdemp === undefined || company.cdemp === null) {
       throw new BadRequestException(
-        `${fieldName} ${idEmpresa} nao encontrado em T_EMP.`,
+        `${fieldName} ${candidate} nao encontrado em T_EMP.`,
       );
     }
 
     return {
-      companyId: company.id.trim(),
       companyCdemp: company.cdemp,
     };
   }
@@ -433,7 +445,7 @@ export class TItensService {
   private async resolveItemCompanyContext(
     prisma: TenantClientLike,
     item: SyncTItensBatchItemDto,
-  ): Promise<{ companyId: string | null; companyCdemp: number | null }> {
+  ): Promise<{ companyCdemp: number | null }> {
     const context = await this.resolveCompanyContext(
       prisma,
       item.id_empresa,
@@ -460,7 +472,7 @@ export class TItensService {
   private async resolveSaldoCompanyContext(
     prisma: TenantClientLike,
     item: SyncTItensBatchItemDto,
-  ): Promise<{ companyId: string | null; companyCdemp: number | null }> {
+  ): Promise<{ companyCdemp: number | null }> {
     return this.resolveCompanyContext(
       prisma,
       item.ID_EMPRESA_SALDO,
@@ -472,10 +484,9 @@ export class TItensService {
     prisma: TenantClientLike,
     item: SyncTItensBatchItemDto,
     parent: {
-      idItem: string;
+      itemRef: string;
       cditem: number;
       cdemp: number;
-      companyId: string | null;
       companyCdemp: number | null;
     },
   ): Promise<{
@@ -486,18 +497,26 @@ export class TItensService {
     target: number;
   }> {
     if (item.sldatual === undefined || item.sldatual === null) {
-      return { created: false, type: null, quantity: 0, previous: 0, target: 0 };
+      return {
+        created: false,
+        type: null,
+        quantity: 0,
+        previous: 0,
+        target: 0,
+      };
     }
 
-    if (!(typeof item.sldatual === 'number' && Number.isFinite(item.sldatual))) {
+    if (
+      !(typeof item.sldatual === 'number' && Number.isFinite(item.sldatual))
+    ) {
       throw new BadRequestException(
-        `sldatual invalido para o item ${parent.idItem}.`,
+        `sldatual invalido para o item ${parent.itemRef}.`,
       );
     }
 
-    if (!parent.companyId || parent.companyCdemp === null) {
+    if (parent.companyCdemp === null) {
       throw new BadRequestException(
-        `ID_EMPRESA_SALDO e obrigatorio para ajuste de saldo do item ${parent.idItem}.`,
+        `ID_EMPRESA_SALDO e obrigatorio para ajuste de saldo do item ${parent.itemRef}.`,
       );
     }
 
@@ -525,7 +544,9 @@ export class TItensService {
     const type: 'E' | 'S' = diff > 0 ? 'E' : 'S';
     const quantity = this.roundTo(Math.abs(diff), 4);
     const movementDate =
-      this.toSyncDate(item.updatedat) ?? this.toSyncDate(item.createdat) ?? new Date();
+      this.toSyncDate(item.updatedat) ??
+      this.toSyncDate(item.createdat) ??
+      new Date();
     const now = new Date();
     const unitPrice =
       typeof item.preco === 'number' && Number.isFinite(item.preco)
@@ -547,8 +568,6 @@ export class TItensService {
         datalan: now,
         especie: 'A',
         cditem: parent.cditem,
-        id_item: parent.idItem,
-        id_empresa: parent.companyId,
         qtde: quantity,
         valor: totalValue,
         preco: unitPrice,
@@ -577,8 +596,6 @@ export class TItensService {
         st: type,
         qtde: quantity,
         isdeleted: false,
-        id_item: parent.idItem,
-        id_empresa: parent.companyId,
       },
     ]);
 
@@ -606,43 +623,27 @@ export class TItensService {
         ? Math.floor(formula.matprima)
         : null;
     let empitemmp =
-      typeof formula.empitemmp === 'number' && Number.isFinite(formula.empitemmp)
+      typeof formula.empitemmp === 'number' &&
+      Number.isFinite(formula.empitemmp)
         ? Math.floor(formula.empitemmp)
         : null;
     let undmp = formula.undmp?.trim() ?? null;
     let deitem = formula.deitem_iv?.trim() ?? null;
 
-    if (idMatprima) {
+    if (idMatprima && matprima === null && /^\d+$/.test(idMatprima)) {
+      matprima = Math.floor(Number(idMatprima));
+    }
+
+    if (matprima !== null && empitemmp !== null) {
       const item = await prisma.t_itens.findFirst({
-        where: { id: idMatprima },
+        where: { cdemp: empitemmp, cditem: matprima },
         select: {
-          cditem: true,
-          cdemp: true,
           undven: true,
           deitem: true,
         },
       });
 
       if (item) {
-        matprima = matprima ?? item.cditem;
-        empitemmp = empitemmp ?? item.cdemp;
-        undmp = undmp ?? item.undven?.trim() ?? null;
-        deitem = deitem ?? item.deitem?.trim() ?? null;
-      }
-    }
-
-    if (!idMatprima && matprima !== null && empitemmp !== null) {
-      const item = await prisma.t_itens.findFirst({
-        where: { cdemp: empitemmp, cditem: matprima },
-        select: {
-          id: true,
-          undven: true,
-          deitem: true,
-        },
-      });
-
-      if (item?.id) {
-        idMatprima = item.id.trim();
         undmp = undmp ?? item.undven?.trim() ?? null;
         deitem = deitem ?? item.deitem?.trim() ?? null;
       }
@@ -654,8 +655,13 @@ export class TItensService {
   private async syncFormulasForItem(
     prisma: TenantClientLike,
     item: SyncTItensBatchItemDto,
-    parent: { idItem: string; cdemp: number; cditem: number; undven: string },
-  ): Promise<{ inserted: number; updated: number; skipped: number; deleted: number }> {
+    parent: { itemRef: string; cdemp: number; cditem: number; undven: string },
+  ): Promise<{
+    inserted: number;
+    updated: number;
+    skipped: number;
+    deleted: number;
+  }> {
     if (!Array.isArray(item.formulas)) {
       return { inserted: 0, updated: 0, skipped: 0, deleted: 0 };
     }
@@ -663,7 +669,7 @@ export class TItensService {
     const formulas = item.formulas;
     const deleted = (
       await prisma.t_formulas.deleteMany({
-        where: { id_item: parent.idItem },
+        where: { empitem: parent.cdemp, cditem: parent.cditem },
       })
     ).count;
 
@@ -677,9 +683,23 @@ export class TItensService {
 
     for (const formula of formulas) {
       const formulaItemId = this.normalizeGuid(formula.id_item ?? null);
-      if (formulaItemId && formulaItemId !== parent.idItem) {
+      if (
+        formulaItemId &&
+        /^\d+$/.test(formulaItemId) &&
+        Math.floor(Number(formulaItemId)) !== parent.cditem
+      ) {
         throw new BadRequestException(
-          `Formula do item ${parent.idItem} com id_item divergente (${formulaItemId}).`,
+          `Formula do item ${parent.itemRef} com id_item divergente (${formulaItemId}).`,
+        );
+      }
+
+      const formulaCditem =
+        typeof formula.cditem === 'number' && Number.isFinite(formula.cditem)
+          ? Math.floor(formula.cditem)
+          : parent.cditem;
+      if (formulaCditem !== parent.cditem) {
+        throw new BadRequestException(
+          `Formula do item ${parent.cditem} com cditem divergente (${formulaCditem}).`,
         );
       }
 
@@ -694,20 +714,26 @@ export class TItensService {
 
       if (resolved.matprima === null || resolved.empitemmp === null) {
         throw new BadRequestException(
-          `Formula do item ${parent.idItem} sem identificacao valida da materia-prima.`,
+          `Formula do item ${parent.itemRef} sem identificacao valida da materia-prima.`,
         );
       }
 
-      if (!(typeof formula.qtdemp === 'number' && Number.isFinite(formula.qtdemp) && formula.qtdemp > 0)) {
+      if (
+        !(
+          typeof formula.qtdemp === 'number' &&
+          Number.isFinite(formula.qtdemp) &&
+          formula.qtdemp > 0
+        )
+      ) {
         throw new BadRequestException(
-          `Formula do item ${parent.idItem} com qtdemp invalida.`,
+          `Formula do item ${parent.itemRef} com qtdemp invalida.`,
         );
       }
 
       const undmp = formula.undmp?.trim() ?? resolved.undmp;
       if (!undmp) {
         throw new BadRequestException(
-          `Formula do item ${parent.idItem} sem undmp.`,
+          `Formula do item ${parent.itemRef} sem undmp.`,
         );
       }
 
@@ -715,12 +741,10 @@ export class TItensService {
       const updatedAt = incomingUpdatedAt ?? createdAt;
 
       const createData: PrismaTypes.t_formulasUncheckedCreateInput = {
-        cditem:
-          typeof formula.cditem === 'number' && Number.isFinite(formula.cditem)
-            ? Math.floor(formula.cditem)
-            : parent.cditem,
+        cditem: formulaCditem,
         empitem:
-          typeof formula.empitem === 'number' && Number.isFinite(formula.empitem)
+          typeof formula.empitem === 'number' &&
+          Number.isFinite(formula.empitem)
             ? Math.floor(formula.empitem)
             : parent.cdemp,
         undven: (formula.undven?.trim() || parent.undven || 'UN').slice(0, 3),
@@ -732,8 +756,6 @@ export class TItensService {
         cdemp: formulaCdemp,
         createdat: createdAt,
         updatedat: updatedAt,
-        id_item: parent.idItem,
-        id_matprima: resolved.idMatprima ?? undefined,
       };
 
       await prisma.t_formulas.create({ data: createData });
@@ -758,30 +780,35 @@ export class TItensService {
     let errors = 0;
 
     for (const item of items) {
-      const itemId = item.id?.trim();
-      if (!itemId) {
-        errors += 1;
-        results.push({
-          id: '',
-          action: 'ERROR',
-          message: 'ID do item nao informado.',
-        });
-        continue;
-      }
+      const itemRef =
+        item.id?.trim() ??
+        item.ID?.trim() ??
+        (typeof item.cditem === 'number' && Number.isFinite(item.cditem)
+          ? String(Math.floor(item.cditem))
+          : '');
 
       try {
         const outcome = await prisma.$transaction(async (tx) => {
-          const itemCompanyContext = await this.resolveItemCompanyContext(tx, item);
+          const itemCompanyContext = await this.resolveItemCompanyContext(
+            tx,
+            item,
+          );
           const saldoCompanyContext = await this.resolveSaldoCompanyContext(
             tx,
             item,
           );
+          const requestedCditem =
+            typeof item.cditem === 'number' && Number.isFinite(item.cditem)
+              ? Math.floor(item.cditem)
+              : null;
           const incomingCreatedAt = this.toSyncDate(item.createdat);
           const incomingUpdatedAt = this.toSyncDate(item.updatedat);
           const existing = await tx.t_itens.findFirst({
-            where: { id: itemId },
+            where:
+              requestedCditem !== null
+                ? { cditem: requestedCditem }
+                : { cditem: -1 },
             select: {
-              id: true,
               cdemp: true,
               cditem: true,
               undven: true,
@@ -794,11 +821,10 @@ export class TItensService {
             let action: 'UPDATED' | 'SKIPPED' = 'SKIPPED';
             let message = 'Registro existente sem alteracao no item.';
             let parent = {
-              idItem: itemId,
+              itemRef: itemRef || String(existing.cditem),
               cdemp: existing.cdemp,
               cditem: existing.cditem,
               undven: existing.undven?.trim() || 'UN',
-              companyId: saldoCompanyContext.companyId,
               companyCdemp: saldoCompanyContext.companyCdemp,
             };
 
@@ -816,17 +842,11 @@ export class TItensService {
                 const data = this.buildTItensSyncMutationData(item);
                 delete (data as Record<string, unknown>).cdemp;
                 delete (data as Record<string, unknown>).cditem;
-                delete (data as Record<string, unknown>).id;
                 delete (data as Record<string, unknown>).createdat;
                 data.updatedat = incomingUpdatedAt;
 
                 const updatedItem = await tx.t_itens.update({
-                  where: {
-                    cdemp_cditem: {
-                      cdemp: existing.cdemp,
-                      cditem: existing.cditem,
-                    },
-                  },
+                  where: { cditem: existing.cditem },
                   data,
                   select: {
                     cdemp: true,
@@ -835,11 +855,10 @@ export class TItensService {
                   },
                 });
                 parent = {
-                  idItem: itemId,
+                  itemRef: itemRef || String(updatedItem.cditem),
                   cdemp: updatedItem.cdemp,
                   cditem: updatedItem.cditem,
                   undven: updatedItem.undven?.trim() || 'UN',
-                  companyId: saldoCompanyContext.companyId,
                   companyCdemp: saldoCompanyContext.companyCdemp,
                 };
                 action = 'UPDATED';
@@ -847,13 +866,18 @@ export class TItensService {
               }
             }
 
-            const formulaSummary = await this.syncFormulasForItem(tx, item, parent);
+            const formulaSummary = await this.syncFormulasForItem(
+              tx,
+              item,
+              parent,
+            );
             if (
               action === 'SKIPPED' &&
               (formulaSummary.deleted > 0 || formulaSummary.inserted > 0)
             ) {
               action = 'UPDATED';
-              message = 'Item sem alteracao; formulas sincronizadas com sucesso.';
+              message =
+                'Item sem alteracao; formulas sincronizadas com sucesso.';
             }
             if (Array.isArray(item.formulas)) {
               message += ` Formulas: ${formulaSummary.deleted} removidas, ${formulaSummary.inserted} inseridas.`;
@@ -882,16 +906,16 @@ export class TItensService {
             };
           }
 
-          const data =
-            this.buildTItensSyncMutationData(item) as PrismaTypes.t_itensUncheckedCreateInput;
+          const data = this.buildTItensSyncMutationData(
+            item,
+          ) as PrismaTypes.t_itensUncheckedCreateInput;
           const cdempValue =
             typeof item.cdemp === 'number' && Number.isFinite(item.cdemp)
               ? Math.floor(item.cdemp)
               : itemCompanyContext.companyCdemp !== null
                 ? itemCompanyContext.companyCdemp
-              : fallbackCdemp;
+                : fallbackCdemp;
 
-          data.id = itemId;
           data.cdemp = cdempValue;
           if (typeof item.cditem === 'number' && Number.isFinite(item.cditem)) {
             data.cditem = Math.floor(item.cditem);
@@ -909,7 +933,7 @@ export class TItensService {
           });
 
           const formulaSummary = await this.syncFormulasForItem(tx, item, {
-            idItem: itemId,
+            itemRef: itemRef || String(created.cditem),
             cdemp: created.cdemp,
             cditem: created.cditem,
             undven: created.undven?.trim() || 'UN',
@@ -920,13 +944,16 @@ export class TItensService {
             message += ` Formulas: ${formulaSummary.deleted} removidas, ${formulaSummary.inserted} inseridas.`;
           }
 
-          const stockAdjustment = await this.syncStockAdjustmentForItem(tx, item, {
-            idItem: itemId,
-            cdemp: created.cdemp,
-            cditem: created.cditem,
-            companyId: saldoCompanyContext.companyId,
-            companyCdemp: saldoCompanyContext.companyCdemp,
-          });
+          const stockAdjustment = await this.syncStockAdjustmentForItem(
+            tx,
+            item,
+            {
+              itemRef: itemRef || String(created.cditem),
+              cdemp: created.cdemp,
+              cditem: created.cditem,
+              companyCdemp: saldoCompanyContext.companyCdemp,
+            },
+          );
           if (stockAdjustment.created) {
             message += ` Ajuste estoque: ${stockAdjustment.type} ${stockAdjustment.quantity} (saldo ${stockAdjustment.previous} -> ${stockAdjustment.target}).`;
           }
@@ -946,14 +973,14 @@ export class TItensService {
         }
 
         results.push({
-          id: itemId,
+          id: itemRef || '',
           action: outcome.action,
           message: outcome.message,
         });
       } catch (error) {
         errors += 1;
         results.push({
-          id: itemId,
+          id: itemRef || '',
           action: 'ERROR',
           message: this.toSyncErrorMessage(error),
         });
@@ -976,14 +1003,14 @@ export class TItensService {
 
   private resolveImageUrls(item: {
     locfotitem?: string | null;
-    t_imgitens?: Array<{ ID?: string | null; url?: string | null }>;
+    t_imgitens?: Array<{ autocod?: number | null; url?: string | null }>;
   }) {
     return this.resolveImages(item).map((image) => image.url);
   }
 
   private resolveImages(item: {
     locfotitem?: string | null;
-    t_imgitens?: Array<{ ID?: string | null; url?: string | null }>;
+    t_imgitens?: Array<{ autocod?: number | null; url?: string | null }>;
   }) {
     const images: Array<{ id?: string; url: string }> = [];
     for (const image of item.t_imgitens ?? []) {
@@ -992,7 +1019,10 @@ export class TItensService {
         continue;
       }
 
-      const id = image.ID?.trim();
+      const id =
+        typeof image.autocod === 'number' && Number.isFinite(image.autocod)
+          ? String(image.autocod)
+          : undefined;
       if (id) {
         images.push({ id, url });
       } else {
@@ -1010,7 +1040,7 @@ export class TItensService {
 
   private withImageUrls<T extends { locfotitem?: string | null }>(
     item: T & {
-      t_imgitens?: Array<{ ID?: string | null; url?: string | null }>;
+      t_imgitens?: Array<{ autocod?: number | null; url?: string | null }>;
     },
   ) {
     const images = this.resolveImages(item);
@@ -1026,10 +1056,80 @@ export class TItensService {
 
   private withImageUrlsList<T extends { locfotitem?: string | null }>(
     items: Array<
-      T & { t_imgitens?: Array<{ ID?: string | null; url?: string | null }> }
+      T & {
+        t_imgitens?: Array<{ autocod?: number | null; url?: string | null }>;
+      }
     >,
   ) {
     return items.map((item) => this.withImageUrls(item));
+  }
+
+  private async attachImages<
+    T extends { cditem?: number | null; cdemp?: number | null },
+  >(prisma: TenantClient, items: T[]): Promise<
+    Array<
+      T & {
+        t_imgitens: Array<{ autocod?: number | null; url?: string | null }>;
+      }
+    >
+  > {
+    const imageKeys = items
+      .map((item) => {
+        const cditem = this.toOptionalNumber(item.cditem);
+        const cdemp = this.toOptionalNumber(item.cdemp);
+        if (cditem === null || cdemp === null) {
+          return null;
+        }
+        return { cditem, cdemp };
+      })
+      .filter(
+        (entry): entry is { cditem: number; cdemp: number } => entry !== null,
+      );
+
+    if (!imageKeys.length) {
+      return items.map((item) => ({ ...item, t_imgitens: [] }));
+    }
+
+    const cditems = [...new Set(imageKeys.map((entry) => entry.cditem))];
+    const emps = [...new Set(imageKeys.map((entry) => entry.cdemp))];
+
+    const rows = await prisma.t_imgitens.findMany({
+      where: {
+        cditem: { in: cditems },
+        empitem: { in: emps },
+      },
+      orderBy: [{ autocod: 'asc' }],
+      select: {
+        autocod: true,
+        cditem: true,
+        empitem: true,
+        url: true,
+      },
+    });
+
+    const imageMap = new Map<string, Array<{ autocod?: number | null; url?: string | null }>>();
+    for (const row of rows) {
+      const cditem = this.toOptionalNumber(row.cditem);
+      const cdemp = this.toOptionalNumber(row.empitem);
+      if (cditem === null || cdemp === null) {
+        continue;
+      }
+      const key = `${cdemp}:${cditem}`;
+      const bucket = imageMap.get(key) ?? [];
+      bucket.push({ autocod: row.autocod, url: row.url });
+      imageMap.set(key, bucket);
+    }
+
+    return items.map((item) => {
+      const cditem = this.toOptionalNumber(item.cditem);
+      const cdemp = this.toOptionalNumber(item.cdemp);
+      const key =
+        cditem !== null && cdemp !== null ? `${cdemp}:${cditem}` : null;
+      return {
+        ...item,
+        t_imgitens: key ? (imageMap.get(key) ?? []) : [],
+      };
+    });
   }
 
   private async attachCategorias<T extends { cdgruit?: unknown }>(
@@ -1116,9 +1216,7 @@ export class TItensService {
     return candidate?.trim() || null;
   }
 
-  private normalizeImagePath(
-    value: string | null | undefined,
-  ): string | null {
+  private normalizeImagePath(value: string | null | undefined): string | null {
     const normalized = value?.trim() || null;
     if (!normalized) {
       return null;
@@ -1133,7 +1231,7 @@ export class TItensService {
 
   private async ensurePrimaryImageRecord(
     prisma: TenantClient,
-    itemId: string,
+    item: { cdemp: number; cditem: number },
     imagePath: string | null | undefined,
   ) {
     const normalizedPath = this.normalizeImagePath(imagePath);
@@ -1143,10 +1241,11 @@ export class TItensService {
 
     const existing = await prisma.t_imgitens.findFirst({
       where: {
-        id_item: itemId,
+        empitem: item.cdemp,
+        cditem: item.cditem,
         url: normalizedPath,
       },
-      select: { id: true },
+      select: { autocod: true },
     });
 
     if (existing) {
@@ -1155,7 +1254,8 @@ export class TItensService {
 
     await prisma.t_imgitens.create({
       data: {
-        id_item: itemId,
+        empitem: item.cdemp,
+        cditem: item.cditem,
         url: normalizedPath,
         updatedat: new Date(),
       },
@@ -1164,7 +1264,7 @@ export class TItensService {
 
   private async syncItemImages(
     prisma: TenantClient,
-    itemId: string,
+    item: { cdemp: number; cditem: number },
     images: Array<{ id?: string; url?: string }>,
   ) {
     const urls = Array.from(
@@ -1179,7 +1279,7 @@ export class TItensService {
 
     operations.push(
       prisma.t_imgitens.deleteMany({
-        where: { id_item: itemId },
+        where: { empitem: item.cdemp, cditem: item.cditem },
       }),
     );
 
@@ -1187,7 +1287,8 @@ export class TItensService {
       operations.push(
         prisma.t_imgitens.create({
           data: {
-            id_item: itemId,
+            empitem: item.cdemp,
+            cditem: item.cditem,
             url: url,
             updatedat: now,
           },
@@ -1282,8 +1383,19 @@ export class TItensService {
       resolvedSubgroup = subgroup.cdsub;
     }
 
+    const maxItem = await prisma.t_itens.aggregate({
+      where: { cdemp },
+      _max: { cditem: true },
+    });
+    const nextCditem =
+      typeof maxItem._max.cditem === 'number' &&
+      Number.isFinite(maxItem._max.cditem)
+        ? maxItem._max.cditem + 1
+        : 1;
+
     const data = {
       cdemp,
+      cditem: nextCditem,
 
       // mapeamento DTO → banco
       deitem: dto.name,
@@ -1329,13 +1441,14 @@ export class TItensService {
       updatedat: new Date(),
     };
 
-    const created = await prisma.t_itens.create({ data });
-    if (hasImagesPayload && created.id) {
-      await this.syncItemImages(prisma, created.id, imageInputs);
+    const created = await prisma.t_itens.create({
+      data,
+      select: await this.buildTItensSelect(prisma),
+    });
+    if (hasImagesPayload) {
+      await this.syncItemImages(prisma, created, imageInputs);
     }
-    if (created.id) {
-      await this.ensurePrimaryImageRecord(prisma, created.id, created.locfotitem);
-    }
+    await this.ensurePrimaryImageRecord(prisma, created, created.locfotitem);
     return this.ensureCdemp(created, cdemp);
   }
 
@@ -1406,17 +1519,9 @@ export class TItensService {
       cdemp: itemsCdemp,
       ...filtersWhere,
     };
-    const includeCategoria: PrismaTypes.t_itensInclude = {
-      t_imgitens: {
-        select: {
-          id: true,
-          url: true,
-        },
-        orderBy: {
-          autocod: 'asc',
-        },
-      },
-    };
+    const itemSelect = await this.buildTItensSelect(prisma, {
+      includeImages: true,
+    });
 
     if (descricaoPrefix && descricaoPrefix.trim()) {
       where.deitem = {
@@ -1444,7 +1549,7 @@ export class TItensService {
       const findManyArgs: PrismaTypes.t_itensFindManyArgs = {
         where,
         orderBy: [{ cditem: 'asc' }],
-        include: includeCategoria,
+        select: itemSelect,
       };
 
       if (!wantsAll && pageSize !== null) {
@@ -1463,7 +1568,9 @@ export class TItensService {
         prisma,
         ensuredItems,
       );
-      const itemsWithImages = this.withImageUrlsList(itemsWithCategorias);
+      const itemsWithImages = this.withImageUrlsList(
+        await this.attachImages(prisma, itemsWithCategorias),
+      );
       const response = {
         data: itemsWithImages,
         total,
@@ -1537,7 +1644,7 @@ export class TItensService {
       const chunkItems = await prisma.t_itens.findMany({
         where: chunkWhere,
         orderBy: [{ cditem: 'asc' }],
-        include: includeCategoria,
+        select: itemSelect,
       });
 
       filteredItems.push(...chunkItems);
@@ -1557,7 +1664,9 @@ export class TItensService {
         ? ensuredItems
         : ensuredItems.slice(skip, skip + pageSize);
     const itemsWithCategorias = await this.attachCategorias(prisma, paginated);
-    const itemsWithImages = this.withImageUrlsList(itemsWithCategorias);
+    const itemsWithImages = this.withImageUrlsList(
+      await this.attachImages(prisma, itemsWithCategorias),
+    );
 
     const response = {
       data: itemsWithImages,
@@ -1630,17 +1739,9 @@ export class TItensService {
     const results = await prisma.t_itens.findMany({
       where,
       orderBy: { deitem: 'asc' },
-      include: {
-        t_imgitens: {
-          select: {
-            id: true,
-            url: true,
-          },
-          orderBy: {
-            autocod: 'asc',
-          },
-        },
-      },
+      select: await this.buildTItensSelect(prisma, {
+        includeImages: true,
+      }),
     });
 
     const itemsWithSaldo = await this.attachSaldo(prisma, cdemp, results);
@@ -1649,7 +1750,9 @@ export class TItensService {
       prisma,
       ensuredItems,
     );
-    return this.withImageUrlsList(itemsWithCategorias);
+    return this.withImageUrlsList(
+      await this.attachImages(prisma, itemsWithCategorias),
+    );
   }
 
   async findOne(tenant: string, id: string) {
@@ -1658,44 +1761,43 @@ export class TItensService {
     const cditem = this.parseCditem(id);
 
     const item = await prisma.t_itens.findUnique({
-      where: this.buildWhere(cdemp, cditem),
-      include: {
-        t_imgitens: {
-          select: {
-            id: true,
-            url: true,
-          },
-          orderBy: {
-            autocod: 'asc',
-          },
-        },
-      },
+      where: this.buildWhere(cditem),
+      select: await this.buildTItensSelect(prisma, {
+        includeImages: true,
+      }),
     });
     if (!item) return item;
     const ensured = this.ensureCdemp(item, cdemp);
     const [withCategoria] = await this.attachCategorias(prisma, [ensured]);
-    return this.withImageUrls(withCategoria);
+    const [withImages] = await this.attachImages(prisma, [withCategoria]);
+    return this.withImageUrls(withImages);
   }
 
-  async update(tenant: string, uuid: string, dto: UpdateTItemDto) {
+  async update(tenant: string, id: string, dto: UpdateTItemDto) {
     const prisma = await this.getPrisma(tenant);
     const cdemp = await this.getMatrizCompanyId(tenant, prisma);
+    const cditemParam = this.parseCditem(id);
     const hasImagesPayload = Array.isArray(dto.images);
     const imageInputs = this.normalizeImageInputs(dto.images);
     const primaryImageUrl = this.resolvePrimaryImageUrl(imageInputs);
     const imagePath =
-      dto.imagePath !== undefined ? this.normalizeImagePath(dto.imagePath) : undefined;
+      dto.imagePath !== undefined
+        ? this.normalizeImagePath(dto.imagePath)
+        : undefined;
 
     // 1️⃣ Buscar o item pelo UUID
     const existing = await prisma.t_itens.findFirst({
       where: {
         cdemp,
-        id: uuid, // <-- UUID verdadeiro
+        cditem: cditemParam,
       },
+      select: await this.buildTItensSelect(prisma, {
+        fields: ['cditem', 'cdgruit', 'subgru'],
+      }),
     });
 
     if (!existing) {
-      throw new Error('Item não encontrado para este tenant.');
+      throw new NotFoundException('Item nao encontrado para este tenant.');
     }
 
     const hasCategoryField = Object.prototype.hasOwnProperty.call(
@@ -1805,18 +1907,14 @@ export class TItensService {
 
     // 3️⃣ UPDATE via PK composta (cdemp + cditem)
     const updated = await prisma.t_itens.update({
-      where: {
-        cdemp_cditem: {
-          cdemp,
-          cditem,
-        },
-      },
+      where: { cditem },
       data,
+      select: await this.buildTItensSelect(prisma),
     });
     if (hasImagesPayload) {
-      await this.syncItemImages(prisma, uuid, imageInputs);
+      await this.syncItemImages(prisma, updated, imageInputs);
     }
-    await this.ensurePrimaryImageRecord(prisma, uuid, updated.locfotitem);
+    await this.ensurePrimaryImageRecord(prisma, updated, updated.locfotitem);
     return this.ensureCdemp(updated, cdemp);
   }
 
@@ -1830,7 +1928,7 @@ export class TItensService {
     const existing = await prisma.t_itens.findFirst({
       where: {
         cdemp,
-        id: id,
+        cditem: this.parseCditem(id),
       },
       select: { cditem: true },
     });
@@ -1854,18 +1952,14 @@ export class TItensService {
     }
 
     const updated = await prisma.t_itens.update({
-      where: {
-        cdemp_cditem: {
-          cdemp,
-          cditem: existing.cditem,
-        },
-      },
+      where: { cditem: existing.cditem },
       data: {
         isdeleted: true,
         ativosn: 'N',
         ativoprod: 'N',
         updatedat: new Date(),
       },
+      select: await this.buildTItensSelect(prisma),
     });
     return this.ensureCdemp(updated, cdemp);
   }

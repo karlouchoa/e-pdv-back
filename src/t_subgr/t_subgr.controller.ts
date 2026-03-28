@@ -36,12 +36,10 @@ export class TSubgrController {
     @Req() req: TenantRequest,
     @Query('iniciais') iniciais?: string,
     @Query('cdgru') cdgru?: string,
-    @Query('id_grupo') id_grupo?: string,
   ) {
     return this.tSubgrService.findAll(req.user.tenant, {
       iniciais,
       cdgru,
-      id_grupo,
     });
   }
 

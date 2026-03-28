@@ -38,6 +38,46 @@ export class TenantDbService implements OnModuleDestroy {
     return this.applyConnectionRuntimeOverrides(base);
   }
 
+  private normalizePostgresConnectionString(connectionString: string): string {
+    const trimmed = connectionString.trim();
+    if (!/^postgres(ql)?:\/\//i.test(trimmed)) {
+      return trimmed;
+    }
+
+    const protocolMatch = trimmed.match(/^(postgres(?:ql)?):\/\//i);
+    if (!protocolMatch) {
+      return trimmed;
+    }
+
+    const protocol = protocolMatch[0];
+    const rest = trimmed.slice(protocol.length);
+    const atIndex = rest.lastIndexOf('@');
+    if (atIndex === -1) {
+      return trimmed;
+    }
+
+    const auth = rest.slice(0, atIndex);
+    const hostAndPath = rest.slice(atIndex + 1);
+    const colonIndex = auth.indexOf(':');
+    if (colonIndex === -1) {
+      return trimmed;
+    }
+
+    const safeDecode = (value: string) => {
+      try {
+        return decodeURIComponent(value);
+      } catch {
+        return value;
+      }
+    };
+
+    const user = auth.slice(0, colonIndex);
+    const pass = auth.slice(colonIndex + 1);
+    const encodedUser = encodeURIComponent(safeDecode(user));
+    const encodedPass = encodeURIComponent(safeDecode(pass));
+    return `${protocol}${encodedUser}:${encodedPass}@${hostAndPath}`;
+  }
+
   /**
    * Build tenant connection string dynamically from environment variables.
    * Priority:
@@ -140,7 +180,8 @@ export class TenantDbService implements OnModuleDestroy {
    * Optional TLS overrides from DB_ENCRYPT / DB_TRUST_SERVER_CERTIFICATE.
    */
   private applyConnectionRuntimeOverrides(connectionString: string): string {
-    let next = this.applyHostPortOverrides(connectionString);
+    let next = this.normalizePostgresConnectionString(connectionString);
+    next = this.applyHostPortOverrides(next);
     next = this.applyTlsOverrides(next);
     next = this.applyPoolOverrides(next);
     return next;
@@ -180,7 +221,8 @@ export class TenantDbService implements OnModuleDestroy {
     }
 
     if (encrypt === true) {
-      const sslMode = trustServerCertificate === false ? 'verify-full' : 'require';
+      const sslMode =
+        trustServerCertificate === false ? 'verify-full' : 'require';
       return this.upsertConnectionParam(next, 'sslmode', sslMode);
     }
 
@@ -206,7 +248,11 @@ export class TenantDbService implements OnModuleDestroy {
 
     const poolTimeout = this.readIntegerEnv('DB_POOL_TIMEOUT');
     if (poolTimeout !== undefined) {
-      next = this.upsertConnectionParam(next, 'pool_timeout', String(poolTimeout));
+      next = this.upsertConnectionParam(
+        next,
+        'pool_timeout',
+        String(poolTimeout),
+      );
     }
 
     return next;
@@ -426,7 +472,8 @@ export class TenantDbService implements OnModuleDestroy {
 
     for (let index = 0; index < candidates.length; index += 1) {
       const candidateDbName = candidates[index];
-      const connectionString = this.buildTenantConnectionString(candidateDbName);
+      const connectionString =
+        this.buildTenantConnectionString(candidateDbName);
 
       // Reuse existing tenant connection when available.
       let client = this.connections.get(connectionString);

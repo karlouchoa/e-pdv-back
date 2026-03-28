@@ -10,10 +10,7 @@ export class PublicItensComboController {
   constructor(private readonly publicCatalogService: PublicCatalogService) {}
 
   @Get('public/item/:idItem')
-  listByItemId(
-    @Req() req: Request,
-    @Param('idItem') idItem: string,
-  ) {
+  listByItemId(@Req() req: Request, @Param('idItem') idItem: string) {
     const tenant = resolvePublicSubdomainFromRequest(req);
     return this.publicCatalogService.listItensComboByItem(tenant, idItem);
   }
@@ -25,10 +22,7 @@ export class PublicItensPorCategoriaController {
   constructor(private readonly publicCatalogService: PublicCatalogService) {}
 
   @Get('public/:cdgruit')
-  listByCategory(
-    @Req() req: Request,
-    @Param('cdgruit') cdgruit: string,
-  ) {
+  listByCategory(@Req() req: Request, @Param('cdgruit') cdgruit: string) {
     const tenant = resolvePublicSubdomainFromRequest(req);
     return this.publicCatalogService.listItensPorCategoria(tenant, cdgruit);
   }

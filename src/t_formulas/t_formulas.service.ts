@@ -51,7 +51,7 @@ export class TFormulasService {
     cditem: number,
   ) {
     const formulas = await prisma.t_formulas.findMany({
-      where: { cdemp, cditem },
+      where: { empitem: cdemp, cditem },
       orderBy: { autocod: 'asc' },
     });
 
@@ -64,39 +64,54 @@ export class TFormulasService {
     return this.includeMateriaPrima(prisma, formulas);
   }
 
-  private async getFormulasByItemId(prisma: TenantClient, idItem: string) {
-    const formulas = await prisma.t_formulas.findMany({
-      where: { id_item: idItem },
-      orderBy: { autocod: 'asc' },
-    });
-
-    if (!formulas.length) {
-      throw new NotFoundException(`Formula do item ${idItem} nao encontrada.`);
-    }
-
-    return this.includeMateriaPrima(prisma, formulas);
+  private isYesFlag(value: unknown): boolean {
+    return String(value ?? '').trim().toUpperCase() === 'S';
   }
 
   async create(tenant: string, dto: CreateTFormulaDto) {
     const prisma = await this.getPrisma(tenant);
+    const fallbackCdemp = await this.getCompanyId(tenant, prisma);
+    const empitem = dto.empitem ?? fallbackCdemp;
+    const requestedCditem = dto.cditem;
+
+    if (
+      dto.idItem !== undefined &&
+      Number.isFinite(dto.idItem) &&
+      dto.idItem !== requestedCditem
+    ) {
+      throw new BadRequestException(
+        'Os identificadores do item principal estao divergentes.',
+      );
+    }
+
     const item = await prisma.t_itens.findFirst({
-      where: { id: dto.idItem },
+      where: {
+        cdemp: empitem,
+        cditem: requestedCditem,
+      },
       select: {
         cditem: true,
         cdemp: true,
         undven: true,
+        itprodsn: true,
       },
     });
 
     if (!item) {
       throw new NotFoundException(
-        `Item ${dto.idItem} nao encontrado para cadastro da formula.`,
+        `Item ${requestedCditem} nao encontrado para cadastro da formula.`,
       );
     }
 
-    const cdemp = item.cdemp ?? (await this.getCompanyId(tenant, prisma));
-    const cditem = item.cditem ?? dto.cditem;
-    const empitem = dto.empitem ?? cdemp;
+    if (!this.isYesFlag(item.itprodsn)) {
+      throw new BadRequestException(
+        `Item ${requestedCditem} nao esta marcado como produto com composicao.`,
+      );
+    }
+
+    const cdemp = item.cdemp ?? fallbackCdemp;
+    const cditem = item.cditem ?? requestedCditem;
+    const parentEmpitem = item.cdemp ?? empitem;
     const undven = item.undven ?? dto.undven;
 
     if (!dto.lines?.length) {
@@ -115,9 +130,54 @@ export class TFormulasService {
     }
 
     return prisma.$transaction(async (tx) => {
+      const materialKeys = Array.from(
+        new Set(
+          dto.lines.map((line) => `${line.empitemmp}:${line.matprima}`),
+        ),
+      );
+
+      const materiasPrimas = materialKeys.length
+        ? await tx.t_itens.findMany({
+            where: {
+              OR: materialKeys.map((key) => {
+                const [cdempMp, cditemMp] = key.split(':').map(Number);
+                return { cdemp: cdempMp, cditem: cditemMp };
+              }),
+            },
+            select: {
+              cdemp: true,
+              cditem: true,
+              deitem: true,
+              custo: true,
+              preco: true,
+              precomin: true,
+              matprima: true,
+            },
+          })
+        : [];
+
+      const materiaMap = new Map(
+        materiasPrimas.map((mp) => [`${mp.cdemp}:${mp.cditem}`, mp]),
+      );
+
+      for (const line of dto.lines) {
+        const materiaPrima = materiaMap.get(`${line.empitemmp}:${line.matprima}`);
+        if (!materiaPrima) {
+          throw new BadRequestException(
+            `Materia-prima ${line.matprima} nao encontrada para a empresa ${line.empitemmp}.`,
+          );
+        }
+        if (!this.isYesFlag(materiaPrima.matprima)) {
+          throw new BadRequestException(
+            `Item ${line.matprima} nao esta marcado como materia-prima.`,
+          );
+        }
+      }
+
       await tx.t_formulas.deleteMany({
         where: {
-          id_item: dto.idItem,
+          empitem: parentEmpitem,
+          cditem,
         },
       });
 
@@ -125,58 +185,66 @@ export class TFormulasService {
         (line) => ({
           cdemp,
           cditem,
-          empitem,
+          empitem: parentEmpitem,
           undven,
           matprima: line.matprima,
           qtdemp: line.qtdemp,
           undmp: line.undmp,
           empitemmp: line.empitemmp,
           deitem_iv: line.deitem_iv,
-          id_item: dto.idItem,
         }),
       );
 
       if (dto.updateItemPrices) {
-        const matprimaIds = Array.from(
-          new Set(
-            dto.lines
-              .map((line) => line.matprima)
-              .filter((id) => Number.isFinite(id)),
-          ),
-        );
+        const explicitPrices = dto.itemPrices
+          ? {
+              custo: Number(dto.itemPrices.custo),
+              preco: Number(dto.itemPrices.preco),
+              precomin: Number(dto.itemPrices.precomin),
+            }
+          : null;
 
-        if (matprimaIds.length === 0) {
+        const hasExplicitPrices =
+          explicitPrices !== null &&
+          Number.isFinite(explicitPrices.custo) &&
+          explicitPrices.custo >= 0 &&
+          Number.isFinite(explicitPrices.preco) &&
+          explicitPrices.preco >= 0 &&
+          Number.isFinite(explicitPrices.precomin) &&
+          explicitPrices.precomin >= 0;
+
+        if (explicitPrices !== null && !hasExplicitPrices) {
           throw new BadRequestException(
-            'Nao foi possivel calcular custos: nenhuma materia-prima valida encontrada.',
+            'Os precos do kit informados sao invalidos.',
           );
         }
-
-        const materiasPrimas = await tx.t_itens.findMany({
-          where: { cditem: { in: matprimaIds } },
-          select: { cditem: true, custo: true, preco: true, precomin: true },
-        });
-
-        const materiaMap = new Map(materiasPrimas.map((mp) => [mp.cditem, mp]));
 
         let totalCusto = 0;
         let totalPreco = 0;
         let totalPrecomin = 0;
 
-        for (const line of dto.lines) {
-          const qty = Number(line.qtdemp) || 0;
-          const mp = materiaMap.get(line.matprima);
-          const custo = Number(mp?.custo ?? 0);
-          const preco = Number(mp?.preco ?? 0);
-          const precomin = Number(mp?.precomin ?? 0);
+        if (hasExplicitPrices && explicitPrices) {
+          totalCusto = explicitPrices.custo;
+          totalPreco = explicitPrices.preco;
+          totalPrecomin = explicitPrices.precomin;
+        } else {
+          for (const line of dto.lines) {
+            const qty = Number(line.qtdemp) || 0;
+            const mp = materiaMap.get(`${line.empitemmp}:${line.matprima}`);
+            const custo = Number(mp?.custo ?? 0);
+            const preco = Number(mp?.preco ?? 0);
+            const precomin = Number(mp?.precomin ?? 0);
 
-          totalCusto += custo * qty;
-          totalPreco += preco * qty;
-          totalPrecomin += precomin * qty;
+            totalCusto += custo * qty;
+            totalPreco += preco * qty;
+            totalPrecomin += precomin * qty;
+          }
         }
 
         await tx.t_itens.updateMany({
           where: {
-            OR: [{ id: dto.idItem }, { cdemp, cditem }],
+            cdemp,
+            cditem,
           },
           data: {
             custo: totalCusto,
@@ -190,7 +258,7 @@ export class TFormulasService {
       await tx.t_formulas.createMany({ data });
 
       const created = await tx.t_formulas.findMany({
-        where: { id_item: dto.idItem },
+        where: { empitem: parentEmpitem, cditem },
         orderBy: { autocod: 'asc' },
       });
 
@@ -228,20 +296,24 @@ export class TFormulasService {
     return enrichedFormulas;
   }
 
-  async findOne(tenant: string, id: string) {
+  async findOne(tenant: string, cditem: number) {
     const prisma = await this.getPrisma(tenant);
-    return this.getFormulasByItemId(prisma, id);
+    const cdemp = await this.getCompanyId(tenant, prisma);
+    return this.getFormulasByItem(prisma, cdemp, cditem);
   }
 
-  async remove(tenant: string, id: string) {
+  async remove(tenant: string, cditem: number) {
     const prisma = await this.getPrisma(tenant);
+    const cdemp = await this.getCompanyId(tenant, prisma);
 
     const result = await prisma.t_formulas.deleteMany({
-      where: { id_item: id },
+      where: { empitem: cdemp, cditem },
     });
 
     if (result.count === 0) {
-      throw new NotFoundException(`Formula do item ${id} nao encontrada.`);
+      throw new NotFoundException(
+        `Formula do item ${cditem} nao encontrada para a empresa ${cdemp}.`,
+      );
     }
 
     return result;
@@ -251,21 +323,32 @@ export class TFormulasService {
     prisma: TenantClient | Prisma.TransactionClient,
     formulas: FormulaModel[],
   ) {
-    const materiaPrimaIds = Array.from(
+    const materiaPrimaKeys = Array.from(
       new Set(
         formulas
-          .map((formula) => formula.matprima)
-          .filter((value): value is number => typeof value === 'number'),
+          .map((formula) =>
+            typeof formula.matprima === 'number' &&
+            typeof formula.empitemmp === 'number'
+              ? `${formula.empitemmp}:${formula.matprima}`
+              : null,
+          )
+          .filter((value): value is string => Boolean(value)),
       ),
     );
 
-    if (materiaPrimaIds.length === 0) {
+    if (materiaPrimaKeys.length === 0) {
       return formulas;
     }
 
     const materiaPrima = await prisma.t_itens.findMany({
-      where: { cditem: { in: materiaPrimaIds } },
+      where: {
+        OR: materiaPrimaKeys.map((key) => {
+          const [cdemp, cditem] = key.split(':').map(Number);
+          return { cdemp, cditem };
+        }),
+      },
       select: {
+        cdemp: true,
         cditem: true,
         deitem: true,
         custo: true,
@@ -276,12 +359,18 @@ export class TFormulasService {
     });
 
     const materiaPrimaMap = new Map(
-      materiaPrima.map((item) => [item.cditem, item]),
+      materiaPrima.map((item) => [`${item.cdemp}:${item.cditem}`, item]),
     );
 
     return formulas.map((formula) => ({
       ...formula,
-      materiaPrima: materiaPrimaMap.get(formula.matprima) ?? null,
+      materiaPrima:
+        typeof formula.empitemmp === 'number' &&
+        typeof formula.matprima === 'number'
+          ? (materiaPrimaMap.get(
+              `${formula.empitemmp}:${formula.matprima}`,
+            ) ?? null)
+          : null,
     }));
   }
 }

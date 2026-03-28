@@ -7,14 +7,16 @@ import { TenantPrisma } from '../lib/prisma-clients';
 import { TenantDbService } from '../tenant-db/tenant-db.service';
 
 export type PedidoOnlineComboRow = {
-  ID: string;
-  id: string;
-  ID_PEDIDO_ITEM: string;
-  id_pedido_item: string;
+  ID: number;
+  id: number;
+  ID_PEDIDO_ITEM: number;
+  id_pedido_item: number;
   CDGRU: number | null;
   cdgru: number | null;
-  ID_ITEM_ESCOLHIDO: string;
-  id_item_escolhido: string;
+  CDITEM_ESCOLHIDO: number | null;
+  cditem_escolhido: number | null;
+  EMPITEM_ESCOLHIDO: number | null;
+  empitem_escolhido: number | null;
   QTDE: unknown;
 };
 
@@ -28,17 +30,23 @@ export class PedidosOnlineComboRepository {
     return this.tenantDbService.getTenantClient(tenant);
   }
 
-  private asUuid(value: string) {
-    return TenantPrisma.sql`${value}::uuid`;
+  private toInt(value: string | number) {
+    const parsed =
+      typeof value === 'number' ? value : Number(String(value).trim());
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      throw new Error(`Invalid numeric identifier '${value}'.`);
+    }
+    return parsed;
   }
 
   // TEMP: After db pull substitute with Prisma models.
   async listEscolhasByPedidoItemId(
     tenant: string,
-    pedidoItemId: string,
+    pedidoItemId: string | number,
     prismaOverride?: TenantClientLike,
   ): Promise<PedidoOnlineComboRow[]> {
     const prisma = prismaOverride ?? (await this.getPrisma(tenant));
+    const normalizedPedidoItemId = this.toInt(pedidoItemId);
 
     return prisma.$queryRaw<PedidoOnlineComboRow[]>(
       TenantPrisma.sql`
@@ -49,11 +57,13 @@ export class PedidosOnlineComboRepository {
           ID_PEDIDO_ITEM AS "id_pedido_item",
           CDGRU AS "CDGRU",
           CDGRU AS "cdgru",
-          ID_ITEM_ESCOLHIDO AS "ID_ITEM_ESCOLHIDO",
-          ID_ITEM_ESCOLHIDO AS "id_item_escolhido",
+          CDITEM_ESCOLHIDO AS "CDITEM_ESCOLHIDO",
+          CDITEM_ESCOLHIDO AS "cditem_escolhido",
+          EMPITEM_ESCOLHIDO AS "EMPITEM_ESCOLHIDO",
+          EMPITEM_ESCOLHIDO AS "empitem_escolhido",
           QTDE AS "QTDE"
         FROM T_PedidosOnLineComboEscolhas
-        WHERE ID_PEDIDO_ITEM = ${this.asUuid(pedidoItemId)}
+        WHERE ID_PEDIDO_ITEM = ${normalizedPedidoItemId}
         ORDER BY ID
       `,
     );
@@ -63,8 +73,9 @@ export class PedidosOnlineComboRepository {
   async createChoice(
     tenant: string,
     payload: {
-      pedidoItemId: string;
-      idItemEscolhido: string;
+      pedidoItemId: number;
+      cditemEscolhido: number;
+      empitemEscolhido: number;
       cdgru: number;
       quantity: number;
     },
@@ -77,13 +88,15 @@ export class PedidosOnlineComboRepository {
         INSERT INTO T_PedidosOnLineComboEscolhas (
           ID_PEDIDO_ITEM,
           CDGRU,
-          ID_ITEM_ESCOLHIDO,
+          CDITEM_ESCOLHIDO,
+          EMPITEM_ESCOLHIDO,
           QTDE
         )
         VALUES (
-          ${this.asUuid(payload.pedidoItemId)},
+          ${payload.pedidoItemId},
           ${payload.cdgru},
-          ${this.asUuid(payload.idItemEscolhido)},
+          ${payload.cditemEscolhido},
+          ${payload.empitemEscolhido},
           ${payload.quantity}
         )
         RETURNING
@@ -93,8 +106,10 @@ export class PedidosOnlineComboRepository {
           ID_PEDIDO_ITEM AS "id_pedido_item",
           CDGRU AS "CDGRU",
           CDGRU AS "cdgru",
-          ID_ITEM_ESCOLHIDO AS "ID_ITEM_ESCOLHIDO",
-          ID_ITEM_ESCOLHIDO AS "id_item_escolhido",
+          CDITEM_ESCOLHIDO AS "CDITEM_ESCOLHIDO",
+          CDITEM_ESCOLHIDO AS "cditem_escolhido",
+          EMPITEM_ESCOLHIDO AS "EMPITEM_ESCOLHIDO",
+          EMPITEM_ESCOLHIDO AS "empitem_escolhido",
           QTDE AS "QTDE"
       `,
     );

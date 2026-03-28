@@ -7,12 +7,14 @@ import { TenantPrisma } from '../lib/prisma-clients';
 import { TenantDbService } from '../tenant-db/tenant-db.service';
 
 export type PedidoOnlineItemRow = {
-  ID: string;
-  id: string;
-  ID_PEDIDO: string;
-  id_pedido: string;
-  ID_ITEM: string;
-  id_item: string;
+  ID: number;
+  id: number;
+  ID_PEDIDO: number;
+  id_pedido: number;
+  CDITEM: number;
+  cditem: number;
+  EMPITEM: number;
+  empitem: number;
   QTDE: unknown;
   VLR_UNIT_CALC: unknown;
   VLR_TOTAL_CALC: unknown;
@@ -30,17 +32,23 @@ export class PedidosOnlineItensRepository {
     return this.tenantDbService.getTenantClient(tenant);
   }
 
-  private asUuid(value: string) {
-    return TenantPrisma.sql`${value}::uuid`;
+  private toInt(value: string | number) {
+    const parsed =
+      typeof value === 'number' ? value : Number(String(value).trim());
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      throw new Error(`Invalid numeric identifier '${value}'.`);
+    }
+    return parsed;
   }
 
   // TEMP: After db pull substitute with Prisma models.
   async listItensByPedidoId(
     tenant: string,
-    pedidoId: string,
+    pedidoId: string | number,
     prismaOverride?: TenantClientLike,
   ): Promise<PedidoOnlineItemRow[]> {
     const prisma = prismaOverride ?? (await this.getPrisma(tenant));
+    const normalizedPedidoId = this.toInt(pedidoId);
 
     return prisma.$queryRaw<PedidoOnlineItemRow[]>(
       TenantPrisma.sql`
@@ -49,15 +57,17 @@ export class PedidosOnlineItensRepository {
           ID AS "id",
           ID_PEDIDO AS "ID_PEDIDO",
           ID_PEDIDO AS "id_pedido",
-          ID_ITEM AS "ID_ITEM",
-          ID_ITEM AS "id_item",
+          CDITEM AS "CDITEM",
+          CDITEM AS "cditem",
+          EMPITEM AS "EMPITEM",
+          EMPITEM AS "empitem",
           QTDE AS "QTDE",
           VLR_UNIT_CALC AS "VLR_UNIT_CALC",
           VLR_TOTAL_CALC AS "VLR_TOTAL_CALC",
           OBS_ITEM AS "OBS_ITEM",
           EH_COMBO AS "EH_COMBO"
         FROM T_PedidosOnLineItens
-        WHERE ID_PEDIDO = ${this.asUuid(pedidoId)}
+        WHERE ID_PEDIDO = ${normalizedPedidoId}
         ORDER BY ID
       `,
     );
@@ -66,7 +76,7 @@ export class PedidosOnlineItensRepository {
   // TEMP: After db pull substitute with Prisma models.
   async updateCalculatedValues(
     tenant: string,
-    updates: Array<{ id: string; unitPrice: number; total: number }>,
+    updates: Array<{ id: string | number; unitPrice: number; total: number }>,
     prismaOverride?: TenantClientLike,
   ): Promise<void> {
     if (!updates.length) return;
@@ -80,7 +90,7 @@ export class PedidosOnlineItensRepository {
           SET
             VLR_UNIT_CALC = ${update.unitPrice},
             VLR_TOTAL_CALC = ${update.total}
-          WHERE ID = ${this.asUuid(update.id)}
+          WHERE ID = ${this.toInt(update.id)}
         `,
       );
     }
@@ -90,8 +100,9 @@ export class PedidosOnlineItensRepository {
   async createItem(
     tenant: string,
     payload: {
-      pedidoId: string;
-      itemId: string;
+      pedidoId: number;
+      cditem: number;
+      empitem: number;
       quantity: number;
       unitPrice: number;
       total: number;
@@ -107,7 +118,8 @@ export class PedidosOnlineItensRepository {
       TenantPrisma.sql`
         INSERT INTO T_PedidosOnLineItens (
           ID_PEDIDO,
-          ID_ITEM,
+          CDITEM,
+          EMPITEM,
           QTDE,
           VLR_UNIT_CALC,
           VLR_TOTAL_CALC,
@@ -115,8 +127,9 @@ export class PedidosOnlineItensRepository {
           EH_COMBO
         )
         VALUES (
-          ${this.asUuid(payload.pedidoId)},
-          ${this.asUuid(payload.itemId)},
+          ${payload.pedidoId},
+          ${payload.cditem},
+          ${payload.empitem},
           ${payload.quantity},
           ${payload.unitPrice},
           ${payload.total},
@@ -128,8 +141,10 @@ export class PedidosOnlineItensRepository {
           ID AS "id",
           ID_PEDIDO AS "ID_PEDIDO",
           ID_PEDIDO AS "id_pedido",
-          ID_ITEM AS "ID_ITEM",
-          ID_ITEM AS "id_item",
+          CDITEM AS "CDITEM",
+          CDITEM AS "cditem",
+          EMPITEM AS "EMPITEM",
+          EMPITEM AS "empitem",
           QTDE AS "QTDE",
           VLR_UNIT_CALC AS "VLR_UNIT_CALC",
           VLR_TOTAL_CALC AS "VLR_TOTAL_CALC",

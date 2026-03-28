@@ -3,7 +3,7 @@ import {
   Controller,
   Get,
   Param,
-  ParseUUIDPipe,
+  ParseIntPipe,
   Post,
   Query,
   Req,
@@ -32,7 +32,7 @@ export class PublicPedidosOnlineController {
   @Get('public/cliente/:idCliente')
   listByClient(
     @Req() req: Request,
-    @Param('idCliente', new ParseUUIDPipe()) idCliente: string,
+    @Param('idCliente', ParseIntPipe) idCliente: number,
     @Query('limit') limitRaw?: string,
   ) {
     const tenant = resolvePublicSubdomainFromRequest(req);
@@ -43,13 +43,13 @@ export class PublicPedidosOnlineController {
         : 20;
 
     return this.publicPedidosOnlineService.listPedidosByCliente(tenant, {
-      idCliente,
+      cdcli: idCliente,
       limit,
     });
   }
 
   @Get('public/:id')
-  findById(@Req() req: Request, @Param('id', new ParseUUIDPipe()) id: string) {
+  findById(@Req() req: Request, @Param('id', ParseIntPipe) id: number) {
     const tenant = resolvePublicSubdomainFromRequest(req);
     return this.publicPedidosOnlineService.getPedidoPublic(tenant, id);
   }

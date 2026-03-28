@@ -3,10 +3,10 @@ import {
   ArrayMinSize,
   IsArray,
   IsIn,
+  IsInt,
   IsNumber,
   IsOptional,
   IsString,
-  IsUUID,
   MaxLength,
   Min,
   ValidateNested,
@@ -18,12 +18,18 @@ const toNumber = ({ value }: { value: unknown }) =>
 
 export class CreatePublicPedidoOnlineDto {
   @IsOptional()
-  @IsUUID()
-  idCliente?: string;
+  @Transform(({ value, obj }: { value: unknown; obj: Record<string, unknown> }) =>
+    toNumber({ value: value ?? obj.cdcli ?? obj.idCliente }),
+  )
+  @IsInt()
+  cdcli?: number;
 
   @IsOptional()
-  @IsUUID()
-  idEndereco?: string;
+  @Transform(({ value, obj }: { value: unknown; obj: Record<string, unknown> }) =>
+    toNumber({ value: value ?? obj.autocodEndereco ?? obj.idEndereco }),
+  )
+  @IsInt()
+  autocodEndereco?: number;
 
   @IsOptional()
   @Transform(({ value }: { value: unknown }) =>

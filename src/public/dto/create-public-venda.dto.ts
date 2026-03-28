@@ -29,7 +29,9 @@ export class CreatePublicVendaDto {
   emisven_v?: string;
 
   @IsOptional()
-  @Transform(toNumber)
+  @Transform(({ value, obj }: { value: unknown; obj: Record<string, unknown> }) =>
+    toNumber({ value: value ?? obj.cdcli ?? obj.id_cliente }),
+  )
   @IsInt()
   cdcli_v?: number;
 
@@ -119,10 +121,6 @@ export class CreatePublicVendaDto {
   @IsOptional()
   @IsString()
   horaven_v?: string;
-
-  @IsOptional()
-  @IsUUID()
-  id_cliente?: string;
 
   @IsOptional()
   @IsDateString()

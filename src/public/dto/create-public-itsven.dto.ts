@@ -5,7 +5,6 @@ import {
   IsNumber,
   IsOptional,
   IsString,
-  IsUUID,
   Min,
 } from 'class-validator';
 
@@ -14,12 +13,9 @@ const toNumber = ({ value }: { value: unknown }) =>
 
 export class CreatePublicItsvenDto {
   @IsOptional()
-  @IsUUID()
-  id_venda?: string;
-
-  @IsOptional()
-  @IsUUID()
-  id?: string;
+  @Transform(toNumber)
+  @IsInt()
+  nrven_v?: number;
 
   @IsOptional()
   @Transform(toNumber)

@@ -1,0 +1,199 @@
+Documento
+Fluxo do Cardápio Principal, Carrinho, Checkout e Confirmação de Pedido
+
+1. Objetivo
+Documentar o fluxo ponta a ponta do canal público de vendas: montagem do cardápio principal, adição de itens ao carrinho, identificação do cliente, definição de endereço de entrega, escolha do pagamento, envio do pedido online e leitura da confirmação de recebimento.
+
+2. Escopo
+Inclui:
+
+montagem inicial do cardápio do tenant
+carregamento incremental e busca de produtos
+adição ao carrinho por cardápio e por página de produto
+persistência local do carrinho e da sessão do cliente
+checkout com cliente, endereço, entrega e pagamento
+envio do pedido online
+leitura do status pelo cliente
+confirmação de recebimento pela loja
+Não inclui:
+
+efetivação da venda no caixa
+baixa de estoque
+integração com gateway de pagamento
+3. Telas Envolvidas
+
+Cardápio principal: src/app/cardapio/page.tsx
+Cliente do cardápio: src/app/cardapio/CardapioClient.tsx
+Produto: src/app/produto/[id]/page.tsx
+Carrinho e checkout: src/app/carrinho/page.tsx
+Meus pedidos: src/app/pedidos/page.tsx
+Admin de pedidos online: src/app/admin/pedidos/page.tsx
+Serviços de storefront: src/lib/storefront-api.ts
+Montagem do menu do tenant: src/lib/tenant-data.ts
+4. Endpoints Utilizados por Etapa
+
+Etapa	Tela/Serviço	Endpoint	Finalidade
+Montagem inicial do menu	tenant-data.ts (line 826)	GET /cardapio/produtos?page=1&pageSize=24	Carregar tenant, categorias e itens iniciais
+Promoções públicas	tenant-data.ts (line 865)	GET /t_itpromo/public	Montar vitrine promocional
+Combos públicos	tenant-data.ts (line 868)	GET /cardapio/combos	Montar vitrine de combos
+Horários da loja	CardapioClient.tsx (line 501)	GET /storehours/public e variantes	Exibir status e horários da loja
+Paginação do catálogo	CardapioClient.tsx (line 621)	GET /cardapio/produtos?page=:n&pageSize=:size	Carregar mais produtos
+Busca de produtos	CardapioClient.tsx (line 1102)	GET /cardapio/produtos?page=:n&pageSize=:size	Buscar no catálogo por descrição/código/código de barras
+Produto individual	storefront-api.ts (line 533)	GET /cardapio/produtos/:id	Carregar tela do produto
+Perfil da empresa	carrinho/page.tsx (line 171)	GET /cardapio/empresa	Obter taxa de entrega
+Busca de cliente	carrinho/page.tsx (line 264)	POST /t_cli/public/lookup	Localizar cliente por telefone
+Criação/atualização do cliente	carrinho/page.tsx (line 340)	POST /t_cli/public/upsert	Salvar cliente e endereço
+Envio do pedido	carrinho/page.tsx (line 438)	POST /t_pedidosonline/public	Criar pedido online
+Lista de pedidos do cliente	pedidos/page.tsx (line 61)	GET /t_pedidosonline/public/cliente/:id?limit=40	Listar pedidos do cliente
+Detalhe do pedido	pedidos/page.tsx (line 77)	GET /t_pedidosonline/public/:id	Ler status, itens e detalhes
+Fila de pedidos da loja	admin/pedidos/page.tsx (line 137)	GET /admin/pedidos-online?status=...	Carregar fila de pedidos
+Detalhe do pedido no admin	admin/pedidos/page.tsx (line 165)	GET /admin/pedidos-online/:id	Ler detalhes para conferência
+Confirmação de recebimento	admin/pedidos/page.tsx (line 194)	POST /admin/pedidos-online/:id/confirmar	Confirmar pedido e sinalizar ao cliente
+5. Montagem do Cardápio Principal
+
+A rota pública do cardápio executa getTenantMenu(host, proto) no servidor em src/app/cardapio/page.tsx#L123.
+getTenantMenu resolve o tenant pelo host, monta o baseURL e consulta o catálogo principal em src/lib/tenant-data.ts#L826 e src/lib/tenant-data.ts#L855.
+A resposta de /cardapio/produtos é normalizada em categorias e itens pelo toTenantMenu.
+Em seguida o sistema tenta enriquecer o menu com promoções e combos públicos em src/lib/tenant-data.ts#L865 e src/lib/tenant-data.ts#L868.
+O frontend recebe TenantMenu já com:
+categories
+promotions
+combos
+pagination
+O cliente do cardápio inicializa a interface com esse menu em src/app/cardapio/CardapioClient.tsx#L349.
+6. Carregamento Complementar do Cardápio
+
+O sistema consulta horários da loja para montar o aviso de funcionamento em src/app/cardapio/CardapioClient.tsx#L501.
+Se houver mais páginas de produtos, o scroll infinito chama fetchStorefrontProductsPage em src/app/cardapio/CardapioClient.tsx#L609 e src/app/cardapio/CardapioClient.tsx#L621.
+A busca textual usa índice local e, se necessário, consulta o catálogo paginado do backend por searchStorefrontProducts em src/app/cardapio/CardapioClient.tsx#L1102.
+7. Adição ao Carrinho
+
+O item pode ser adicionado de três formas:
+
+pela vitrine principal
+pela busca
+pela página do produto
+No cardápio principal e na busca, a ação usa handleQuickAdd em src/app/cardapio/CardapioClient.tsx#L968.
+
+handleQuickAdd chama addCartItem, que:
+
+lê o carrinho atual
+cria uma nova linha com lineId
+grava qty, unitPrice e total
+persiste em localStorage
+Referências: src/lib/storefront-api.ts#L224, src/lib/storefront-api.ts#L232, src/lib/storefront-api.ts#L241
+
+Na página do produto, o item é carregado por GET /cardapio/produtos/:id em src/app/produto/[id]/page.tsx#L35 e src/lib/storefront-api.ts#L533.
+
+Ao clicar em “Adicionar”, a página monta a linha com observações e quantidade, e chama addCartItem em src/app/produto/[id]/page.tsx#L254 e src/app/produto/[id]/page.tsx#L275.
+
+Se o item for combo, o carrinho guarda também comboChoices; para itens comuns, guarda apenas preço, quantidade e observação.
+
+8. Persistência Local
+
+O carrinho é salvo na chave cart e a sessão do cliente na chave public-customer-session em src/lib/storefront-api.ts#L8 e src/lib/storefront-api.ts#L9.
+A página de checkout reidrata essas informações ao abrir em src/app/carrinho/page.tsx#L89.
+9. Checkout: Cliente, Endereço, Entrega e Pagamento
+
+O checkout carrega o carrinho e a sessão do cliente.
+
+A taxa de entrega é consultada em /cardapio/empresa e aplicada somente quando deliveryMode = ENTREGA em src/app/carrinho/page.tsx#L171 e src/app/carrinho/page.tsx#L196.
+
+O cliente pode buscar cadastro existente por telefone usando POST /t_cli/public/lookup em src/app/carrinho/page.tsx#L253.
+
+Ao salvar ou finalizar, o sistema executa persistCustomer, que:
+
+valida nome e telefone
+valida endereço quando necessário
+monta payload do endereço
+chama POST /t_cli/public/upsert
+Referências: src/app/carrinho/page.tsx#L301, src/app/carrinho/page.tsx#L340
+
+O modo de entrega pode ser:
+
+ENTREGA
+RETIRADA
+Referência: src/app/carrinho/page.tsx#L36
+
+O pagamento pode ser:
+
+DINHEIRO
+C. CREDITO
+C. DEBITO
+PIX
+Referência: src/app/carrinho/page.tsx#L61
+
+Se o pagamento for em dinheiro, o checkout exige validação do troco em relação ao total do pedido em src/app/carrinho/page.tsx#L405.
+
+10. Envio do Pedido
+
+Ao clicar em Finalizar pedido, o checkout executa handleFinishOrder em src/app/carrinho/page.tsx#L385.
+
+Antes do envio, o sistema valida:
+
+carrinho não vazio
+identificadores válidos dos itens
+identificadores válidos das escolhas de combo
+forma de pagamento preenchida
+troco coerente quando for dinheiro
+Depois disso, o sistema chama createPedidoOnline com:
+
+idCliente
+idEndereco
+tipoEntrega
+tipoPagto
+trocoPara
+canal: "CARDAPIO"
+obs
+taxaEntrega
+items[]
+Referências: src/app/carrinho/page.tsx#L438, src/lib/storefront-api.ts#L909
+
+Se a criação for bem-sucedida:
+
+o carrinho é limpo
+o usuário vê a tela de sucesso
+o status inicial do pedido é exibido
+Referência: src/app/carrinho/page.tsx#L459
+
+11. Leitura do Pedido pelo Cliente
+
+A tela “Meus pedidos” depende da sessão salva do cliente em public-customer-session.
+
+Com session.id, o sistema consulta GET /t_pedidosonline/public/cliente/:id?limit=40 em src/app/pedidos/page.tsx#L61.
+
+Ao expandir um pedido, consulta GET /t_pedidosonline/public/:id em src/app/pedidos/page.tsx#L77.
+
+O status é traduzido por toPedidoStatusLabel:
+
+ABERTO → “Aguardando confirmacao”
+CONFIRMADO → “Confirmado pela loja”
+CANCELADO → “Cancelado”
+Referência: src/lib/storefront-api.ts#L1027
+
+O cliente pode repetir o pedido; a tela remonta o carrinho com os itens e redireciona para o checkout em src/app/pedidos/page.tsx#L87.
+
+12. Confirmação de Recebimento pela Loja
+
+A loja consulta a fila de pedidos online em GET /admin/pedidos-online?status=... em src/app/admin/pedidos/page.tsx#L137.
+Ao selecionar um pedido, a tela carrega os detalhes em GET /admin/pedidos-online/:id em src/app/admin/pedidos/page.tsx#L165.
+Ao clicar em Confirmar recebimento, o sistema chama POST /admin/pedidos-online/:id/confirmar em src/app/admin/pedidos/page.tsx#L187 e src/app/admin/pedidos/page.tsx#L194.
+A resposta pode devolver:
+status
+pedido ou numeroPedido
+sinalCliente
+idVenda
+Depois da confirmação, o pedido sai do estado ABERTO e o cliente passa a enxergar “Confirmado pela loja” em “Meus pedidos”.
+13. Resultado Esperado
+
+O cardápio é montado por tenant e enriquecido com promoções e combos.
+O cliente adiciona itens ao carrinho com persistência local.
+O checkout salva ou atualiza cliente e endereço.
+O pedido online é criado com entrega, pagamento e itens.
+A loja confirma o recebimento no painel administrativo.
+O cliente acompanha o status atualizado em “Meus pedidos”.
+14. Observações Técnicas
+
+O pedido online enviado pelo frontend não carrega unitPrice; ele envia idItem, quantity, observações e escolhas de combo. O valor final do pedido é consolidado pelo backend.
+O histórico do cliente depende da sessão local persistida. Sem session.id, a tela “Meus pedidos” não consegue listar pedidos.
+O fluxo de confirmação de recebimento é o elo que torna visível para o cliente que a loja aceitou o pedido.

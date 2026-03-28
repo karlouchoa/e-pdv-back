@@ -56,8 +56,8 @@ export class PedidosOnlineQueryService {
       id: row.id,
       pedido: this.toNumber(row.PEDIDO),
       cdemp: row.CDEMP ?? null,
-      idCliente: row.id_cliente ?? null,
-      idEndereco: row.ID_ENDERECO ?? null,
+      cdcli: row.cdcli ?? null,
+      autocodEndereco: row.endereco ?? null,
       canal: row.CANAL ?? null,
       status: row.STATUS,
       tipoPagto: row.TipoPagto ?? null,
@@ -69,7 +69,8 @@ export class PedidosOnlineQueryService {
         deliveryFee: this.toNumber(row.TAXA_ENTREGA),
         total: this.toNumber(row.TOTAL_LIQ),
       },
-      idVenda: row.id_venda ?? null,
+      nrven: row.nrven ?? null,
+      idVenda: row.nrven ?? null,
       dtConfirmacao: row.DT_CONFIRMACAO ?? null,
       confirmadoPor: row.CONFIRMADO_POR ?? null,
       cliente: {
@@ -95,12 +96,12 @@ export class PedidosOnlineQueryService {
     const prisma = await this.getPrisma(tenant);
 
     const choicesByPedidoItem = new Map<
-      string,
+      number,
       Awaited<
         ReturnType<PedidosOnlineComboRepository['listEscolhasByPedidoItemId']>
       >
     >();
-    const allChoiceItemIds = new Set<string>();
+    const allChoiceItemIds = new Set<number>();
     for (const item of itens) {
       const isCombo =
         (item.EH_COMBO ?? '').toString().trim().toUpperCase() === 'S';
@@ -114,19 +115,23 @@ export class PedidosOnlineQueryService {
 
       choicesByPedidoItem.set(item.id, choices);
       choices.forEach((choice) =>
-        allChoiceItemIds.add(choice.ID_ITEM_ESCOLHIDO),
+        choice.CDITEM_ESCOLHIDO !== null
+          ? allChoiceItemIds.add(choice.CDITEM_ESCOLHIDO)
+          : null,
       );
     }
 
-    const allItemIds = new Set<string>();
-    itens.forEach((item) => allItemIds.add(item.id_item));
+    const allItemIds = new Set<number>();
+    itens.forEach((item) => allItemIds.add(item.cditem));
     allChoiceItemIds.forEach((itemId) => allItemIds.add(itemId));
 
     const itemRecords = allItemIds.size
       ? await prisma.t_itens.findMany({
-          where: { id: { in: Array.from(allItemIds) } },
+          where: {
+            ...(typeof pedido.CDEMP === 'number' ? { cdemp: pedido.CDEMP } : {}),
+            cditem: { in: Array.from(allItemIds) },
+          },
           select: {
-            id: true,
             cditem: true,
             deitem: true,
             locfotitem: true,
@@ -135,20 +140,18 @@ export class PedidosOnlineQueryService {
       : [];
 
     const itemMap = new Map(
-      itemRecords
-        .filter((record) => Boolean(record.id))
-        .map((record) => [record.id as string, record]),
+      itemRecords.map((record) => [record.cditem, record]),
     );
 
     const itemsDetailed = await Promise.all(
       itens.map(async (item) => {
-        const record = itemMap.get(item.id_item);
+        const record = itemMap.get(item.cditem);
         const choicesRaw = choicesByPedidoItem.get(item.id) ?? [];
 
         return {
-          id: item.id,
-          idItem: item.id_item,
-          cditem: record?.cditem ?? null,
+          id: String(item.id),
+          idItem: String(record?.cditem ?? item.cditem),
+          cditem: item.cditem,
           descricao: record?.deitem ?? null,
           imagem: record?.locfotitem ?? null,
           quantity: this.toNumber(item.QTDE),
@@ -158,10 +161,17 @@ export class PedidosOnlineQueryService {
           isCombo:
             (item.EH_COMBO ?? '').toString().trim().toUpperCase() === 'S',
           escolhas: choicesRaw.map((choice) => {
-            const choiceRecord = itemMap.get(choice.ID_ITEM_ESCOLHIDO);
+            const choiceRecord =
+              choice.CDITEM_ESCOLHIDO !== null
+                ? itemMap.get(choice.CDITEM_ESCOLHIDO)
+                : undefined;
             return {
-              id: choice.id,
-              idItemEscolhido: choice.ID_ITEM_ESCOLHIDO,
+              id: String(choice.id),
+              idItemEscolhido:
+                choice.CDITEM_ESCOLHIDO !== null
+                  ? String(choice.CDITEM_ESCOLHIDO)
+                  : null,
+              cditemEscolhido: choice.CDITEM_ESCOLHIDO,
               cdgru: choice.CDGRU ?? null,
               quantity: this.toNumber(choice.QTDE),
               cditem: choiceRecord?.cditem ?? null,
@@ -176,8 +186,8 @@ export class PedidosOnlineQueryService {
       id: pedido.id,
       pedido: this.toNumber(pedido.PEDIDO),
       cdemp: pedido.CDEMP ?? null,
-      idCliente: pedido.id_cliente ?? null,
-      idEndereco: pedido.ID_ENDERECO ?? null,
+      cdcli: pedido.cdcli ?? null,
+      autocodEndereco: pedido.endereco ?? null,
       canal: pedido.CANAL ?? null,
       status: pedido.STATUS,
       tipoPagto: pedido.TipoPagto ?? null,
@@ -189,7 +199,8 @@ export class PedidosOnlineQueryService {
         deliveryFee: this.toNumber(pedido.TAXA_ENTREGA),
         total: this.toNumber(pedido.TOTAL_LIQ),
       },
-      idVenda: pedido.id_venda ?? null,
+      nrven: pedido.nrven ?? null,
+      idVenda: pedido.nrven ?? null,
       dtConfirmacao: pedido.DT_CONFIRMACAO ?? null,
       confirmadoPor: pedido.CONFIRMADO_POR ?? null,
       obs: pedido.OBS ?? null,

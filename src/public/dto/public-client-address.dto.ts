@@ -5,7 +5,7 @@ export class PublicClientAddressDto {
   id!: string;
 
   @Expose()
-  id_cliente!: string;
+  cdcli!: number;
 
   @Expose()
   cep?: string | null;

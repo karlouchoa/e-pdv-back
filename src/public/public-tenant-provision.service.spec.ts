@@ -263,14 +263,16 @@ describe('PublicTenantProvisionService', () => {
     const service = buildService();
 
     const clients: any[] = [];
-    jest.spyOn(service as any, 'createMainSessionClient').mockImplementation(() => {
-      const client = {
-        $connect: jest.fn().mockResolvedValue(undefined),
-        $disconnect: jest.fn().mockResolvedValue(undefined),
-      };
-      clients.push(client);
-      return client;
-    });
+    jest
+      .spyOn(service as any, 'createMainSessionClient')
+      .mockImplementation(() => {
+        const client = {
+          $connect: jest.fn().mockResolvedValue(undefined),
+          $disconnect: jest.fn().mockResolvedValue(undefined),
+        };
+        clients.push(client);
+        return client;
+      });
 
     let locked = false;
     const waiters: Array<() => void> = [];

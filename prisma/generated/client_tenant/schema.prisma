@@ -10,24 +10,20 @@ datasource db {
 
 /// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
 model acadcida {
-  codigo    String?  @db.VarChar(7)
-  descricao String?  @db.VarChar(55)
-  estado    String?  @db.VarChar(2)
-  uf        String?  @db.VarChar(2)
-  CreatedAt DateTime @default(now()) @db.Timestamp(6)
-  UpdatedAt DateTime @default(now()) @db.Timestamp(6)
-  autocod   Int      @id(map: "PK_acadcida_final") @default(autoincrement())
+  id        String  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  codi      String? @db.VarChar(7)
+  descricao String? @db.VarChar(55)
+  estado    String? @db.VarChar(2)
+  uf        String? @db.VarChar(2)
 
   @@ignore
 }
 
 /// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
 model acadclaf {
-  codigo    String?  @db.VarChar(10)
-  descricao String?  @db.VarChar(255)
-  CreatedAt DateTime @default(now()) @db.Timestamp(6)
-  UpdatedAt DateTime @default(now()) @db.Timestamp(6)
-  autocod   Int      @id(map: "PK_acadclaf_final") @default(autoincrement())
+  id        String  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  codi      String? @db.VarChar(10)
+  descricao String? @db.VarChar(255)
 
   @@ignore
 }
@@ -265,11 +261,9 @@ model daoclientes {
 
 /// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
 model digitais {
-  codigo    Int
-  digital   Bytes
-  CreatedAt DateTime @default(now()) @db.Timestamp(6)
-  UpdatedAt DateTime @default(now()) @db.Timestamp(6)
-  autocod   Int      @id(map: "PK_digitais_final") @default(autoincrement())
+  id      String @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  codi    Int
+  digital Bytes
 
   @@ignore
 }
@@ -2236,7 +2230,7 @@ model t_emp {
   imagem_capa            String?   @db.VarChar(200)
   latitude               Decimal?  @db.Decimal(10, 8)
   longitude              Decimal?  @db.Decimal(10, 8)
-  Taxa_Entrega           Decimal?  @db.Decimal(9, 2)
+  taxa_entrega           Decimal?  @map("Taxa_Entrega") @db.Decimal(9, 2)
   location               Bytes?
 }
 
@@ -2252,26 +2246,26 @@ model t_encargocalculo {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model t_endcli {
-  AUTOCOD            Int      @id(map: "PK_T_ENDCLI_final") @default(autoincrement())
-  CEP                String?  @db.VarChar(10)
-  LOGRADOURO         String?  @db.VarChar(100)
-  NUMERO             String?  @db.VarChar(20)
-  BAIRRO             String?  @db.VarChar(60)
-  CIDADE             String?  @db.VarChar(60)
-  UF                 String?  @db.Char(2)
-  COMPLEMENTO        String?  @db.VarChar(100)
-  PONTO_REFERENCIA   String?  @db.VarChar(255)
-  TIPO_LOCAL         String?  @db.VarChar(20)
-  INSTRUCOES_ENTREGA String?  @db.VarChar
-  LATITUDE           Decimal? @db.Decimal(10, 8)
-  LONGITUDE          Decimal? @db.Decimal(11, 8)
-  CDUSU              String?  @db.VarChar(15)
-  TIPO_ENDERECO      String?  @db.VarChar(3)
-  CREATEDAT          DateTime @default(now()) @db.Timestamp(6)
-  UPDATEDAT          DateTime @default(now()) @db.Timestamp(6)
-  ISDELETED          Boolean  @default(false)
-  CDCLI              Int?
-  ENDCLI             Int?
+  autocod            Int      @id(map: "PK_T_ENDCLI_final") @default(autoincrement()) @map("AUTOCOD")
+  cep                String?  @map("CEP") @db.VarChar(10)
+  logradouro         String?  @map("LOGRADOURO") @db.VarChar(100)
+  numero             String?  @map("NUMERO") @db.VarChar(20)
+  bairro             String?  @map("BAIRRO") @db.VarChar(60)
+  cidade             String?  @map("CIDADE") @db.VarChar(60)
+  uf                 String?  @map("UF") @db.Char(2)
+  complemento        String?  @map("COMPLEMENTO") @db.VarChar(100)
+  ponto_referencia   String?  @map("PONTO_REFERENCIA") @db.VarChar(255)
+  tipo_local         String?  @map("TIPO_LOCAL") @db.VarChar(20)
+  instrucoes_entrega String?  @map("INSTRUCOES_ENTREGA") @db.VarChar
+  latitude           Decimal? @map("LATITUDE") @db.Decimal(10, 8)
+  longitude          Decimal? @map("LONGITUDE") @db.Decimal(11, 8)
+  cdusu              String?  @map("CDUSU") @db.VarChar(15)
+  tipo_endereco      String?  @map("TIPO_ENDERECO") @db.VarChar(3)
+  createdat          DateTime @default(now()) @map("CREATEDAT") @db.Timestamp(6)
+  updatedat          DateTime @default(now()) @map("UPDATEDAT") @db.Timestamp(6)
+  isdeleted          Boolean  @default(false) @map("ISDELETED")
+  cdcli              Int?     @map("CDCLI")
+  endcli             Int?     @map("ENDCLI")
   location           Bytes?
 }
 
@@ -2799,8 +2793,8 @@ model t_formulas {
   empitemmp Int
   deitem_iv String?  @db.VarChar(60)
   cdemp     Int?
-  CreatedAt DateTime @default(now()) @db.Timestamp(6)
-  UpdatedAt DateTime @default(now()) @db.Timestamp(6)
+  createdat DateTime @default(now()) @map("CreatedAt") @db.Timestamp(6)
+  updatedat DateTime @default(now()) @map("UpdatedAt") @db.Timestamp(6)
 }
 
 model t_fpgto {
@@ -2816,9 +2810,9 @@ model t_fpgto {
   ativosn   String?   @db.Char(1)
   dtaltfpg  DateTime? @db.Timestamp(6)
   cdfpgext  Int?
-  CreatedAt DateTime  @default(now()) @db.Timestamp(6)
-  UpdatedAt DateTime  @default(now()) @db.Timestamp(6)
-  OnLineSN  String?   @db.Char(1)
+  createdat DateTime  @default(now()) @map("CreatedAt") @db.Timestamp(6)
+  updatedat DateTime  @default(now()) @map("UpdatedAt") @db.Timestamp(6)
+  onlinesn  String?   @map("OnLineSN") @db.Char(1)
 }
 
 model t_fpgto2 {
@@ -3130,12 +3124,12 @@ model t_histpad {
 }
 
 model t_imgitens {
-  AUTOCOD   Int      @id(map: "PK_t_imgitens_final") @default(autoincrement())
-  URL       String   @db.VarChar(200)
-  CREATEDAT DateTime @default(now()) @db.Timestamp(6)
-  UPDATEDAT DateTime @default(now()) @db.Timestamp(6)
-  CDITEM    Int?
-  EMPITEM   Int?
+  autocod   Int      @id(map: "PK_t_imgitens_final") @default(autoincrement()) @map("AUTOCOD")
+  url       String   @map("URL") @db.VarChar(200)
+  createdat DateTime @default(now()) @map("CREATEDAT") @db.Timestamp(6)
+  updatedat DateTime @default(now()) @map("UPDATEDAT") @db.Timestamp(6)
+  cditem    Int?     @map("CDITEM")
+  empitem   Int?     @map("EMPITEM")
 }
 
 model t_imovel {
@@ -3516,7 +3510,7 @@ model t_itens {
   fiscal_validado     String?   @db.Char(1)
   fiscal_validado_em  DateTime? @db.Timestamp(6)
   fiscal_origem       String?   @db.VarChar(30)
-  ComboSN             String?   @db.Char(1)
+  combosn             String?   @map("ComboSN") @db.Char(1)
 }
 
 model t_itensavaria {
@@ -3531,11 +3525,12 @@ model t_itensavaria {
 }
 
 model t_itenscombo {
-  AUTOCOD   Int      @id(map: "PK_T_ItensCombo_final") @default(autoincrement())
-  CDGRU     Int
-  QTDE      Decimal  @db.Decimal(9, 2)
-  CREATEDAT DateTime @default(now()) @db.Timestamp(6)
-  UPDATEDAT DateTime @default(now()) @db.Timestamp(6)
+  autocod   Int      @id(map: "PK_T_ItensCombo_final") @default(autoincrement()) @map("autocod")
+  cdgru     Int      @map("cdgru")
+  qtde      Decimal  @map("qtde") @db.Decimal(9, 2)
+  createdat DateTime @default(now()) @map("createdat") @db.Timestamp(6)
+  updatedat DateTime @default(now()) @map("updatedat") @db.Timestamp(6)
+  cditem    Int?
 }
 
 /// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
@@ -3964,9 +3959,9 @@ model t_itpromo {
   autocodext Int?
   hostname   String?   @db.VarChar(120)
   ip         String?   @db.VarChar(15)
-  CreatedAt  DateTime  @default(now()) @db.Timestamp(6)
-  UpdatedAt  DateTime  @default(now()) @db.Timestamp(6)
-  DATA_PROMO DateTime? @db.Timestamp(6)
+  createdat  DateTime  @default(now()) @map("CreatedAt") @db.Timestamp(6)
+  updatedat  DateTime  @default(now()) @map("UpdatedAt") @db.Timestamp(6)
+  data_promo DateTime? @map("DATA_PROMO") @db.Timestamp(6)
 }
 
 /// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
@@ -4047,13 +4042,10 @@ model t_itsof {
 
 /// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
 model t_itsop {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   codpro      Int?
   qntsd       Decimal? @db.Decimal(18, 2)
   qntatendida Decimal? @db.Decimal(18, 2)
-  autocod     Int      @id(map: "PK_t_itsop_final") @default(autoincrement())
-  empitem     Int?
-  createdat   DateTime @db.Timestamp(6)
-  updatedat   DateTime @db.Timestamp(6)
 
   @@ignore
 }
@@ -4933,7 +4925,7 @@ model t_motorista {
 }
 
 model t_movest {
-  nrlan     Int       @id(map: "PK_t_movest_final") @default(autoincrement())
+  nrlan     Int       @id(map: "t_movest_pk") @default(autoincrement())
   cdemp     Int
   data      DateTime? @default(now()) @db.Timestamp(6)
   numdoc    Int?
@@ -4968,6 +4960,12 @@ model t_movest {
   createdat DateTime? @default(now()) @db.Timestamp(6)
   updatedat DateTime? @default(now()) @db.Timestamp(6)
   data_     DateTime? @map("[data]") @db.Timestamp(6)
+
+  @@index([cditem], map: "ix_t_movest")
+  @@index([cditem, cdemp, data], map: "ix_t_movest_1")
+  @@index([cditem, cdemp, datalan], map: "ix_t_movest_2")
+  @@index([cditem, cdemp, datadoc], map: "ix_t_movest_3")
+  @@index([numdoc], map: "ix_t_movest_4")
 }
 
 /// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
@@ -6578,8 +6576,8 @@ model t_subgr {
   idsugr    String?   @db.VarChar(3)
   dtaltsub  DateTime? @db.Timestamp(6)
   cdsubext  Int?
-  CreatedAt DateTime  @default(now()) @db.Timestamp(6)
-  UpdatedAt DateTime  @default(now()) @db.Timestamp(6)
+  createdat DateTime  @default(now()) @map("CreatedAt") @db.Timestamp(6)
+  updatedat DateTime  @default(now()) @map("UpdatedAt") @db.Timestamp(6)
 }
 
 model t_tabpreco {
@@ -6759,9 +6757,9 @@ model t_tpgto {
   cdtpgext        Int?
   TEF             String?   @db.Char(1)
   PIX             String?   @db.Char(1)
-  CreatedAt       DateTime  @default(now()) @db.Timestamp(6)
-  UpdatedAt       DateTime  @default(now()) @db.Timestamp(6)
-  OnLineSN        String?   @db.Char(1)
+  createdat       DateTime  @default(now()) @map("CreatedAt") @db.Timestamp(6)
+  updatedat       DateTime  @default(now()) @map("UpdatedAt") @db.Timestamp(6)
+  onlinesn        String?   @map("OnLineSN") @db.Char(1)
 }
 
 model t_tpgtoitpromo {
@@ -7025,12 +7023,6 @@ model t_vendas {
   isdeleted            Boolean   @default(false)
   createdat            DateTime? @default(now()) @db.Timestamp(6)
   updatedat            DateTime? @default(now()) @db.Timestamp(6)
-  ID_CLIENTE           String?   @db.VarChar(10)
-  ID_EMPRESA           String?   @db.VarChar(10)
-  ID_FPGTO             String?   @db.VarChar(10)
-  ID_TPGTO             String?   @db.VarChar(10)
-  ID_VENDEDOR          String?   @db.VarChar(10)
-  ID_USUARIO           String?   @db.VarChar(10)
 }
 
 model t_vendas_tmp {

@@ -25,29 +25,30 @@ export class TFormulasController {
 
   @Post()
   create(@Req() req: TenantRequest, @Body() dto: CreateTFormulaDto) {
-    console.log(
-      '[t_formulas] POST payload',
-      JSON.stringify({ tenant: req.user?.tenant, dto }, null, 2),
-    );
     return this.tFormulasService.create(req.user.tenant, dto);
   }
 
-  private parseIdItem(raw: string) {
+  private parseCditem(raw: string) {
     const trimmed = raw?.trim();
     if (!trimmed) {
-      throw new BadRequestException('O parametro idItem e obrigatorio.');
+      throw new BadRequestException('O parametro cditem e obrigatorio.');
     }
 
-    return trimmed;
+    const parsed = Number(trimmed);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      throw new BadRequestException('O parametro cditem deve ser numerico.');
+    }
+
+    return parsed;
   }
 
   @Get(':id')
   findOne(@Req() req: TenantRequest, @Param('id') id: string) {
-    return this.tFormulasService.findOne(req.user.tenant, this.parseIdItem(id));
+    return this.tFormulasService.findOne(req.user.tenant, this.parseCditem(id));
   }
 
   @Delete(':id')
   remove(@Req() req: TenantRequest, @Param('id') id: string) {
-    return this.tFormulasService.remove(req.user.tenant, this.parseIdItem(id));
+    return this.tFormulasService.remove(req.user.tenant, this.parseCditem(id));
   }
 }

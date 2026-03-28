@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import type { PrismaClient as TenantClient } from '../../prisma/generated/client_tenant';
+import { listCompatibleComboRulesByItemCodes } from '../lib/combo-schema-compat';
 import { PedidosOnlineComboRepository } from '../orders/pedidos-online-combo.repository';
 import { PedidosOnlineItensRepository } from '../orders/pedidos-online-itens.repository';
 import { PedidosOnlineRepository } from '../orders/pedidos-online.repository';
@@ -15,7 +16,7 @@ import { PublicPedidoOnlineResponseDto } from './dto/public-pedido-online-respon
 const COMBO_FLAG = 'S';
 
 type ItemRecord = {
-  id: string | null;
+  id: string;
   cdemp: number;
   cditem: number;
   cdgruit: number | null;
@@ -34,16 +35,15 @@ type ItemRecord = {
 };
 
 type NormalizedChoice = {
-  idItemEscolhido: string;
+  idItemEscolhido: number;
   cdgru: number;
   quantity: number;
 };
 
 type ComboRule = {
-  id_item: string;
   cdgru: number;
   qtde: unknown;
-  id_subgrupo?: string | null;
+  subgroupCdsub?: number | null;
 };
 
 type ItemSnapshot = {
@@ -85,19 +85,6 @@ export class PublicPedidosOnlineService {
 
   private normalizeFlag(value?: string | null) {
     return (value ?? '').toString().trim().toUpperCase();
-  }
-
-  private normalizeUuid(value: unknown): string | null {
-    const normalized = String(value ?? '').trim();
-    if (!normalized) {
-      return null;
-    }
-
-    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-      normalized,
-    )
-      ? normalized.toLowerCase()
-      : null;
   }
 
   private toNumber(value: unknown): number {
@@ -220,9 +207,9 @@ export class PublicPedidosOnlineService {
   }
 
   private normalizeChoices(
-    pedidoItemId: string,
+    pedidoItemId: number,
     choices:
-      | Array<{ idItemEscolhido: string; cdgru: number; quantity: number }>
+      | Array<{ idItemEscolhido: number; cdgru: number; quantity: number }>
       | undefined,
   ): NormalizedChoice[] {
     if (!choices?.length) return [];
@@ -230,7 +217,12 @@ export class PublicPedidosOnlineService {
     const aggregated = new Map<string, NormalizedChoice>();
 
     for (const choice of choices) {
-      const choiceId = choice.idItemEscolhido.trim();
+      const choiceId = this.toNumber(choice.idItemEscolhido);
+      if (!Number.isInteger(choiceId) || choiceId <= 0) {
+        throw new BadRequestException(
+          `Item escolhido invalido nas escolhas do item ${pedidoItemId}.`,
+        );
+      }
       const cdgru = this.toNumber(choice.cdgru);
       if (!Number.isFinite(cdgru) || !Number.isInteger(cdgru) || cdgru <= 0) {
         throw new BadRequestException(
@@ -266,7 +258,7 @@ export class PublicPedidosOnlineService {
     comboQuantity: number;
     choices: NormalizedChoice[];
     comboRules: ComboRule[];
-    itemMap: Map<string, ItemRecord>;
+    itemMap: Map<number, ItemRecord>;
   }) {
     const { comboItem, comboQuantity, choices, comboRules, itemMap } = payload;
 
@@ -301,7 +293,11 @@ export class PublicPedidosOnlineService {
         );
       }
 
-      if (choiceRecord.subgru !== choice.cdgru) {
+      const expectedSubgroup =
+        comboRules.find((rule) => rule.cdgru === choice.cdgru)?.subgroupCdsub ??
+        choice.cdgru;
+
+      if (choiceRecord.subgru !== expectedSubgroup) {
         throw new BadRequestException(
           `Item escolhido ${choiceRecord.cditem} nao pertence ao subgrupo ${choice.cdgru}.`,
         );
@@ -335,7 +331,7 @@ export class PublicPedidosOnlineService {
     if (!dto.items?.length) {
       throw new BadRequestException('Informe ao menos um item.');
     }
-    if (!dto.idCliente) {
+    if (!dto.cdcli) {
       throw new BadRequestException(
         'Defina o cliente antes de finalizar o pedido.',
       );
@@ -343,16 +339,18 @@ export class PublicPedidosOnlineService {
 
     const deliveryMode = this.resolveDeliveryMode(
       dto.tipoEntrega,
-      Boolean(dto.idEndereco),
+      Boolean(dto.autocodEndereco),
     );
     const tipoPagto = this.normalizePaymentType(dto.tipoPagto);
-    const trocoParaSolicitado = this.roundMoney(this.toNumber(dto.trocoPara ?? 0));
+    const trocoParaSolicitado = this.roundMoney(
+      this.toNumber(dto.trocoPara ?? 0),
+    );
     if (!Number.isFinite(trocoParaSolicitado) || trocoParaSolicitado < 0) {
       throw new BadRequestException('Troco para invalido.');
     }
     const trocoPara = tipoPagto === 'DINHEIRO' ? trocoParaSolicitado : 0;
 
-    if (deliveryMode === 'ENTREGA' && !dto.idEndereco) {
+    if (deliveryMode === 'ENTREGA' && !dto.autocodEndereco) {
       throw new BadRequestException(
         'Pedidos de entrega precisam informar o endereco.',
       );
@@ -362,28 +360,31 @@ export class PublicPedidosOnlineService {
     const prisma = await this.getPrisma(tenantDatabase);
 
     return prisma.$transaction(async (tx) => {
-      if (dto.idCliente) {
-        const clientExists = await tx.t_cli.findFirst({
-          where: {
-            id: dto.idCliente,
-            OR: [{ isdeleted: false }, { isdeleted: null }],
-          },
-          select: { id: true },
-        });
+      const clientRecord =
+        dto.cdcli
+          ? await tx.t_cli.findFirst({
+              where: {
+                cdcli: dto.cdcli,
+                OR: [{ isdeleted: false }, { isdeleted: null }],
+              },
+              select: { cdcli: true },
+            })
+          : null;
 
-        if (!clientExists) {
+      if (dto.cdcli) {
+        if (!clientRecord) {
           throw new BadRequestException('Cliente nao encontrado.');
         }
       }
 
-      if (deliveryMode === 'ENTREGA' && dto.idEndereco && dto.idCliente) {
+      if (deliveryMode === 'ENTREGA' && dto.autocodEndereco && dto.cdcli) {
         const addressExists = await tx.t_endcli.findFirst({
           where: {
-            id: dto.idEndereco,
-            id_cliente: dto.idCliente,
+            autocod: dto.autocodEndereco,
+            cdcli: clientRecord?.cdcli,
             isdeleted: false,
           },
-          select: { id: true },
+          select: { autocod: true },
         });
 
         if (!addressExists) {
@@ -393,25 +394,24 @@ export class PublicPedidosOnlineService {
         }
       }
 
-      const itemIds = new Set<string>();
-      const allIds = new Set<string>();
+      const itemIds = new Set<number>();
+      const allIds = new Set<number>();
 
       for (const item of dto.items) {
-        const itemId = item.idItem.trim();
-        itemIds.add(itemId);
-        allIds.add(itemId);
+        const cditem = this.toNumber(item.cditem);
+        itemIds.add(cditem);
+        allIds.add(cditem);
 
         if (item.comboChoices?.length) {
           for (const choice of item.comboChoices) {
-            allIds.add(choice.idItemEscolhido.trim());
+            allIds.add(this.toNumber(choice.idItemEscolhido));
           }
         }
       }
 
       const itemRecords = await tx.t_itens.findMany({
-        where: { id: { in: Array.from(allIds) } },
+        where: { cditem: { in: Array.from(allIds) } },
         select: {
-          id: true,
           cdemp: true,
           cditem: true,
           cdgruit: true,
@@ -430,89 +430,96 @@ export class PublicPedidosOnlineService {
         },
       });
 
-      const itemMap = new Map<string, ItemRecord>();
+      const recordsByItemCode = new Map<number, ItemRecord[]>();
       for (const record of itemRecords) {
-        if (record.id) {
-          itemMap.set(record.id, record);
-        }
+        const records = recordsByItemCode.get(record.cditem) ?? [];
+        records.push({ ...record, id: String(record.cditem) });
+        recordsByItemCode.set(record.cditem, records);
       }
 
       for (const itemId of allIds) {
-        if (!itemMap.has(itemId)) {
+        if (!recordsByItemCode.has(itemId)) {
           throw new BadRequestException(`Item ${itemId} nao encontrado.`);
         }
       }
 
-      const recordsForCompany = Array.from(itemIds).map((itemId) => {
-        return itemMap.get(itemId) as ItemRecord;
-      });
-      const cdemp = this.resolveCompanyId(recordsForCompany);
+      let companyCandidates: Set<number> | null = null;
+      for (const itemId of itemIds) {
+        const companies = new Set<number>(
+          (recordsByItemCode.get(itemId) ?? []).map((record) => record.cdemp),
+        );
+        if (!companies.size) {
+          throw new BadRequestException(`Item ${itemId} nao encontrado.`);
+        }
+        companyCandidates =
+          companyCandidates === null
+            ? companies
+            : new Set<number>(
+                (Array.from(companyCandidates.values()) as number[]).filter(
+                  (company) =>
+                  companies.has(company),
+                ),
+              );
+      }
 
-      const comboRecordIds = Array.from(itemIds).filter((itemId) => {
-        const record = itemMap.get(itemId);
-        return this.normalizeFlag(record?.combosn) === COMBO_FLAG;
-      });
+      if (!companyCandidates?.size) {
+        throw new BadRequestException(
+          'Nao foi possivel determinar a empresa dos itens informados.',
+        );
+      }
+      if (companyCandidates.size > 1) {
+        throw new BadRequestException(
+          'Itens informados pertencem a mais de uma empresa. Informe itens de uma unica empresa.',
+        );
+      }
 
-      const comboRules = comboRecordIds.length
-        ? await tx.t_itenscombo.findMany({
-            where: { id_item: { in: comboRecordIds } },
-            select: {
-              id_item: true,
-              cdgru: true,
-              qtde: true,
-              id_subgrupo: true,
-            },
-          })
-        : [];
-      const comboSubgroupIds = Array.from(
-        new Set(
-          (comboRules as ComboRule[])
-            .map((rule) => this.normalizeUuid(rule.id_subgrupo))
-            .filter((value): value is string => Boolean(value)),
-        ),
-      );
-      const comboSubgroupRows = comboSubgroupIds.length
-        ? await tx.t_subgr.findMany({
-            where: { id: { in: comboSubgroupIds } },
-            select: { id: true, cdsub: true },
-          })
-        : [];
-      const comboSubgroupMap = new Map(
-        comboSubgroupRows
-          .filter((row) => Boolean(row.id))
-          .map((row) => [String(row.id).toLowerCase(), row.cdsub]),
-      );
-      const normalizedComboRules = (comboRules as ComboRule[]).map((rule) => {
-        const subgroupId = this.normalizeUuid(rule.id_subgrupo);
-        const resolvedGroup =
-          (subgroupId ? comboSubgroupMap.get(subgroupId) : null) ?? rule.cdgru;
+      const cdemp = Array.from(companyCandidates)[0];
+      const itemMap = new Map<number, ItemRecord>();
+      for (const [itemCode, records] of recordsByItemCode.entries()) {
+        const record = records.find((entry) => entry.cdemp === cdemp);
+        if (!record) {
+          throw new BadRequestException(
+            `Item ${itemCode} nao encontrado na empresa do pedido.`,
+          );
+        }
+        itemMap.set(itemCode, record);
+      }
 
-        return {
-          ...rule,
-          cdgru: resolvedGroup,
-        };
-      });
-      const comboRulesByItem = new Map<string, ComboRule[]>();
-      for (const rule of normalizedComboRules) {
-        const rules = comboRulesByItem.get(rule.id_item) ?? [];
-        rules.push(rule);
-        comboRulesByItem.set(rule.id_item, rules);
+      const comboRulesByItem = new Map<number, ComboRule[]>();
+
+      const comboItemIds = dto.items
+        .map((item) => this.toNumber(item.cditem))
+        .filter((cditem) => {
+          const record = itemMap.get(cditem);
+          return record
+            ? this.normalizeFlag(record.combosn) === COMBO_FLAG
+            : false;
+        });
+      if (comboItemIds.length) {
+        const rawRules = await listCompatibleComboRulesByItemCodes(
+          tx,
+          comboItemIds,
+        );
+        for (const rule of rawRules) {
+          const bucket = comboRulesByItem.get(rule.cditem ?? 0) ?? [];
+          bucket.push({
+            cdgru: rule.cdgru,
+            qtde: rule.qtde,
+            subgroupCdsub: rule.subgroupCdsub ?? null,
+          });
+          comboRulesByItem.set(rule.cditem ?? 0, bucket);
+        }
       }
 
       const snapshots: ItemSnapshot[] = [];
 
       for (const item of dto.items) {
-        const itemId = item.idItem.trim();
-        const record = itemMap.get(itemId);
+        const cditem = this.toNumber(item.cditem);
+        const record = itemMap.get(cditem);
         if (!record) {
-          throw new BadRequestException(`Item ${item.idItem} nao encontrado.`);
+          throw new BadRequestException(`Item ${item.cditem} nao encontrado.`);
         }
 
-        if (!record.id) {
-          throw new BadRequestException(
-            `Item ${record.cditem} sem ID cadastrado.`,
-          );
-        }
         const recordId = record.id;
 
         this.ensureItemAvailable(record);
@@ -535,7 +542,7 @@ export class PublicPedidosOnlineService {
 
         const isCombo = this.normalizeFlag(record.combosn) === COMBO_FLAG;
         const normalizedChoices = this.normalizeChoices(
-          itemId,
+          cditem,
           item.comboChoices,
         );
 
@@ -552,11 +559,12 @@ export class PublicPedidosOnlineService {
         }
 
         if (isCombo) {
+          const comboRules = comboRulesByItem.get(record.cditem) ?? [];
           this.validateComboChoicesByRules({
             comboItem: record,
             comboQuantity: quantity,
             choices: normalizedChoices,
-            comboRules: comboRulesByItem.get(recordId) ?? [],
+            comboRules,
             itemMap,
           });
         }
@@ -623,9 +631,9 @@ export class PublicPedidosOnlineService {
         tenantDatabase,
         {
           cdemp,
-          idCliente: dto.idCliente ?? null,
-          idEndereco:
-            deliveryMode === 'ENTREGA' ? (dto.idEndereco ?? null) : null,
+          cdcli: dto.cdcli ?? null,
+          endereco:
+            deliveryMode === 'ENTREGA' ? (dto.autocodEndereco ?? null) : null,
           canal:
             this.normalizeText(dto.canal, 20) ??
             (deliveryMode === 'ENTREGA' ? 'ENTREGA' : 'RETIRADA'),
@@ -643,7 +651,7 @@ export class PublicPedidosOnlineService {
       );
 
       const createdItems = [] as Array<{
-        id: string;
+        id: number;
         idItem: string;
         cditem: number;
         description: string;
@@ -659,7 +667,8 @@ export class PublicPedidosOnlineService {
           tenantDatabase,
           {
             pedidoId: pedido.id,
-            itemId: snapshot.recordId,
+            cditem: snapshot.record.cditem,
+            empitem: snapshot.record.cdemp,
             quantity: snapshot.quantity,
             unitPrice: snapshot.unitPrice,
             total: snapshot.lineTotal,
@@ -674,7 +683,8 @@ export class PublicPedidosOnlineService {
             tenantDatabase,
             {
               pedidoItemId: pedidoItem.id,
-              idItemEscolhido: choice.idItemEscolhido,
+              cditemEscolhido: choice.idItemEscolhido,
+              empitemEscolhido: cdemp,
               cdgru: choice.cdgru,
               quantity: choice.quantity,
             },
@@ -684,7 +694,7 @@ export class PublicPedidosOnlineService {
 
         createdItems.push({
           id: pedidoItem.id,
-          idItem: snapshot.recordId,
+          idItem: String(snapshot.record.cditem),
           cditem: snapshot.record.cditem,
           description: (snapshot.record.deitem ?? '').trim(),
           quantity: snapshot.quantity,
@@ -710,7 +720,7 @@ export class PublicPedidosOnlineService {
           deliveryFee: taxaEntrega,
           total,
         },
-        items: createdItems,
+      items: createdItems,
       };
 
       return plainToInstance(PublicPedidoOnlineResponseDto, response, {
@@ -721,7 +731,7 @@ export class PublicPedidosOnlineService {
 
   async listPedidosByCliente(
     tenant: string,
-    payload: { idCliente: string; limit: number },
+    payload: { cdcli: number; limit: number },
   ) {
     const tenantDatabase = await this.resolvePublicTenantDatabase(tenant);
     const rows = await this.pedidosOnlineRepo.listByClient(
@@ -733,8 +743,8 @@ export class PublicPedidosOnlineService {
       id: row.id,
       pedido: this.toNumber(row.PEDIDO),
       cdemp: row.CDEMP ?? null,
-      idCliente: row.id_cliente ?? null,
-      idEndereco: row.ID_ENDERECO ?? null,
+      cdcli: row.cdcli ?? null,
+      autocodEndereco: row.endereco ?? null,
       canal: row.CANAL ?? null,
       status: row.STATUS,
       tipoPagto: row.TipoPagto ?? null,
@@ -746,7 +756,8 @@ export class PublicPedidosOnlineService {
         deliveryFee: this.toNumber(row.TAXA_ENTREGA),
         total: this.toNumber(row.TOTAL_LIQ),
       },
-      idVenda: row.id_venda ?? null,
+      nrven: row.nrven ?? null,
+      idVenda: row.nrven ?? null,
       dtConfirmacao: row.DT_CONFIRMACAO ?? null,
       confirmadoPor: row.CONFIRMADO_POR ?? null,
       obs: row.OBS ?? null,
@@ -759,7 +770,7 @@ export class PublicPedidosOnlineService {
     }));
   }
 
-  async getPedidoPublic(tenant: string, id: string) {
+  async getPedidoPublic(tenant: string, id: number | string) {
     const tenantDatabase = await this.resolvePublicTenantDatabase(tenant);
     const pedido = await this.pedidosOnlineRepo.findDetailsById(
       tenantDatabase,
@@ -775,13 +786,13 @@ export class PublicPedidosOnlineService {
     ]);
 
     const choicesByPedidoItem = new Map<
-      string,
+      number,
       Awaited<
         ReturnType<PedidosOnlineComboRepository['listEscolhasByPedidoItemId']>
       >
     >();
-    const allItemIds = new Set<string>();
-    itens.forEach((item) => allItemIds.add(item.id_item));
+    const allItemIds = new Set<number>();
+    itens.forEach((item) => allItemIds.add(item.cditem));
 
     for (const item of itens) {
       const isCombo = this.normalizeFlag(item.EH_COMBO) === COMBO_FLAG;
@@ -794,14 +805,20 @@ export class PublicPedidosOnlineService {
         );
 
       choicesByPedidoItem.set(item.id, choices);
-      choices.forEach((choice) => allItemIds.add(choice.ID_ITEM_ESCOLHIDO));
+      choices.forEach((choice) => {
+        if (choice.CDITEM_ESCOLHIDO !== null) {
+          allItemIds.add(choice.CDITEM_ESCOLHIDO);
+        }
+      });
     }
 
     const itemRecords = allItemIds.size
       ? await prisma.t_itens.findMany({
-          where: { id: { in: Array.from(allItemIds) } },
+          where: {
+            ...(typeof pedido.CDEMP === 'number' ? { cdemp: pedido.CDEMP } : {}),
+            cditem: { in: Array.from(allItemIds) },
+          },
           select: {
-            id: true,
             cditem: true,
             deitem: true,
             locfotitem: true,
@@ -810,17 +827,15 @@ export class PublicPedidosOnlineService {
       : [];
 
     const itemMap = new Map(
-      itemRecords
-        .filter((record) => Boolean(record.id))
-        .map((record) => [record.id as string, record]),
+      itemRecords.map((record) => [record.cditem, record]),
     );
 
     return {
       id: pedido.id,
       pedido: this.toNumber(pedido.PEDIDO),
       cdemp: pedido.CDEMP ?? null,
-      idCliente: pedido.id_cliente ?? null,
-      idEndereco: pedido.ID_ENDERECO ?? null,
+      cdcli: pedido.cdcli ?? null,
+      autocodEndereco: pedido.endereco ?? null,
       canal: pedido.CANAL ?? null,
       status: pedido.STATUS,
       tipoPagto: pedido.TipoPagto ?? null,
@@ -832,7 +847,8 @@ export class PublicPedidosOnlineService {
         deliveryFee: this.toNumber(pedido.TAXA_ENTREGA),
         total: this.toNumber(pedido.TOTAL_LIQ),
       },
-      idVenda: pedido.id_venda ?? null,
+      nrven: pedido.nrven ?? null,
+      idVenda: pedido.nrven ?? null,
       dtConfirmacao: pedido.DT_CONFIRMACAO ?? null,
       confirmadoPor: pedido.CONFIRMADO_POR ?? null,
       obs: pedido.OBS ?? null,
@@ -853,11 +869,11 @@ export class PublicPedidosOnlineService {
       },
       itemsCount: this.toNumber(pedido.ITEMS_COUNT),
       itens: itens.map((item) => {
-        const record = itemMap.get(item.id_item);
+        const record = itemMap.get(item.cditem);
         const choices = choicesByPedidoItem.get(item.id) ?? [];
         return {
-          id: item.id,
-          idItem: item.id_item,
+          id: String(item.id),
+          idItem: String(record?.cditem ?? item.cditem),
           cditem: record?.cditem ?? null,
           descricao: record?.deitem ?? null,
           imagem: record?.locfotitem ?? null,
@@ -867,10 +883,16 @@ export class PublicPedidosOnlineService {
           obs: item.OBS_ITEM ?? null,
           isCombo: this.normalizeFlag(item.EH_COMBO) === COMBO_FLAG,
           escolhas: choices.map((choice) => {
-            const choiceRecord = itemMap.get(choice.ID_ITEM_ESCOLHIDO);
+            const choiceRecord =
+              choice.CDITEM_ESCOLHIDO !== null
+                ? itemMap.get(choice.CDITEM_ESCOLHIDO)
+                : undefined;
             return {
-              id: choice.id,
-              idItemEscolhido: choice.ID_ITEM_ESCOLHIDO,
+              id: String(choice.id),
+              idItemEscolhido:
+                choice.CDITEM_ESCOLHIDO !== null
+                  ? String(choice.CDITEM_ESCOLHIDO)
+                  : null,
               cdgru: choice.CDGRU ?? null,
               quantity: this.toNumber(choice.QTDE),
               cditem: choiceRecord?.cditem ?? null,

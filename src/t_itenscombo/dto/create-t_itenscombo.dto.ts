@@ -1,19 +1,20 @@
 import { Transform } from 'class-transformer';
 import {
   IsInt,
-  IsNotEmpty,
   IsOptional,
-  IsString,
-  IsUUID,
   Min,
 } from 'class-validator';
 
 export class CreateTItensComboDto {
-  @Transform(({ value }) => String(value ?? '').trim())
-  @IsUUID('all', { message: 'id_item deve ser um UUID valido.' })
-  @IsString()
-  @IsNotEmpty()
-  id_item!: string;
+  @IsOptional()
+  @Transform(({ value }) =>
+    value === null || value === undefined || String(value).trim() === ''
+      ? undefined
+      : Number(value),
+  )
+  @IsInt({ message: 'cditem deve ser um numero inteiro.' })
+  @Min(1, { message: 'cditem deve ser maior que zero.' })
+  cditem?: number;
 
   @Transform(({ value }) => Number(value))
   @IsInt({ message: 'cdgru (codigo do subgrupo) deve ser um numero inteiro.' })
@@ -28,8 +29,9 @@ export class CreateTItensComboDto {
   @Transform(({ value }) =>
     value === null || value === undefined || String(value).trim() === ''
       ? undefined
-      : String(value).trim(),
+      : Number(value),
   )
-  @IsUUID('all', { message: 'id_subgrupo deve ser um UUID valido.' })
-  id_subgrupo?: string;
+  @IsInt({ message: 'id_subgrupo deve ser um numero inteiro.' })
+  @Min(1, { message: 'id_subgrupo deve ser maior que zero.' })
+  id_subgrupo?: number;
 }

@@ -2,7 +2,7 @@ import { Expose, Type } from 'class-transformer';
 
 export class PublicPedidoOnlineComboChoiceResponseDto {
   @Expose()
-  idItemEscolhido!: string;
+  idItemEscolhido!: number;
 
   @Expose()
   cdgru!: number;
@@ -13,7 +13,7 @@ export class PublicPedidoOnlineComboChoiceResponseDto {
 
 export class PublicPedidoOnlineItemResponseDto {
   @Expose()
-  id!: string;
+  id!: number;
 
   @Expose()
   idItem!: string;
@@ -57,7 +57,7 @@ export class PublicPedidoOnlineTotalsDto {
 
 export class PublicPedidoOnlineResponseDto {
   @Expose()
-  idPedidoOnline!: string;
+  idPedidoOnline!: number;
 
   @Expose()
   pedido!: number;

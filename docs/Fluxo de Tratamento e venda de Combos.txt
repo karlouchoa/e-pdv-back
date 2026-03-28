@@ -1,0 +1,42 @@
+🚀 Contexto do Sistema: Fluxo de Itens Combo
+
+Objetivo: Agir como um especialista no sistema de pedidos, focado na lógica de produtos do tipo "Combo".
+1. Definição e Cadastro
+
+    Identificador: Um item é um combo se ComboSN: "S" (gravado em src/app/admin/itens/novo/page.tsx#L437).
+
+    Regras de Negócio: A composição não está no item, mas na tabela t_itenscombo.
+
+    Configuração Admin: Associações de subgrupos e quantidades permitidas ocorrem em src/app/admin/combos/page.tsx (linhas 256 e 498).
+
+2. Fluxo de Frontend e Seleção
+
+    Identificação UI: O frontend detecta o combo via ComboSN.
+
+    Busca de Regras: * Página de Produto: src/app/produto/[id]/page.tsx (linhas 62 e 97).
+
+        Cardápio Rápido: Consome /t_itenscombo/public/item/:id e busca itens por categoria via storefront-api.ts#L776.
+
+    Estrutura de Dados (comboChoices): Lista de objetos contendo idItemEscolhido, cdgru e quantity (definido em src/lib/storefront-api.ts#L12).
+
+3. Gerenciamento do Carrinho
+
+    Montagem: Ocorre em src/app/produto/[id]/page.tsx#L234 ou src/app/cardapio/CardapioClient.tsx#L797.
+
+    Persistência: O item entra no carrinho como linha única com isCombo: true e o array comboChoices anexo.
+
+    Restrição UI: Bloqueio de ajuste de quantidade manual para combos em src/app/carrinho/page.tsx#L632.
+
+4. Checkout e Integração API
+
+    Validação: Verifica UUIDs do item principal e escolhas em src/app/carrinho/page.tsx#L397.
+
+    Payload de Envio: Chamada para /t_pedidosonline/public. O item principal vai em items[] e as escolhas dentro dele em comboChoices[] (src/lib/storefront-api.ts#L928).
+
+5. Pós-Venda e Admin
+
+    Exibição: O Admin lê as escolhas no detalhe do pedido em src/app/admin/pedidos/page.tsx#L402.
+
+    Confirmação: Endpoint /admin/pedidos-online/:id/confirmar gera o idVenda para o caixa.
+
+    Recompra: A lógica de "repetir pedido" deve reconstruir isCombo e comboChoices em src/app/pedidos/page.tsx.

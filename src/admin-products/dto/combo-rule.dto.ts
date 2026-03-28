@@ -21,15 +21,17 @@ export class ComboRuleDto {
   qtde!: number;
 
   @IsOptional()
-  @Transform(({ value, obj }: { value: unknown; obj: Record<string, unknown> }) => {
-    const candidate = value ?? obj.idSubgrupo;
-    if (candidate === null || candidate === undefined) {
-      return undefined;
-    }
+  @Transform(
+    ({ value, obj }: { value: unknown; obj: Record<string, unknown> }) => {
+      const candidate = value ?? obj.idSubgrupo;
+      if (candidate === null || candidate === undefined) {
+        return undefined;
+      }
 
-    const trimmed = String(candidate).trim();
-    return trimmed.length ? trimmed : undefined;
-  })
+      const trimmed = String(candidate).trim();
+      return trimmed.length ? trimmed : undefined;
+    },
+  )
   @IsUUID('all')
   id_subgrupo?: string;
 }

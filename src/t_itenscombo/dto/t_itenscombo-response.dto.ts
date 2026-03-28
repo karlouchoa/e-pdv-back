@@ -11,6 +11,9 @@ export class TItensComboResponseDto {
   ID_ITEM!: string;
 
   @Expose()
+  CDITEM!: number;
+
+  @Expose()
   CDGRU!: number;
 
   @Expose()
@@ -18,6 +21,9 @@ export class TItensComboResponseDto {
 
   @Expose()
   ID_SUBGRUPO!: string | null;
+
+  @Expose()
+  DEGRU!: string | null;
 
   @Expose()
   CREATEDAT!: Date;

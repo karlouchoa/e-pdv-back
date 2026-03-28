@@ -4,7 +4,6 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
-  IsUUID,
   Min,
 } from 'class-validator';
 
@@ -47,11 +46,6 @@ export class CreateTSubgrDto {
   @IsString()
   @IsNotEmpty()
   desub!: string;
-
-  @IsOptional()
-  @Transform(trimString)
-  @IsUUID('all')
-  id_grupo?: string;
 
   @IsOptional()
   @Transform(trimString)

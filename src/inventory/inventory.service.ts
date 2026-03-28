@@ -14,6 +14,10 @@ import { KardexQueryDto } from './dto/kardex-query.dto';
 
 import { CreateMovementDto } from './dto/create-movement.dto';
 import { applyMovestBalanceFromCreates } from '../lib/movest-balance';
+import {
+  buildCompatibleScalarSelect,
+  modelHasCompatibleScalarField,
+} from '../lib/tenant-schema-compat';
 
 @Injectable()
 export class InventoryService {
@@ -657,10 +661,32 @@ export class InventoryService {
     // 3 - Buscar empresa selecionada (aceita GUID do ID ou cdemp numerico)
 
     const warehouseInput = dto.warehouse?.trim();
-    const companyNotDeleted = {
-      OR: [{ isdeleted: false }, { isdeleted: null }],
+    const hasCompanyIdField = await modelHasCompatibleScalarField(
+      prisma,
+      't_emp',
+      'id',
+    );
+    const hasCompanyDeletedFlag = await modelHasCompatibleScalarField(
+      prisma,
+      't_emp',
+      'isdeleted',
+    );
+    const companySelect = await buildCompatibleScalarSelect(prisma, 't_emp', [
+      'cdemp',
+      'deemp',
+      'isdeleted',
+    ]);
+    const companyNotDeleted = hasCompanyDeletedFlag
+      ? {
+          OR: [{ isdeleted: false }, { isdeleted: null }],
+        }
+      : {};
+    type CompanyRef = {
+      cdemp: number;
+      deemp?: string | null;
+      isdeleted?: boolean | null;
     };
-    let empresa;
+    let empresa: CompanyRef | null = null;
     let warehouseLabel = warehouseInput ?? '';
 
     this.logger.debug(
@@ -671,6 +697,11 @@ export class InventoryService {
       let whereCompany: { id: string } | { cdemp: number } | null = null;
 
       if (this.isGuid(warehouseInput)) {
+        if (!hasCompanyIdField) {
+          throw new BadRequestException(
+            'Warehouse por GUID nao esta disponivel neste tenant. Envie o cdemp numerico.',
+          );
+        }
         whereCompany = { id: warehouseInput };
       } else {
         const cdempParsed = Number(warehouseInput);
@@ -686,26 +717,28 @@ export class InventoryService {
         );
       }
 
-      empresa = await prisma.t_emp.findFirst({
+      empresa = (await prisma.t_emp.findFirst({
         where: { ...whereCompany, ...companyNotDeleted },
-      });
+        select: companySelect,
+      })) as CompanyRef | null;
 
       this.logger.debug(
         `[createMovement] companyLookup where=${JSON.stringify(
           whereCompany,
-        )} result=${empresa ? `cdemp=${empresa.cdemp} ID=${empresa.id}` : 'null'}`,
+        )} result=${empresa ? `cdemp=${empresa.cdemp}` : 'null'}`,
       );
     } else {
       const defaultCdemp = await this.getCompanyId(tenant, prisma);
 
       warehouseLabel = defaultCdemp.toString();
 
-      empresa = await prisma.t_emp.findFirst({
+      empresa = (await prisma.t_emp.findFirst({
         where: { cdemp: defaultCdemp, ...companyNotDeleted },
-      });
+        select: companySelect,
+      })) as CompanyRef | null;
 
       this.logger.debug(
-        `[createMovement] companyByDefault defaultCdemp=${defaultCdemp} result=${empresa ? `cdemp=${empresa.cdemp} ID=${empresa.id}` : 'null'}`,
+        `[createMovement] companyByDefault defaultCdemp=${defaultCdemp} result=${empresa ? `cdemp=${empresa.cdemp}` : 'null'}`,
       );
     }
 
@@ -715,17 +748,18 @@ export class InventoryService {
     if (!empresa) {
       const defaultCdemp = await this.getCompanyId(tenant, prisma);
       warehouseLabel = warehouseLabel || defaultCdemp.toString();
-      empresa = await prisma.t_emp.findFirst({
+      empresa = (await prisma.t_emp.findFirst({
         where: { cdemp: defaultCdemp, ...companyNotDeleted },
-      });
+        select: companySelect,
+      })) as CompanyRef | null;
 
       this.logger.warn(
-        `[createMovement] companyFallback triggered input='${warehouseInput}' defaultCdemp=${defaultCdemp} result=${empresa ? `cdemp=${empresa.cdemp} ID=${empresa.id}` : 'null'}`,
+        `[createMovement] companyFallback triggered input='${warehouseInput}' defaultCdemp=${defaultCdemp} result=${empresa ? `cdemp=${empresa.cdemp}` : 'null'}`,
       );
 
       if (!empresa) {
         const sampleCompanies = await prisma.t_emp.findMany({
-          select: { cdemp: true, id: true, deemp: true, isdeleted: true },
+          select: companySelect,
           orderBy: { cdemp: 'asc' },
           take: 10,
         });
@@ -741,13 +775,6 @@ export class InventoryService {
       );
     }
 
-    const companyId = empresa.id?.trim();
-    if (!companyId) {
-      throw new BadRequestException(
-        `Empresa/Almoxarifado '${warehouseLabel}' sem ID para vinculo em T_MOVEST.id_empresa.`,
-      );
-    }
-
     const cdemp = empresa.cdemp; // empresa selecionada
 
     const empmov = empresa.cdemp;
@@ -756,8 +783,15 @@ export class InventoryService {
 
     // 4 - Buscar item pelo GUID dentro do almoxarifado selecionado
 
+    const itemIdentifier = dto.itemId.trim();
+    const parsedCditem = Number(itemIdentifier);
     const item = await prisma.t_itens.findFirst({
-      where: { id: dto.itemId, cdemp },
+      where: {
+        cdemp,
+        ...(Number.isInteger(parsedCditem) && parsedCditem > 0
+          ? { cditem: parsedCditem }
+          : { id: itemIdentifier }),
+      },
     });
 
     if (!item) {
@@ -794,8 +828,6 @@ export class InventoryService {
           cdemp, // empresa onde o movimento acontece
 
           cditem, // cÃ³digo numÃ©rico do item
-          id_item: item.id?.trim() ?? undefined,
-          id_empresa: companyId,
 
           data: movementDate,
 

@@ -68,9 +68,6 @@ export class PublicVendaResponseDto {
   horaven_v?: string | null;
 
   @Expose()
-  id_cliente?: string | null;
-
-  @Expose()
   createdat?: Date | null;
 
   @Expose()

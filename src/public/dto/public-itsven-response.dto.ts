@@ -8,7 +8,7 @@ export class PublicItsvenResponseDto {
   id?: string | null;
 
   @Expose()
-  id_venda?: string | null;
+  nrven_v?: number | null;
 
   @Expose()
   empven!: number;

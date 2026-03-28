@@ -91,12 +91,12 @@ export class PublicCustomersService {
 
   private async listAddresses(
     prisma: TenantClientLike,
-    clientId: string,
+    cdcli: number,
   ): Promise<PublicClientAddressDto[]> {
     const addresses = await prisma.$queryRaw<PublicClientAddressDto[]>`
       SELECT
-        ID AS id,
-        id_cliente AS id_cliente,
+        AUTOCOD AS id,
+        CDCLI AS cdcli,
         cep AS cep,
         logradouro AS logradouro,
         numero AS numero,
@@ -111,9 +111,9 @@ export class PublicCustomersService {
         longitude AS longitude,
         tipo_endereco AS tipo_endereco
       FROM t_endcli
-      WHERE id_cliente = ${clientId}
+      WHERE CDCLI = ${cdcli}
         AND COALESCE(isdeleted, false) = false
-      ORDER BY createdat DESC, ID DESC
+      ORDER BY createdat DESC, AUTOCOD DESC
     `;
 
     return plainToInstance(PublicClientAddressDto, addresses ?? [], {
@@ -136,7 +136,7 @@ export class PublicCustomersService {
 
   private async syncAddressLocation(
     prisma: TenantClientLike,
-    addressId: string,
+    addressId: number,
     latitude: number | null | undefined,
     longitude: number | null | undefined,
   ): Promise<void> {
@@ -149,7 +149,7 @@ export class PublicCustomersService {
           WHEN ${latitude ?? null} IS NULL OR ${longitude ?? null} IS NULL THEN NULL
           ELSE POINT(${longitude ?? null}, ${latitude ?? null})
         END
-        WHERE ID = ${addressId}
+        WHERE AUTOCOD = ${addressId}
       `,
     );
   }
@@ -167,7 +167,7 @@ export class PublicCustomersService {
     const prisma = await this.getPrisma(tenant);
     const records = await prisma.$queryRaw<PublicClientRow[]>`
       SELECT
-        id,
+        cdcli AS id,
         cdcli,
         cdemp,
         decli,
@@ -186,7 +186,7 @@ export class PublicCustomersService {
       )
         AND (${cdemp} IS NULL OR cdemp = ${cdemp})
         AND COALESCE(isdeleted, false) = false
-      ORDER BY COALESCE(updatedat, createdat) DESC, id DESC
+      ORDER BY COALESCE(updatedat, createdat) DESC, cdcli DESC
       LIMIT 1
     `;
 
@@ -195,7 +195,7 @@ export class PublicCustomersService {
       return null;
     }
 
-    const enderecos = await this.listAddresses(prisma, record.id);
+    const enderecos = await this.listAddresses(prisma, record.cdcli);
     return this.toPublicClient(record, enderecos);
   }
 
@@ -227,13 +227,15 @@ export class PublicCustomersService {
             { OR: [{ isdeleted: false }, { isdeleted: null }] },
           ],
         },
-        select: { id: true },
+        select: { cdcli: true },
       });
 
       const now = new Date();
-      const client = existing
+      const existingCdcli =
+        typeof existing?.cdcli === 'number' ? existing.cdcli : null;
+      const client = existingCdcli !== null
         ? await tx.t_cli.update({
-            where: { id: existing.id },
+            where: { cdcli: existingCdcli },
             data: {
               decli: nome,
               fantcli: nome,
@@ -246,7 +248,6 @@ export class PublicCustomersService {
               updatedat: now,
             },
             select: {
-              id: true,
               cdcli: true,
               cdemp: true,
               decli: true,
@@ -274,7 +275,6 @@ export class PublicCustomersService {
               ativocli: 'S',
             },
             select: {
-              id: true,
               cdcli: true,
               cdemp: true,
               decli: true,
@@ -286,6 +286,11 @@ export class PublicCustomersService {
               cnpj_cpfcli: true,
             },
           });
+
+      const clientRecord: PublicClientRow = {
+        ...client,
+        id: String(client.cdcli),
+      };
 
       let selectedAddressId: string | null = null;
 
@@ -310,11 +315,11 @@ export class PublicCustomersService {
         if (dto.endereco.id) {
           const existingAddress = await tx.t_endcli.findFirst({
             where: {
-              id: dto.endereco.id,
-              id_cliente: client.id,
+              autocod: dto.endereco.id,
+              cdcli: client.cdcli,
               isdeleted: false,
             },
-            select: { id: true },
+            select: { autocod: true },
           });
 
           if (!existingAddress) {
@@ -324,7 +329,7 @@ export class PublicCustomersService {
           }
 
           const updatedAddress = await tx.t_endcli.update({
-            where: { id: existingAddress.id },
+            where: { autocod: existingAddress.autocod },
             data: {
               cep: cep,
               logradouro: logradouro,
@@ -347,14 +352,14 @@ export class PublicCustomersService {
               tipo_endereco: this.normalizeText(dto.endereco.tipoEndereco, 3),
               updatedat: now,
             },
-            select: { id: true },
+            select: { autocod: true },
           });
 
-          selectedAddressId = updatedAddress.id;
+          selectedAddressId = String(updatedAddress.autocod);
           if (selectedAddressId) {
             await this.syncAddressLocation(
               tx,
-              selectedAddressId,
+              updatedAddress.autocod,
               latitude,
               longitude,
             );
@@ -362,7 +367,7 @@ export class PublicCustomersService {
         } else {
           const createdAddress = await tx.t_endcli.create({
             data: {
-              id_cliente: client.id,
+              cdcli: client.cdcli,
               cep: cep,
               logradouro: logradouro,
               numero: numero,
@@ -385,14 +390,14 @@ export class PublicCustomersService {
                 this.normalizeText(dto.endereco.tipoEndereco, 3) ?? 'ENT',
               cdusu: 'PUBLIC',
             },
-            select: { id: true },
+            select: { autocod: true },
           });
 
-          selectedAddressId = createdAddress.id;
+          selectedAddressId = String(createdAddress.autocod);
           if (selectedAddressId) {
             await this.syncAddressLocation(
               tx,
-              selectedAddressId,
+              createdAddress.autocod,
               latitude,
               longitude,
             );
@@ -400,9 +405,9 @@ export class PublicCustomersService {
         }
       }
 
-      const enderecos = await this.listAddresses(tx, client.id);
+      const enderecos = await this.listAddresses(tx, client.cdcli);
       return {
-        client: this.toPublicClient(client, enderecos),
+        client: this.toPublicClient(clientRecord, enderecos),
         selectedAddressId: selectedAddressId ?? enderecos[0]?.id ?? null,
       };
     });

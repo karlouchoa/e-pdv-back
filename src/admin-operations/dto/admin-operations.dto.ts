@@ -7,7 +7,6 @@ import {
   IsNumber,
   IsOptional,
   IsString,
-  IsUUID,
   Max,
   MaxLength,
   Min,
@@ -389,9 +388,17 @@ export class CashPaymentDto {
 }
 
 export class CashFinalizeItemDto {
-  @IsString()
-  @MaxLength(50)
-  idItem!: string;
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  idItem?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  cditem?: number;
 
   @Type(() => Number)
   @IsNumber()
@@ -407,11 +414,15 @@ export class CashFinalizeItemDto {
 
 export class CashFinalizeDto {
   @IsOptional()
-  @IsUUID()
+  @Type(() => String)
+  @IsString()
+  @MaxLength(30)
   importedSaleId?: string;
 
   @IsOptional()
-  @IsUUID()
+  @Type(() => String)
+  @IsString()
+  @MaxLength(30)
   clientId?: string;
 
   @IsOptional()

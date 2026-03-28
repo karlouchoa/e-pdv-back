@@ -6,6 +6,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Min,
   ValidateNested,
 } from 'class-validator';
 
@@ -21,16 +22,22 @@ export class FormulaItemPricesDto {
 }
 
 export class FormulaLineDto {
+  @Type(() => Number)
   @IsInt()
+  @Min(1)
   matprima!: number;
 
+  @Type(() => Number)
   @IsNumber()
+  @Min(0.000001)
   qtdemp!: number;
 
   @IsString()
   undmp!: string;
 
+  @Type(() => Number)
   @IsInt()
+  @Min(1)
   empitemmp!: number;
 
   @IsOptional()
@@ -39,13 +46,21 @@ export class FormulaLineDto {
 }
 
 export class CreateTFormulaDto {
-  @IsString()
-  idItem!: string;
-
+  @IsOptional()
+  @Type(() => Number)
   @IsInt()
+  @Min(1)
+  idItem?: number;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
   cditem!: number;
 
+  @IsOptional()
+  @Type(() => Number)
   @IsInt()
+  @Min(1)
   empitem!: number;
 
   @IsString()

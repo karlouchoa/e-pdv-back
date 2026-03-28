@@ -13,8 +13,9 @@ export class ProductAService extends ProductBaseService {
   async create(tenant: string, dto: CreateProductADto) {
     const prisma = await this.getPrisma(tenant);
     const cdemp = await this.getMatrizCompanyId(tenant, prisma);
+    const cditem = await this.getNextCditem(prisma, cdemp);
 
-    const data = this.mapBaseCreateData(dto, cdemp, {
+    const data = this.mapBaseCreateData(dto, cdemp, cditem, {
       itprodsn: 'N',
       comboSN: 'N',
     });
@@ -36,12 +37,7 @@ export class ProductAService extends ProductBaseService {
     });
 
     const updated = await prisma.t_itens.update({
-      where: {
-        cdemp_cditem: {
-          cdemp,
-          cditem: item.cditem,
-        },
-      },
+      where: { cditem: item.cditem },
       data,
     });
 
@@ -56,12 +52,7 @@ export class ProductAService extends ProductBaseService {
     await this.assertTypeA(prisma, item);
 
     const updated = await prisma.t_itens.update({
-      where: {
-        cdemp_cditem: {
-          cdemp,
-          cditem: item.cditem,
-        },
-      },
+      where: { cditem: item.cditem },
       data: {
         isdeleted: true,
         ativosn: 'N',
@@ -85,10 +76,9 @@ export class ProductAService extends ProductBaseService {
       throw new BadRequestException('Item pertence a produtos combo.');
     }
 
-    const itemId = this.ensureItemId(item);
     const { formulaCount, comboCount } = await this.getRelationCounts(
       prisma,
-      itemId,
+      item,
     );
 
     if (formulaCount > 0 || comboCount > 0) {

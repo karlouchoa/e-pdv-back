@@ -1,9 +1,9 @@
 import { Transform, Type } from 'class-transformer';
 import {
+  IsInt,
   IsNumber,
   IsOptional,
   IsString,
-  IsUUID,
   Length,
   MaxLength,
   Min,
@@ -16,8 +16,10 @@ const toNumber = ({ value }: { value: unknown }) =>
 
 export class UpsertPublicClientAddressDto {
   @IsOptional()
-  @IsUUID()
-  id?: string;
+  @Transform(toNumber)
+  @IsInt()
+  @Min(1)
+  id?: number;
 
   @IsOptional()
   @IsString()

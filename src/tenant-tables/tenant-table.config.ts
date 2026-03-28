@@ -13,7 +13,7 @@ export const TENANT_TABLE_CONFIGS: TenantTableConfig[] = [
   { name: 't_gritens', primaryKeys: [{ name: 'cdgru', type: 'number' }] },
   { name: 't_subgr', primaryKeys: [{ name: 'cdsub', type: 'number' }] },
   { name: 't_emp', primaryKeys: [{ name: 'cdemp', type: 'number' }] },
-  { name: 't_cli', primaryKeys: [{ name: 'id', type: 'string' }] },
+  { name: 't_cli', primaryKeys: [{ name: 'cdcli', type: 'number' }] },
   {
     name: 't_for',
     primaryKeys: [

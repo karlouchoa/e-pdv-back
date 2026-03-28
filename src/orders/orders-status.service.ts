@@ -54,6 +54,16 @@ export class OrdersStatusService {
     return (value ?? 'ADMIN').trim().toUpperCase();
   }
 
+  private parseVendaId(vendaId: string): number {
+    const parsed = Number(vendaId);
+    if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed <= 0) {
+      throw new BadRequestException(
+        'O identificador do pedido deve ser o autocod_v numerico.',
+      );
+    }
+    return parsed;
+  }
+
   async changeStatus(
     tenant: string,
     vendaId: string,
@@ -62,6 +72,7 @@ export class OrdersStatusService {
     note: string | undefined,
     changedBy: string | null,
   ) {
+    const autocodVenda = this.parseVendaId(vendaId);
     const status = this.normalizeStatus(newStatus);
     if (!status) {
       throw new BadRequestException('Status obrigatorio.');
@@ -77,7 +88,7 @@ export class OrdersStatusService {
 
     const prisma = await this.tenantDbService.getTenantClient(tenant);
     const venda = await prisma.t_vendas.findFirst({
-      where: { id: vendaId },
+      where: { autocod_v: autocodVenda },
       select: { autocod_v: true, nrven_v: true, cdemp_v: true },
     });
 
@@ -90,7 +101,7 @@ export class OrdersStatusService {
     }
 
     const record = await this.repository.insertHistory(tenant, {
-      vendaId,
+      vendaId: String(venda.autocod_v),
       status,
       source: normalizedSource,
       note,
@@ -100,13 +111,7 @@ export class OrdersStatusService {
     const statusCode = STATUS_CODE_MAP.get(status);
     if (statusCode) {
       await prisma.t_vendas.update({
-        where: {
-          autocod_v_nrven_v_cdemp_v: {
-            autocod_v: venda.autocod_v,
-            nrven_v: venda.nrven_v,
-            cdemp_v: venda.cdemp_v,
-          },
-        },
+        where: { autocod_v: autocodVenda },
         data: {
           status_v: statusCode,
           dtstat_v: new Date(),
@@ -120,9 +125,10 @@ export class OrdersStatusService {
   }
 
   async listHistory(tenant: string, vendaId: string) {
+    const autocodVenda = this.parseVendaId(vendaId);
     const prisma = await this.tenantDbService.getTenantClient(tenant);
     const venda = await prisma.t_vendas.findFirst({
-      where: { id: vendaId },
+      where: { autocod_v: autocodVenda },
       select: { autocod_v: true },
     });
 
@@ -130,7 +136,10 @@ export class OrdersStatusService {
       throw new NotFoundException('Pedido nao encontrado.');
     }
 
-    const records = await this.repository.listHistory(tenant, vendaId);
+    const records = await this.repository.listHistory(
+      tenant,
+      String(venda.autocod_v),
+    );
     return this.toHistoryDto(records);
   }
 }

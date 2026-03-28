@@ -13,6 +13,10 @@ import {
   applyMovestBalanceChanges,
   applyMovestBalanceFromCreates,
 } from '../lib/movest-balance';
+import {
+  buildCompatibleScalarSelect,
+  filterCompatibleScalarData,
+} from '../lib/tenant-schema-compat';
 
 interface WhereParams {
   [key: string]: string;
@@ -99,6 +103,24 @@ export class GenericTenantService {
     );
 
     return Object.fromEntries(filteredEntries);
+  }
+
+  private async buildCompatibleSelect(
+    prisma: TenantClient,
+    fields?: Iterable<string>,
+  ): Promise<Record<string, true>> {
+    return buildCompatibleScalarSelect(prisma, this.config.name, fields);
+  }
+
+  private async sanitizeCompatibleDto(
+    prisma: TenantClient,
+    dto: Record<string, any>,
+  ): Promise<Record<string, any>> {
+    return filterCompatibleScalarData(
+      prisma,
+      this.config.name,
+      this.sanitizeDto(dto),
+    );
   }
 
   private quoteIdentifier(value: string): string {
@@ -410,6 +432,11 @@ export class GenericTenantService {
       entity ??
       (await delegate.findUnique({
         where: { cdemp },
+        select: await this.buildCompatibleSelect(prisma, [
+          'cdemp',
+          'latitude',
+          'longitude',
+        ]),
       }));
 
     if (!persisted) return;
@@ -518,10 +545,17 @@ export class GenericTenantService {
   }
 
   private async ensureExists(
+    prisma: TenantClient,
     delegate: TenantClient[keyof TenantClient],
     where: Record<string, any>,
   ) {
-    const entity = await (delegate as any).findUnique({ where });
+    const entity = await (delegate as any).findUnique({
+      where,
+      select: await this.buildCompatibleSelect(
+        prisma,
+        this.config.primaryKeys.map((key) => key.name),
+      ),
+    });
     if (!entity) {
       throw new NotFoundException(
         `Registro não encontrado em '${this.config.name}'.`,
@@ -536,7 +570,8 @@ export class GenericTenantService {
   ) {
     const { prisma, delegate } = await this.getDelegate(tenant);
     const prepared = this.prepareDtoForPersistence(dto);
-    const data = this.sanitizeDto(prepared.dto);
+    const data = await this.sanitizeCompatibleDto(prisma, prepared.dto);
+    const select = await this.buildCompatibleSelect(prisma);
 
     if (!Object.keys(data).length) {
       throw new BadRequestException(
@@ -553,13 +588,13 @@ export class GenericTenantService {
           );
         }
 
-        const created = await txDelegate.create({ data });
+        const created = await txDelegate.create({ data, select });
         await applyMovestBalanceFromCreates(tx, [created]);
         return created;
       });
     }
 
-    const created = await delegate.create({ data });
+    const created = await delegate.create({ data, select });
 
     await this.syncCompanySideEffects(
       tenant,
@@ -575,14 +610,19 @@ export class GenericTenantService {
   }
 
   async findAll(tenant: string) {
-    const { delegate } = await this.getDelegate(tenant);
-    return delegate.findMany();
+    const { prisma, delegate } = await this.getDelegate(tenant);
+    return delegate.findMany({
+      select: await this.buildCompatibleSelect(prisma),
+    });
   }
 
   async findOne(tenant: string, params: WhereParams) {
-    const { delegate } = await this.getDelegate(tenant);
+    const { prisma, delegate } = await this.getDelegate(tenant);
     const where = this.buildWhere(params);
-    const record = await delegate.findUnique({ where });
+    const record = await delegate.findUnique({
+      where,
+      select: await this.buildCompatibleSelect(prisma),
+    });
 
     if (!record) {
       throw new NotFoundException(
@@ -602,7 +642,8 @@ export class GenericTenantService {
     const { prisma, delegate } = await this.getDelegate(tenant);
     const where = this.buildWhere(params);
     const prepared = this.prepareDtoForPersistence(dto);
-    const data = this.sanitizeDto(prepared.dto);
+    const data = await this.sanitizeCompatibleDto(prisma, prepared.dto);
+    const select = await this.buildCompatibleSelect(prisma);
 
     if (!Object.keys(data).length) {
       throw new BadRequestException(
@@ -619,14 +660,14 @@ export class GenericTenantService {
           );
         }
 
-        const previous = await txDelegate.findUnique({ where });
+        const previous = await txDelegate.findUnique({ where, select });
         if (!previous) {
           throw new NotFoundException(
             `Registro nÃ£o encontrado em '${this.config.name}'.`,
           );
         }
 
-        const updated = await txDelegate.update({ where, data });
+        const updated = await txDelegate.update({ where, data, select });
         await applyMovestBalanceChanges(tx, [
           { movement: previous, reverse: true },
           { movement: updated },
@@ -635,8 +676,8 @@ export class GenericTenantService {
       });
     }
 
-    await this.ensureExists(delegate, where);
-    const updated = await delegate.update({ where, data });
+    await this.ensureExists(prisma, delegate, where);
+    const updated = await delegate.update({ where, data, select });
 
     await this.syncCompanySideEffects(
       tenant,
@@ -654,6 +695,7 @@ export class GenericTenantService {
   async remove(tenant: string, params: WhereParams) {
     const { prisma, delegate } = await this.getDelegate(tenant);
     const where = this.buildWhere(params);
+    const select = await this.buildCompatibleSelect(prisma);
 
     if (this.isStockMovementTable()) {
       return prisma.$transaction(async (tx) => {
@@ -664,14 +706,14 @@ export class GenericTenantService {
           );
         }
 
-        const previous = await txDelegate.findUnique({ where });
+        const previous = await txDelegate.findUnique({ where, select });
         if (!previous) {
           throw new NotFoundException(
             `Registro nÃ£o encontrado em '${this.config.name}'.`,
           );
         }
 
-        const deleted = await txDelegate.delete({ where });
+        const deleted = await txDelegate.delete({ where, select });
         await applyMovestBalanceChanges(tx, [
           { movement: previous, reverse: true },
         ]);
@@ -679,7 +721,7 @@ export class GenericTenantService {
       });
     }
 
-    await this.ensureExists(delegate, where);
-    return delegate.delete({ where });
+    await this.ensureExists(prisma, delegate, where);
+    return delegate.delete({ where, select });
   }
 }

@@ -3,7 +3,7 @@ import {
   ForbiddenException,
   Get,
   Param,
-  ParseUUIDPipe,
+  ParseIntPipe,
   Post,
   Query,
   Req,
@@ -73,20 +73,20 @@ export class AdminPedidosOnlineController {
   @Get(':id')
   detail(
     @Req() req: TenantRequest,
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('id', ParseIntPipe) id: number,
   ) {
     const tenant = req.tenant?.slug ?? req.user?.tenant;
     if (!tenant) {
       throw new ForbiddenException('Tenant nao identificado.');
     }
 
-    return this.pedidosOnlineQueryService.getForAdmin(tenant, id);
+    return this.pedidosOnlineQueryService.getForAdmin(tenant, String(id));
   }
 
   @Post(':id/confirmar')
   confirmar(
     @Req() req: TenantRequest,
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('id', ParseIntPipe) id: number,
   ) {
     const tenant = req.tenant?.slug ?? req.user?.tenant;
     if (!tenant) {
@@ -97,7 +97,7 @@ export class AdminPedidosOnlineController {
 
     return this.pedidosOnlineConfirmService.confirmar(
       tenant,
-      id,
+      String(id),
       userIdentifier,
       this.getWarehouse(req),
     );

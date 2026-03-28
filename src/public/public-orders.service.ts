@@ -49,10 +49,20 @@ export class PublicOrdersService {
     return this.tenantDbService.getTenantClientBySubdomain(tenant);
   }
 
+  private parseVendaId(vendaId: string): number {
+    const parsed = Number(vendaId);
+    if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed <= 0) {
+      throw new BadRequestException(
+        'O identificador do pedido deve ser o autocod_v numerico.',
+      );
+    }
+    return parsed;
+  }
+
   private toVendaResponse(record: TvendasModel) {
     const mapped = {
       autocod_v: record.autocod_v,
-      id: record.id ?? null,
+      id: String(record.autocod_v),
       nrven_v: record.nrven_v,
       cdemp_v: record.cdemp_v,
       emisven_v: record.emisven_v ?? null,
@@ -73,7 +83,6 @@ export class PublicOrdersService {
       trocreq: record.trocreq ?? null,
       empcli: record.empcli ?? null,
       horaven_v: record.horaven_v ?? null,
-      id_cliente: record.id_cliente ?? null,
       createdat: record.createdat ?? null,
       updatedat: record.updatedat ?? null,
     };
@@ -107,8 +116,8 @@ export class PublicOrdersService {
   private toItsvenResponse(record: TitsvenModel) {
     const mapped = {
       registro: record.registro,
-      id: record.id ?? null,
-      id_venda: record.id_venda ?? null,
+      id: String(record.registro),
+      nrven_v: record.nrven_iv,
       empven: record.empven,
       nrven_iv: record.nrven_iv,
       cdemp_iv: record.cdemp_iv ?? null,
@@ -177,16 +186,27 @@ export class PublicOrdersService {
     return { discountValue: 0, discountPercent: 0 };
   }
 
+  private async resolveSaleClientCode(
+    prisma: TenantClientLike,
+    dto: CreatePublicVendaDto,
+  ): Promise<number | undefined> {
+    if (typeof dto.cdcli_v === 'number' && Number.isFinite(dto.cdcli_v)) {
+      return dto.cdcli_v;
+    }
+    return undefined;
+  }
+
   private buildVendaData(
     dto: CreatePublicVendaDto,
     totals: VendaTotals,
+    resolvedCdcli?: number,
   ): Prisma.t_vendasUncheckedCreateInput {
     return {
       nrven_v: dto.nrven_v,
       cdemp_v: dto.cdemp_v,
       codusu_v: dto.codusu_v,
       emisven_v: dto.emisven_v ? new Date(dto.emisven_v) : undefined,
-      cdcli_v: dto.cdcli_v,
+      cdcli_v: resolvedCdcli,
       cdfpg_v: dto.cdfpg_v,
       cdtpg_v: dto.cdtpg_v,
       cdven_v: dto.cdven_v,
@@ -203,8 +223,6 @@ export class PublicOrdersService {
       trocreq: dto.trocreq,
       empcli: dto.empcli,
       horaven_v: dto.horaven_v,
-      id: dto.id,
-      id_cliente: dto.id_cliente,
       createdat: dto.createdat ? new Date(dto.createdat) : undefined,
       updatedat: dto.updatedat ? new Date(dto.updatedat) : undefined,
     };
@@ -213,7 +231,6 @@ export class PublicOrdersService {
   private buildItsvenData(
     dto: CreatePublicItsvenDto,
     snapshot: ItemSnapshot,
-    vendaId?: string | null,
   ): Prisma.t_itsvenUncheckedCreateInput {
     return {
       empven: dto.empven,
@@ -237,8 +254,6 @@ export class PublicOrdersService {
       custo_iv: snapshot.cost,
       st: dto.st,
       mp: dto.mp,
-      id: dto.id,
-      id_venda: dto.id_venda ?? vendaId ?? undefined,
     };
   }
 
@@ -424,10 +439,11 @@ export class PublicOrdersService {
 
   private async updateVendaTotals(
     prisma: TenantClientLike,
-    vendaId: string,
+    cdemp: number,
+    nrven: number,
   ): Promise<void> {
     const itens = await prisma.t_itsven.findMany({
-      where: { id_venda: vendaId },
+      where: { empven: cdemp, nrven_iv: nrven },
       select: {
         qtdesol_iv: true,
         precven_iv: true,
@@ -447,7 +463,7 @@ export class PublicOrdersService {
     );
 
     const venda = await prisma.t_vendas.findFirst({
-      where: { id: vendaId },
+      where: { cdemp_v: cdemp, nrven_v: nrven },
       select: { autocod_v: true, nrven_v: true, cdemp_v: true },
     });
 
@@ -455,13 +471,10 @@ export class PublicOrdersService {
       return;
     }
 
-    await prisma.t_vendas.update({
+    await prisma.t_vendas.updateMany({
       where: {
-        autocod_v_nrven_v_cdemp_v: {
-          autocod_v: venda.autocod_v,
-          nrven_v: venda.nrven_v,
-          cdemp_v: venda.cdemp_v,
-        },
+        nrven_v: venda.nrven_v,
+        cdemp_v: venda.cdemp_v,
       },
       data: {
         totpro_v: subtotal,
@@ -474,12 +487,13 @@ export class PublicOrdersService {
 
   async createVenda(tenant: string, dto: CreatePublicVendaDto) {
     const prisma = await this.getPrisma(tenant);
+    const resolvedCdcli = await this.resolveSaleClientCode(prisma, dto);
     const data = this.buildVendaData(dto, {
       subtotal: 0,
       discountValue: 0,
       discountPercent: 0,
       total: 0,
-    });
+    }, resolvedCdcli);
 
     const record = await prisma.t_vendas.create({ data });
     return this.toVendaResponse(record);
@@ -492,9 +506,7 @@ export class PublicOrdersService {
 
     const record = await prisma.t_itsven.create({ data });
 
-    if (record.id_venda) {
-      await this.updateVendaTotals(prisma, record.id_venda);
-    }
+    await this.updateVendaTotals(prisma, record.empven, record.nrven_iv);
     return this.toItsvenResponse(record);
   }
 
@@ -525,19 +537,18 @@ export class PublicOrdersService {
 
       const snapshots = await this.fetchItemSnapshots(tx, itens);
       const totals = this.buildTotals(snapshots);
+      const resolvedCdcli = await this.resolveSaleClientCode(tx, dto);
 
       const vendaRecord = await tx.t_vendas.create({
-        data: this.buildVendaData(dto, totals),
+        data: this.buildVendaData(dto, totals, resolvedCdcli),
       });
-
-      const vendaId = vendaRecord.id ?? null;
 
       const createdItems: PublicItsvenResponseDto[] = [];
       for (let index = 0; index < itens.length; index += 1) {
         const item = itens[index];
         const snapshot = snapshots[index];
 
-        const data = this.buildItsvenData(item, snapshot, vendaId);
+        const data = this.buildItsvenData(item, snapshot);
         const record = await tx.t_itsven.create({ data });
         createdItems.push(this.toItsvenResponse(record));
       }
@@ -551,11 +562,14 @@ export class PublicOrdersService {
 
   async getPublicOrder(tenant: string, vendaId: string) {
     const prisma = await this.getPrisma(tenant);
+    const autocodVenda = this.parseVendaId(vendaId);
 
     const venda = await prisma.t_vendas.findFirst({
-      where: { id: vendaId },
+      where: { autocod_v: autocodVenda },
       select: {
-        id: true,
+        autocod_v: true,
+        nrven_v: true,
+        cdemp_v: true,
         status_v: true,
         totven_v: true,
         totpro_v: true,
@@ -564,14 +578,17 @@ export class PublicOrdersService {
       },
     });
 
-    if (!venda?.id) {
+    if (!venda) {
       throw new NotFoundException('Pedido nao encontrado.');
     }
 
     const itens = await prisma.t_itsven.findMany({
-      where: { id_venda: vendaId },
+      where: {
+        nrven_iv: venda.nrven_v,
+        empven: venda.cdemp_v,
+      },
       select: {
-        id: true,
+        registro: true,
         cditem_iv: true,
         deitem_iv: true,
         qtdesol_iv: true,
@@ -583,7 +600,7 @@ export class PublicOrdersService {
       const quantity = this.toNumber(item.qtdesol_iv);
       const unitPrice = this.toNumber(item.precven_iv);
       return {
-        id: item.id ?? null,
+        id: String(item.registro),
         cditem: item.cditem_iv ?? null,
         description: item.deitem_iv ?? null,
         quantity,
@@ -603,7 +620,7 @@ export class PublicOrdersService {
     const status = venda.status_v?.trim() || 'PENDING';
 
     return this.toPublicOrderResponse({
-      id: venda.id,
+      id: String(venda.autocod_v),
       status,
       subtotal,
       discountValue,

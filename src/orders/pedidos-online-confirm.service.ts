@@ -18,6 +18,7 @@ import { PedidosOnlineItensRepository } from './pedidos-online-itens.repository'
 import type { PedidoOnlineComboRow } from './pedidos-online-combo.repository';
 import { PedidosOnlineComboRepository } from './pedidos-online-combo.repository';
 import { applyMovestBalanceFromCreates } from '../lib/movest-balance';
+import { buildCompatibleScalarSelect } from '../lib/tenant-schema-compat';
 
 const COMBO_FLAG = 'S';
 const FORMULA_FLAG = 'S';
@@ -208,7 +209,6 @@ export class PedidosOnlineConfirmService {
       userEmail: string | null;
       customerId: string | null;
       customerCompany: number | null;
-      companyId: string | null;
       fpgtoId: string | null;
       tpgtoId: string | null;
       vendedorId: string | null;
@@ -247,8 +247,7 @@ export class PedidosOnlineConfirmService {
       vlfrete_v: totals.taxaEntrega,
       totven_v: totals.total,
       tpven_v: 'BOL',
-      obsven_v:
-        (pedido.OBS ?? '').toString().trim().slice(0, 200) || undefined,
+      obsven_v: (pedido.OBS ?? '').toString().trim().slice(0, 200) || undefined,
       status_v: 'A',
       dtstat_v: now,
       qtdimpres: 0,
@@ -265,12 +264,6 @@ export class PedidosOnlineConfirmService {
       vlr_acresc: payload.vlrAcresc,
       vlrpgdinh: payload.vlrPgDinheiro,
       vlrtroco: payload.vlrTroco,
-      id_cliente: payload.customerId ?? pedido.id_cliente ?? undefined,
-      id_fpgto: payload.fpgtoId ?? undefined,
-      id_tpgto: payload.tpgtoId ?? undefined,
-      id_empresa: payload.companyId ?? undefined,
-      id_vendedor: payload.vendedorId ?? undefined,
-      id_usuario: payload.userId ?? undefined,
     };
   }
 
@@ -312,7 +305,6 @@ export class PedidosOnlineConfirmService {
     };
     vendedorPct: number;
     obs?: string | null;
-    idEmpresa?: string | null;
     idVendedor?: string | null;
   }): Prisma.t_itsvenUncheckedCreateInput {
     const minPrice =
@@ -320,7 +312,10 @@ export class PedidosOnlineConfirmService {
         ? 0
         : this.roundMoney(this.toNumber(payload.item.precomin));
     const cost = this.roundDecimal(this.toNumber(payload.item.custo), 4);
-    const purchaseCost = this.roundDecimal(this.toNumber(payload.item.valcmp), 4);
+    const purchaseCost = this.roundDecimal(
+      this.toNumber(payload.item.valcmp),
+      4,
+    );
     const pesolq = this.roundDecimal(this.toNumber(payload.item.pesolq), 4);
     const lineGross = this.roundMoney(payload.unitPrice * payload.quantity);
     const lineDiscount = this.roundMoney(lineGross * (payload.perdes / 100));
@@ -390,12 +385,6 @@ export class PedidosOnlineConfirmService {
       comissao,
       tpcom: 'V',
       picms_iv: icmsRate,
-      id_item: payload.item.ID ?? undefined,
-      id_venda: payload.vendaId,
-      id_empresa: payload.idEmpresa ?? undefined,
-      id_grupo: payload.item.groupId ?? undefined,
-      id_cst: payload.item.cstId ?? undefined,
-      id_vendedor: payload.idVendedor ?? undefined,
     };
   }
 
@@ -403,7 +392,6 @@ export class PedidosOnlineConfirmService {
     cdemp: number;
     cditem: number;
     idItem?: string | null;
-    idEmpresa?: string | null;
     quantity: number;
     unitPrice: number;
     totalValue: number;
@@ -421,8 +409,6 @@ export class PedidosOnlineConfirmService {
       numdoc: payload.nrven,
       especie: 'V',
       cditem: payload.cditem,
-      id_item: payload.idItem ?? undefined,
-      id_empresa: payload.idEmpresa ?? undefined,
       qtde: payload.quantity,
       valor: payload.totalValue,
       preco: payload.unitPrice,
@@ -478,7 +464,7 @@ export class PedidosOnlineConfirmService {
         (item) => this.normalizeFlag(item.EH_COMBO) === COMBO_FLAG,
       );
 
-      const choicesByItem = new Map<string, PedidoOnlineComboRow[]>();
+      const choicesByItem = new Map<number, PedidoOnlineComboRow[]>();
       for (const comboItem of comboItems) {
         const choices =
           await this.pedidosOnlineComboRepo.listEscolhasByPedidoItemId(
@@ -489,22 +475,26 @@ export class PedidosOnlineConfirmService {
 
         if (!choices.length) {
           throw new BadRequestException(
-            `Item combo ${comboItem.id_item} sem escolhas registradas.`,
+            `Item combo ${comboItem.cditem} sem escolhas registradas.`,
           );
         }
 
         choicesByItem.set(comboItem.id, choices);
       }
 
-      const allItemIds = new Set<string>();
-      itens.forEach((item) => allItemIds.add(item.id_item));
+      const allItemIds = new Set<number>();
+      itens.forEach((item) => allItemIds.add(item.cditem));
       for (const choices of choicesByItem.values()) {
-        choices.forEach((choice) => allItemIds.add(choice.ID_ITEM_ESCOLHIDO));
+        choices.forEach((choice) => {
+          if (choice.CDITEM_ESCOLHIDO !== null) {
+            allItemIds.add(choice.CDITEM_ESCOLHIDO);
+          }
+        });
       }
 
       const itemIdList = Array.from(allItemIds);
       const itemWhere: Prisma.t_itensWhereInput = {
-        id: { in: itemIdList },
+        cditem: { in: itemIdList },
       };
 
       if (typeof pedido.CDEMP === 'number') {
@@ -514,7 +504,6 @@ export class PedidosOnlineConfirmService {
       const itemRecords = await tx.t_itens.findMany({
         where: itemWhere,
         select: {
-          id: true,
           cdemp: true,
           cditem: true,
           deitem: true,
@@ -547,7 +536,11 @@ export class PedidosOnlineConfirmService {
         itemRecords,
         preferredCdemp,
       );
-      const itemMap = new Map(itemRecords.map((record) => [record.id, record]));
+      const itemMap = new Map(
+        itemRecords
+          .filter((record) => record.cdemp === cdemp)
+          .map((record) => [record.cditem, record]),
+      );
 
       for (const itemId of itemIdList) {
         if (!itemMap.has(itemId)) {
@@ -568,10 +561,10 @@ export class PedidosOnlineConfirmService {
       }> = [];
 
       for (const item of itens) {
-        const record = itemMap.get(item.id_item);
+        const record = itemMap.get(item.cditem);
         if (!record) {
           throw new BadRequestException(
-            `Item ${item.id_item} nao encontrado no catalogo.`,
+            `Item ${item.cditem} nao encontrado no catalogo.`,
           );
         }
 
@@ -630,12 +623,11 @@ export class PedidosOnlineConfirmService {
         });
       }
 
-      const formulaParentIds = Array.from(
+      const formulaParentKeys = Array.from(
         new Set(
           parentSnapshots
             .filter((snapshot) => !snapshot.isCombo)
-            .map((snapshot) => snapshot.record.id?.trim())
-            .filter((id): id is string => Boolean(id)),
+            .map((snapshot) => `${snapshot.record.cdemp}:${snapshot.record.cditem}`),
         ),
       );
 
@@ -649,31 +641,31 @@ export class PedidosOnlineConfirmService {
         tx,
       );
 
-      const formulas = formulaParentIds.length
+      const formulas = formulaParentKeys.length
         ? await tx.t_formulas.findMany({
             where: {
-              id_item: { in: formulaParentIds },
-              ...(typeof cdemp === 'number' ? { cdemp } : {}),
+              OR: formulaParentKeys.map((key) => {
+                const [empitem, cditem] = key.split(':').map(Number);
+                return { empitem, cditem };
+              }),
             },
           })
         : [];
 
       const formulasByItem = new Map<string, typeof formulas>();
       for (const formula of formulas) {
-        const formulaItemId = formula.id_item?.trim();
-        if (!formulaItemId) continue;
-        const list = formulasByItem.get(formulaItemId) ?? [];
+        const formulaItemKey = `${formula.empitem}:${formula.cditem}`;
+        const list = formulasByItem.get(formulaItemKey) ?? [];
         list.push(formula);
-        formulasByItem.set(formulaItemId, list);
+        formulasByItem.set(formulaItemKey, list);
       }
 
       for (const snapshot of parentSnapshots) {
         if (!snapshot.isFormula || snapshot.isCombo) continue;
-        const itemId = snapshot.record.id?.trim();
-        if (!itemId) continue;
-        if (!formulasByItem.get(itemId)?.length) {
+        const itemKey = `${snapshot.record.cdemp}:${snapshot.record.cditem}`;
+        if (!formulasByItem.get(itemKey)?.length) {
           throw new BadRequestException(
-            `Produto com formula ${itemId} nao possui materias primas cadastradas.`,
+            `Produto com formula ${snapshot.record.cditem} nao possui materias primas cadastradas.`,
           );
         }
       }
@@ -685,28 +677,36 @@ export class PedidosOnlineConfirmService {
             .filter((value): value is number => typeof value === 'number'),
         ),
       );
-      const matprimaIds = Array.from(
+      const matprimaKeys = Array.from(
         new Set(
           formulas
-            .map((formula) => formula.id_matprima?.trim())
-            .filter((value): value is string => Boolean(value)),
+            .filter(
+              (formula) =>
+                typeof formula.empitemmp === 'number' &&
+                typeof formula.matprima === 'number',
+            )
+            .map((formula) => `${formula.empitemmp}:${formula.matprima}`),
         ),
       );
 
       const matprimaRecords =
-        matprimaCodes.length || matprimaIds.length
+        matprimaCodes.length || matprimaKeys.length
           ? await tx.t_itens.findMany({
               where: {
-                cdemp,
                 OR: [
-                  ...(matprimaIds.length ? [{ id: { in: matprimaIds } }] : []),
                   ...(matprimaCodes.length
-                    ? [{ cditem: { in: matprimaCodes } }]
+                    ? [{ cdemp, cditem: { in: matprimaCodes } }]
+                    : []),
+                  ...(matprimaKeys.length
+                    ? matprimaKeys.map((key) => {
+                        const [empitemmp, matprima] = key.split(':').map(Number);
+                        return { cdemp: empitemmp, cditem: matprima };
+                      })
                     : []),
                 ],
               },
               select: {
-                id: true,
+                cdemp: true,
                 cditem: true,
                 deitem: true,
                 undven: true,
@@ -727,12 +727,7 @@ export class PedidosOnlineConfirmService {
           : [];
 
       const matprimaMapByCode = new Map(
-        matprimaRecords.map((record) => [record.cditem, record]),
-      );
-      const matprimaMapById = new Map(
-        matprimaRecords
-          .filter((record) => Boolean(record.id))
-          .map((record) => [record.id as string, record]),
+        matprimaRecords.map((record) => [`${record.cdemp}:${record.cditem}`, record]),
       );
 
       const totalsSubtotal = this.roundMoney(
@@ -746,9 +741,12 @@ export class PedidosOnlineConfirmService {
 
       const now = new Date();
       const tipoEntregaVenda = this.resolveDeliveryType(pedido.CANAL);
-      const pedidoNumero = Math.max(0, Math.floor(this.toNumber(pedido.PEDIDO)));
+      const pedidoNumero = Math.max(
+        0,
+        Math.floor(this.toNumber(pedido.PEDIDO)),
+      );
 
-      const [config, userRef, customerRef, companyRef] = await Promise.all([
+      const [config, userRef, customerRef, rawCompanyRef] = await Promise.all([
         tx.t_config.findFirst({
           orderBy: { autocod: 'asc' },
           select: {
@@ -760,16 +758,14 @@ export class PedidosOnlineConfirmService {
         tx.t_users.findFirst({
           where: { cdusu: userCode },
           select: {
-            id: true,
             cdven: true,
             email: true,
           },
         }),
-        pedido.id_cliente
+        typeof pedido.cdcli === 'number'
           ? tx.t_cli.findFirst({
-              where: { id: pedido.id_cliente },
+              where: { cdcli: pedido.cdcli },
               select: {
-                id: true,
                 cdcli: true,
                 cdemp: true,
                 percomresp: true,
@@ -778,15 +774,22 @@ export class PedidosOnlineConfirmService {
           : Promise.resolve(null),
         tx.t_emp.findFirst({
           where: { cdemp },
-          select: {
-            id: true,
-            custoper: true,
-            impstven: true,
-            piscofins: true,
-            taxa_entrega: true,
-          },
+          select: await buildCompatibleScalarSelect(tx, 't_emp', [
+            'custoper',
+            'impstven',
+            'piscofins',
+            'taxa_entrega',
+          ]),
         }),
       ]);
+      const companyRef = rawCompanyRef as
+        | {
+            custoper?: unknown;
+            impstven?: unknown;
+            piscofins?: unknown;
+            taxa_entrega?: unknown;
+          }
+        | null;
 
       const configuredVendCode = Math.floor(this.toNumber(config?.vendpdv));
       const userVendCode = Math.floor(this.toNumber(userRef?.cdven));
@@ -804,7 +807,6 @@ export class PedidosOnlineConfirmService {
               OR: [{ cdemp }, { cdemp: null }],
             },
             select: {
-              id: true,
               cdven: true,
               pcomven: true,
             },
@@ -818,13 +820,13 @@ export class PedidosOnlineConfirmService {
         cdfpgVenda > 0
           ? tx.t_fpgto.findFirst({
               where: { cdfpg: cdfpgVenda },
-              select: { id: true },
+              select: { cdfpg: true },
             })
           : Promise.resolve(null),
         cdtpgVenda > 0
           ? tx.t_tpgto.findFirst({
               where: { cdtpg: cdtpgVenda },
-              select: { id: true },
+              select: { cdtpg: true },
             })
           : Promise.resolve(null),
       ]);
@@ -856,7 +858,6 @@ export class PedidosOnlineConfirmService {
               select: {
                 cdgru: true,
                 perccomgru: true,
-                id: true,
               },
             })
           : Promise.resolve([]),
@@ -866,7 +867,6 @@ export class PedidosOnlineConfirmService {
               select: {
                 codcst: true,
                 icms_l: true,
-                id: true,
               },
             })
           : Promise.resolve([]),
@@ -881,12 +881,6 @@ export class PedidosOnlineConfirmService {
         impstven: this.roundMoney(this.toNumber(companyRef?.impstven)),
         piscofins: this.roundMoney(this.toNumber(companyRef?.piscofins)),
       };
-      const companyId = companyRef?.id?.trim();
-      if (!companyId) {
-        throw new BadRequestException(
-          `Empresa ${cdemp} sem ID para vinculo em T_MOVEST.id_empresa.`,
-        );
-      }
 
       const comissaoClientePct = this.roundMoney(
         this.toNumber(customerRef?.percomresp),
@@ -899,7 +893,9 @@ export class PedidosOnlineConfirmService {
         totalLiquido * (vendedorPct / 100),
       );
       const trocoPara = this.roundMoney(this.toNumber(pedido.TrocoPara));
-      const vlrAcresc = this.roundMoney(this.toNumber(companyRef?.taxa_entrega));
+      const vlrAcresc = this.roundMoney(
+        this.toNumber(companyRef?.taxa_entrega),
+      );
       const vlrPgDinheiro = trocoPara;
       const vlrTroco = this.roundMoney(
         vlrPgDinheiro - (vlrAcresc + totalLiquido),
@@ -928,15 +924,28 @@ export class PedidosOnlineConfirmService {
             cdfpg: cdfpgVenda > 0 ? cdfpgVenda : null,
             cdtpg: cdtpgVenda > 0 ? cdtpgVenda : null,
             cdven: vendorRef?.cdven ?? cdvenVenda,
-            userId: userRef?.id?.trim() ?? null,
+            userId: null,
             userEmail: userRef?.email?.trim() ?? null,
-            customerId: customerRef?.id ?? pedido.id_cliente ?? null,
+            customerId:
+              typeof customerRef?.cdcli === 'number'
+                ? String(customerRef.cdcli)
+                : typeof pedido.cdcli === 'number'
+                  ? String(pedido.cdcli)
+                  : null,
             customerCompany:
               typeof customerRef?.cdemp === 'number' ? customerRef.cdemp : null,
-            companyId,
-            fpgtoId: fpgtoRef?.id?.trim() ?? null,
-            tpgtoId: tpgtoRef?.id?.trim() ?? null,
-            vendedorId: vendorRef?.id?.trim() ?? null,
+            fpgtoId:
+              typeof fpgtoRef?.cdfpg === 'number'
+                ? String(fpgtoRef.cdfpg)
+                : null,
+            tpgtoId:
+              typeof tpgtoRef?.cdtpg === 'number'
+                ? String(tpgtoRef.cdtpg)
+                : null,
+            vendedorId:
+              typeof vendorRef?.cdven === 'number'
+                ? String(vendorRef.cdven)
+                : null,
             trocoPara,
             vlrAcresc,
             vlrPgDinheiro,
@@ -947,10 +956,7 @@ export class PedidosOnlineConfirmService {
         ),
       });
 
-      const vendaId = (vendaRecord.id ?? '').trim();
-      if (!vendaId) {
-        throw new BadRequestException('Venda nao gerou ID valido.');
-      }
+      const vendaNumero = this.toNumber(vendaRecord.nrven_v);
 
       const resolveTaxMetadata = (record: {
         cdgruit: number | null;
@@ -964,9 +970,10 @@ export class PedidosOnlineConfirmService {
         const cst = cstKey ? cstMap.get(cstKey) : null;
         return {
           groupPct: group?.perccomgru ?? 0,
-          groupId: group?.id ?? null,
+          groupId:
+            typeof group?.cdgru === 'number' ? String(group.cdgru) : null,
           cstRate: cst?.icms_l ?? 0,
-          cstId: cst?.id ?? null,
+          cstId: null,
         };
       };
 
@@ -981,8 +988,9 @@ export class PedidosOnlineConfirmService {
             item: {
               ...snapshot.record,
               itprodsn:
-                snapshot.record.id &&
-                formulaBackedItemIds.has(snapshot.record.id.trim())
+                formulaBackedItemIds.has(
+                  `${snapshot.record.cdemp}:${snapshot.record.cditem}`,
+                )
                   ? FORMULA_FLAG
                   : snapshot.record.itprodsn,
               ...resolveTaxMetadata(snapshot.record),
@@ -991,7 +999,7 @@ export class PedidosOnlineConfirmService {
             unitPrice: snapshot.unitPrice,
             mp: 'N',
             emisven: now,
-            vendaId,
+            vendaId: String(vendaNumero),
             perdes:
               totalsSubtotal > 0
                 ? this.roundMoney((desconto / totalsSubtotal) * 100)
@@ -1002,8 +1010,7 @@ export class PedidosOnlineConfirmService {
             companyTaxRates,
             vendedorPct,
             obs: snapshot.pedidoItem.OBS_ITEM ?? null,
-            idEmpresa: companyId,
-            idVendedor: vendorRef?.id?.trim() ?? null,
+            idVendedor: null,
           }),
         );
 
@@ -1012,7 +1019,7 @@ export class PedidosOnlineConfirmService {
       for (const snapshot of parentSnapshots) {
         if (snapshot.isCombo) {
           const choices = choicesByItem.get(snapshot.pedidoItem.id) ?? [];
-          const aggregated = new Map<string, number>();
+          const aggregated = new Map<number, number>();
 
           for (const choice of choices) {
             const choiceQuantity = this.toNumber(choice.QTDE);
@@ -1022,7 +1029,10 @@ export class PedidosOnlineConfirmService {
               );
             }
 
-            const choiceItemId = choice.ID_ITEM_ESCOLHIDO?.trim();
+            const choiceItemId =
+              typeof choice.CDITEM_ESCOLHIDO === 'number'
+                ? choice.CDITEM_ESCOLHIDO
+                : null;
             if (!choiceItemId) {
               throw new BadRequestException(
                 `Escolha do combo ${snapshot.record.cditem} sem item selecionado.`,
@@ -1035,7 +1045,10 @@ export class PedidosOnlineConfirmService {
             );
             aggregated.set(
               choiceItemId,
-              this.roundDecimal((aggregated.get(choiceItemId) ?? 0) + quantity, 6),
+              this.roundDecimal(
+                (aggregated.get(choiceItemId) ?? 0) + quantity,
+                6,
+              ),
             );
           }
 
@@ -1062,7 +1075,7 @@ export class PedidosOnlineConfirmService {
                 unitPrice: 0,
                 mp: 'S',
                 emisven: now,
-                vendaId,
+                vendaId: String(vendaNumero),
                 perdes:
                   totalsSubtotal > 0
                     ? this.roundMoney((desconto / totalsSubtotal) * 100)
@@ -1073,23 +1086,26 @@ export class PedidosOnlineConfirmService {
                 companyTaxRates,
                 vendedorPct,
                 obs: `Componente do combo ${snapshot.record.cditem}`,
-                idEmpresa: companyId,
-                idVendedor: vendorRef?.id?.trim() ?? null,
+                idVendedor:
+                  typeof vendorRef?.cdven === 'number'
+                    ? String(vendorRef.cdven)
+                    : null,
               }),
             );
           }
         }
 
-        const formulasForItem = snapshot.record.id
-          ? (formulasByItem.get(snapshot.record.id.trim()) ?? [])
-          : [];
+        const formulasForItem =
+          formulasByItem.get(
+            `${snapshot.record.cdemp}:${snapshot.record.cditem}`,
+          ) ?? [];
         if (formulasForItem.length) {
           const aggregated = new Map<
             string,
             {
               quantity: number;
               matprimaCode: number;
-              matprimaId: string | null;
+              empitemmp: number | null;
             }
           >();
 
@@ -1105,9 +1121,9 @@ export class PedidosOnlineConfirmService {
               qtdFormula * snapshot.quantity,
               6,
             );
-            const matprimaId = formula.id_matprima?.trim() ?? null;
             const matprimaCode = this.toNumber(formula.matprima);
-            const key = matprimaId ? `id:${matprimaId}` : `CD:${matprimaCode}`;
+            const empitemmp = this.toNumber(formula.empitemmp);
+            const key = `${empitemmp}:${matprimaCode}`;
 
             const existing = aggregated.get(key);
             if (existing) {
@@ -1119,7 +1135,7 @@ export class PedidosOnlineConfirmService {
               aggregated.set(key, {
                 quantity: totalQty,
                 matprimaCode,
-                matprimaId,
+                empitemmp: Number.isFinite(empitemmp) ? empitemmp : null,
               });
             }
           }
@@ -1132,13 +1148,15 @@ export class PedidosOnlineConfirmService {
               );
             }
 
-            const record = entry.matprimaId
-              ? (matprimaMapById.get(entry.matprimaId) ??
-                matprimaMapByCode.get(entry.matprimaCode))
-              : matprimaMapByCode.get(entry.matprimaCode);
+            const record =
+              entry.empitemmp !== null
+                ? matprimaMapByCode.get(
+                    `${entry.empitemmp}:${entry.matprimaCode}`,
+                  )
+                : undefined;
             if (!record) {
               throw new BadRequestException(
-                `Materia prima ${entry.matprimaId ?? entry.matprimaCode} nao encontrada no catalogo.`,
+                `Materia prima ${entry.matprimaCode} nao encontrada no catalogo.`,
               );
             }
 
@@ -1164,7 +1182,7 @@ export class PedidosOnlineConfirmService {
                 unitPrice: 0,
                 mp: 'S',
                 emisven: now,
-                vendaId,
+                vendaId: String(vendaNumero),
                 perdes:
                   totalsSubtotal > 0
                     ? this.roundMoney((desconto / totalsSubtotal) * 100)
@@ -1175,8 +1193,7 @@ export class PedidosOnlineConfirmService {
                 companyTaxRates,
                 vendedorPct,
                 obs: `Materia prima da formula ${snapshot.record.cditem}`,
-                idEmpresa: companyId,
-                idVendedor: vendorRef?.id?.trim() ?? null,
+                idVendedor: null,
               }),
             );
           }
@@ -1196,10 +1213,16 @@ export class PedidosOnlineConfirmService {
         ),
       );
       const totalCustopItsven = this.roundMoney(
-        allItsvenLines.reduce((sum, line) => sum + this.toNumber(line.custop), 0),
+        allItsvenLines.reduce(
+          (sum, line) => sum + this.toNumber(line.custop),
+          0,
+        ),
       );
       const totalTribfedItsven = this.roundMoney(
-        allItsvenLines.reduce((sum, line) => sum + this.toNumber(line.tribfed), 0),
+        allItsvenLines.reduce(
+          (sum, line) => sum + this.toNumber(line.tribfed),
+          0,
+        ),
       );
       const totalPisCofinsItsven = this.roundMoney(
         allItsvenLines.reduce(
@@ -1213,7 +1236,9 @@ export class PedidosOnlineConfirmService {
 
       const margemVenda =
         totalLiquido > 0
-          ? this.roundMoney(((totalLiquido - totalCustoItsven) / totalLiquido) * 100)
+          ? this.roundMoney(
+              ((totalLiquido - totalCustoItsven) / totalLiquido) * 100,
+            )
           : 0;
       const lrVenda =
         totalLiquido > 0
@@ -1231,7 +1256,7 @@ export class PedidosOnlineConfirmService {
 
       await tx.t_vendas.updateMany({
         where: {
-          id: vendaId,
+          autocod_v: vendaRecord.autocod_v,
           cdemp_v: cdemp,
         },
         data: {
@@ -1248,8 +1273,6 @@ export class PedidosOnlineConfirmService {
           this.buildMovestData({
             cdemp,
             cditem: snapshot.record.cditem,
-            idItem: snapshot.record.id?.trim() ?? undefined,
-            idEmpresa: companyId,
             quantity: snapshot.quantity,
             unitPrice: snapshot.unitPrice,
             totalValue: snapshot.lineTotal,
@@ -1265,10 +1288,6 @@ export class PedidosOnlineConfirmService {
       for (const component of componentLines) {
         const cditem = this.toNumber(component.cditem_iv);
         const quantity = this.toNumber(component.qtdesol_iv);
-        const idItem =
-          typeof component.id_item === 'string'
-            ? component.id_item.trim()
-            : undefined;
         if (!Number.isFinite(cditem) || cditem <= 0) continue;
         if (!Number.isFinite(quantity) || quantity <= 0) continue;
 
@@ -1280,8 +1299,6 @@ export class PedidosOnlineConfirmService {
           this.buildMovestData({
             cdemp,
             cditem,
-            idItem: idItem || undefined,
-            idEmpresa: companyId,
             quantity,
             unitPrice,
             totalValue,
@@ -1303,7 +1320,7 @@ export class PedidosOnlineConfirmService {
         tenant,
         {
           id: pedidoId,
-          idVenda: vendaId,
+          nrven,
           confirmadoPor: confirmedBy,
           totals: {
             subtotal: totalsSubtotal,
@@ -1325,7 +1342,7 @@ export class PedidosOnlineConfirmService {
         numeroPedido: nrven,
         sinalCliente: 'Pedido Recebido',
         status: updatedPedido.STATUS,
-        idVenda: vendaId,
+        idVenda: vendaNumero > 0 ? vendaNumero : null,
         totals: {
           subtotal: totalsSubtotal,
           discount: desconto,
@@ -1339,7 +1356,7 @@ export class PedidosOnlineConfirmService {
       };
 
       this.logger.log(
-        `Pedido online ${updatedPedido.id} confirmado. Venda ${vendaId}.`,
+        `Pedido online ${updatedPedido.id} confirmado. Venda ${vendaNumero}.`,
       );
 
       return plainToInstance(ConfirmOnlineOrderResponseDto, response, {

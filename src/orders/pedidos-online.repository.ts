@@ -7,14 +7,14 @@ import { TenantPrisma } from '../lib/prisma-clients';
 import { TenantDbService } from '../tenant-db/tenant-db.service';
 
 export type PedidoOnlineRow = {
-  ID: string;
-  id: string;
+  ID: number;
+  id: number;
   PEDIDO?: number | null;
   CDEMP: number | null;
-  ID_CLIENTE: string | null;
-  id_cliente: string | null;
-  ID_ENDERECO?: string | null;
-  id_endereco?: string | null;
+  CDCLI: number | null;
+  cdcli: number | null;
+  ENDERECO?: number | null;
+  endereco?: number | null;
   CANAL?: string | null;
   STATUS: string;
   DT_PEDIDO?: Date | null;
@@ -24,8 +24,8 @@ export type PedidoOnlineRow = {
   TAXA_ENTREGA: unknown;
   TOTAL_LIQ: unknown;
   OBS: string | null;
-  ID_VENDA?: string | null;
-  id_venda?: string | null;
+  NRVEN?: number | null;
+  nrven?: number | null;
   DT_CONFIRMACAO?: Date | null;
   CONFIRMADO_POR?: string | null;
   TrocoPara?: unknown;
@@ -60,24 +60,23 @@ export class PedidosOnlineRepository {
     return this.tenantDbService.getTenantClient(tenant);
   }
 
-  private asUuid(value: string) {
-    return TenantPrisma.sql`${value}::uuid`;
-  }
-
-  private asNullableUuid(value: string | null | undefined) {
-    if (value === null || value === undefined || !String(value).trim()) {
-      return TenantPrisma.sql`NULL`;
+  private toInt(value: string | number) {
+    const parsed =
+      typeof value === 'number' ? value : Number(String(value).trim());
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      throw new Error(`Invalid numeric identifier '${value}'.`);
     }
-    return this.asUuid(String(value).trim());
+    return parsed;
   }
 
   // TEMP: After db pull substitute with Prisma models.
   async findById(
     tenant: string,
-    id: string,
+    id: string | number,
     prismaOverride?: TenantClientLike,
   ): Promise<PedidoOnlineRow | null> {
     const prisma = prismaOverride ?? (await this.getPrisma(tenant));
+    const pedidoId = this.toInt(id);
 
     const rows = await prisma.$queryRaw<PedidoOnlineRow[]>(
       TenantPrisma.sql`
@@ -86,10 +85,10 @@ export class PedidosOnlineRepository {
           ID AS "id",
           Pedido AS "PEDIDO",
           CDEMP AS "CDEMP",
-          ID_CLIENTE AS "ID_CLIENTE",
-          ID_CLIENTE AS "id_cliente",
-          ID_ENDERECO AS "ID_ENDERECO",
-          ID_ENDERECO AS "id_endereco",
+          CDCLI AS "CDCLI",
+          CDCLI AS "cdcli",
+          ENDERECO AS "ENDERECO",
+          ENDERECO AS "endereco",
           CANAL AS "CANAL",
           STATUS AS "STATUS",
           DT_PEDIDO AS "DT_PEDIDO",
@@ -98,14 +97,14 @@ export class PedidosOnlineRepository {
           TAXA_ENTREGA AS "TAXA_ENTREGA",
           TOTAL_LIQ AS "TOTAL_LIQ",
           OBS AS "OBS",
-          ID_VENDA AS "ID_VENDA",
-          ID_VENDA AS "id_venda",
+          NRVEN AS "NRVEN",
+          NRVEN AS "nrven",
           DT_CONFIRMACAO AS "DT_CONFIRMACAO",
           CONFIRMADO_POR AS "CONFIRMADO_POR",
           TrocoPara AS "TrocoPara",
           TipoPagto AS "TipoPagto"
         FROM T_PedidosOnLine
-        WHERE ID = ${this.asUuid(id)}
+        WHERE ID = ${pedidoId}
       `,
     );
 
@@ -116,8 +115,8 @@ export class PedidosOnlineRepository {
   async updateStatusConfirmado(
     tenant: string,
     payload: {
-      id: string;
-      idVenda: string;
+      id: string | number;
+      nrven: number;
       confirmadoPor: string | null;
       totals: {
         subtotal: number;
@@ -129,6 +128,7 @@ export class PedidosOnlineRepository {
     prismaOverride?: TenantClientLike,
   ): Promise<PedidoOnlineRow | null> {
     const prisma = prismaOverride ?? (await this.getPrisma(tenant));
+    const pedidoId = this.toInt(payload.id);
 
     const rows = await prisma.$queryRaw<PedidoOnlineRow[]>(
       TenantPrisma.sql`
@@ -136,23 +136,23 @@ export class PedidosOnlineRepository {
         SET
           STATUS = 'CONFIRMADO',
           DT_CONFIRMACAO = CURRENT_TIMESTAMP,
-          ID_VENDA = ${this.asUuid(payload.idVenda)},
+          NRVEN = ${payload.nrven},
           CONFIRMADO_POR = ${payload.confirmadoPor},
           TOTAL_BRUTO = ${payload.totals.subtotal},
           DESCONTO = ${payload.totals.desconto},
           TAXA_ENTREGA = ${payload.totals.taxaEntrega},
           TOTAL_LIQ = ${payload.totals.total}
-        WHERE ID = ${this.asUuid(payload.id)}
+        WHERE ID = ${pedidoId}
           AND STATUS = 'ABERTO'
         RETURNING
           ID AS "ID",
           ID AS "id",
           Pedido AS "PEDIDO",
           CDEMP AS "CDEMP",
-          ID_CLIENTE AS "ID_CLIENTE",
-          ID_CLIENTE AS "id_cliente",
-          ID_ENDERECO AS "ID_ENDERECO",
-          ID_ENDERECO AS "id_endereco",
+          CDCLI AS "CDCLI",
+          CDCLI AS "cdcli",
+          ENDERECO AS "ENDERECO",
+          ENDERECO AS "endereco",
           CANAL AS "CANAL",
           STATUS AS "STATUS",
           DT_PEDIDO AS "DT_PEDIDO",
@@ -161,8 +161,8 @@ export class PedidosOnlineRepository {
           TAXA_ENTREGA AS "TAXA_ENTREGA",
           TOTAL_LIQ AS "TOTAL_LIQ",
           OBS AS "OBS",
-          ID_VENDA AS "ID_VENDA",
-          ID_VENDA AS "id_venda",
+          NRVEN AS "NRVEN",
+          NRVEN AS "nrven",
           DT_CONFIRMACAO AS "DT_CONFIRMACAO",
           CONFIRMADO_POR AS "CONFIRMADO_POR",
           TrocoPara AS "TrocoPara",
@@ -178,8 +178,8 @@ export class PedidosOnlineRepository {
     tenant: string,
     payload: {
       cdemp: number;
-      idCliente?: string | null;
-      idEndereco?: string | null;
+      cdcli?: number | null;
+      endereco?: number | null;
       canal?: string | null;
       obs?: string | null;
       trocoPara?: number | null;
@@ -199,8 +199,8 @@ export class PedidosOnlineRepository {
       TenantPrisma.sql`
         INSERT INTO T_PedidosOnLine (
           CDEMP,
-          ID_CLIENTE,
-          ID_ENDERECO,
+          CDCLI,
+          ENDERECO,
           CANAL,
           STATUS,
           TOTAL_BRUTO,
@@ -213,8 +213,8 @@ export class PedidosOnlineRepository {
         )
         VALUES (
           ${payload.cdemp},
-          ${this.asNullableUuid(payload.idCliente)},
-          ${this.asNullableUuid(payload.idEndereco)},
+          ${payload.cdcli ?? null},
+          ${payload.endereco ?? null},
           ${payload.canal ?? 'EPDV'},
           'ABERTO',
           ${payload.totals.subtotal},
@@ -230,10 +230,10 @@ export class PedidosOnlineRepository {
           ID AS "id",
           Pedido AS "PEDIDO",
           CDEMP AS "CDEMP",
-          ID_CLIENTE AS "ID_CLIENTE",
-          ID_CLIENTE AS "id_cliente",
-          ID_ENDERECO AS "ID_ENDERECO",
-          ID_ENDERECO AS "id_endereco",
+          CDCLI AS "CDCLI",
+          CDCLI AS "cdcli",
+          ENDERECO AS "ENDERECO",
+          ENDERECO AS "endereco",
           CANAL AS "CANAL",
           STATUS AS "STATUS",
           DT_PEDIDO AS "DT_PEDIDO",
@@ -243,6 +243,8 @@ export class PedidosOnlineRepository {
           TAXA_ENTREGA AS "TAXA_ENTREGA",
           TOTAL_LIQ AS "TOTAL_LIQ",
           OBS AS "OBS",
+          NRVEN AS "NRVEN",
+          NRVEN AS "nrven",
           TrocoPara AS "TrocoPara",
           TipoPagto AS "TipoPagto"
       `,
@@ -254,7 +256,7 @@ export class PedidosOnlineRepository {
   async listByClient(
     tenant: string,
     payload: {
-      idCliente: string;
+      cdcli: number;
       limit: number;
     },
     prismaOverride?: TenantClientLike,
@@ -269,12 +271,10 @@ export class PedidosOnlineRepository {
           ID AS "id",
           p.Pedido AS "PEDIDO",
           p.CDEMP AS "CDEMP",
-          p.ID_CLIENTE AS "ID_CLIENTE",
-          p.ID_CLIENTE AS "id_cliente",
-          ID_CLIENTE AS "id_cliente",
-          p.ID_ENDERECO AS "ID_ENDERECO",
-          p.ID_ENDERECO AS "id_endereco",
-          ID_ENDERECO AS "id_endereco",
+          p.CDCLI AS "CDCLI",
+          p.CDCLI AS "cdcli",
+          p.ENDERECO AS "ENDERECO",
+          p.ENDERECO AS "endereco",
           p.CANAL AS "CANAL",
           p.STATUS AS "STATUS",
           p.DT_PEDIDO AS "DT_PEDIDO",
@@ -283,9 +283,8 @@ export class PedidosOnlineRepository {
           p.TAXA_ENTREGA AS "TAXA_ENTREGA",
           p.TOTAL_LIQ AS "TOTAL_LIQ",
           p.OBS AS "OBS",
-          p.ID_VENDA AS "ID_VENDA",
-          p.ID_VENDA AS "id_venda",
-          ID_VENDA AS "id_venda",
+          p.NRVEN AS "NRVEN",
+          p.NRVEN AS "nrven",
           p.DT_CONFIRMACAO AS "DT_CONFIRMACAO",
           p.CONFIRMADO_POR AS "CONFIRMADO_POR",
           p.TrocoPara AS "TrocoPara",
@@ -295,13 +294,13 @@ export class PedidosOnlineRepository {
           c.emailcli AS "CLIENTE_EMAIL",
           COALESCE(i.ITEMS_COUNT, 0) AS "ITEMS_COUNT"
         FROM T_PedidosOnLine p
-        LEFT JOIN t_cli c ON c.id = p.ID_CLIENTE
+        LEFT JOIN t_cli c ON c.cdcli = p.CDCLI
         LEFT JOIN (
           SELECT ID_PEDIDO, COUNT(1) AS ITEMS_COUNT
           FROM T_PedidosOnLineItens
           GROUP BY ID_PEDIDO
         ) i ON i.ID_PEDIDO = p.ID
-        WHERE p.ID_CLIENTE = ${this.asUuid(payload.idCliente)}
+        WHERE p.CDCLI = ${payload.cdcli}
         ORDER BY p.DT_PEDIDO DESC, p.ID DESC
         LIMIT ${payload.limit}
       `,
@@ -327,12 +326,10 @@ export class PedidosOnlineRepository {
           ID AS "id",
           p.Pedido AS "PEDIDO",
           p.CDEMP AS "CDEMP",
-          p.ID_CLIENTE AS "ID_CLIENTE",
-          p.ID_CLIENTE AS "id_cliente",
-          ID_CLIENTE AS "id_cliente",
-          p.ID_ENDERECO AS "ID_ENDERECO",
-          p.ID_ENDERECO AS "id_endereco",
-          ID_ENDERECO AS "id_endereco",
+          p.CDCLI AS "CDCLI",
+          p.CDCLI AS "cdcli",
+          p.ENDERECO AS "ENDERECO",
+          p.ENDERECO AS "endereco",
           p.CANAL AS "CANAL",
           p.STATUS AS "STATUS",
           p.DT_PEDIDO AS "DT_PEDIDO",
@@ -341,9 +338,8 @@ export class PedidosOnlineRepository {
           p.TAXA_ENTREGA AS "TAXA_ENTREGA",
           p.TOTAL_LIQ AS "TOTAL_LIQ",
           p.OBS AS "OBS",
-          p.ID_VENDA AS "ID_VENDA",
-          p.ID_VENDA AS "id_venda",
-          ID_VENDA AS "id_venda",
+          p.NRVEN AS "NRVEN",
+          p.NRVEN AS "nrven",
           p.DT_CONFIRMACAO AS "DT_CONFIRMACAO",
           p.CONFIRMADO_POR AS "CONFIRMADO_POR",
           p.TrocoPara AS "TrocoPara",
@@ -353,7 +349,7 @@ export class PedidosOnlineRepository {
           c.emailcli AS "CLIENTE_EMAIL",
           COALESCE(i.ITEMS_COUNT, 0) AS "ITEMS_COUNT"
         FROM T_PedidosOnLine p
-        LEFT JOIN t_cli c ON c.id = p.ID_CLIENTE
+        LEFT JOIN t_cli c ON c.cdcli = p.CDCLI
         LEFT JOIN (
           SELECT ID_PEDIDO, COUNT(1) AS ITEMS_COUNT
           FROM T_PedidosOnLineItens
@@ -369,10 +365,11 @@ export class PedidosOnlineRepository {
 
   async findDetailsById(
     tenant: string,
-    id: string,
+    id: string | number,
     prismaOverride?: TenantClientLike,
   ): Promise<PedidoOnlineDetailsRow | null> {
     const prisma = prismaOverride ?? (await this.getPrisma(tenant));
+    const pedidoId = this.toInt(id);
 
     const rows = await prisma.$queryRaw<PedidoOnlineDetailsRow[]>(
       TenantPrisma.sql`
@@ -382,12 +379,10 @@ export class PedidosOnlineRepository {
           ID AS "id",
           p.Pedido AS "PEDIDO",
           p.CDEMP AS "CDEMP",
-          p.ID_CLIENTE AS "ID_CLIENTE",
-          p.ID_CLIENTE AS "id_cliente",
-          ID_CLIENTE AS "id_cliente",
-          p.ID_ENDERECO AS "ID_ENDERECO",
-          p.ID_ENDERECO AS "id_endereco",
-          ID_ENDERECO AS "id_endereco",
+          p.CDCLI AS "CDCLI",
+          p.CDCLI AS "cdcli",
+          p.ENDERECO AS "ENDERECO",
+          p.ENDERECO AS "endereco",
           p.CANAL AS "CANAL",
           p.STATUS AS "STATUS",
           p.DT_PEDIDO AS "DT_PEDIDO",
@@ -396,9 +391,8 @@ export class PedidosOnlineRepository {
           p.TAXA_ENTREGA AS "TAXA_ENTREGA",
           p.TOTAL_LIQ AS "TOTAL_LIQ",
           p.OBS AS "OBS",
-          p.ID_VENDA AS "ID_VENDA",
-          p.ID_VENDA AS "id_venda",
-          ID_VENDA AS "id_venda",
+          p.NRVEN AS "NRVEN",
+          p.NRVEN AS "nrven",
           p.DT_CONFIRMACAO AS "DT_CONFIRMACAO",
           p.CONFIRMADO_POR AS "CONFIRMADO_POR",
           p.TrocoPara AS "TrocoPara",
@@ -416,14 +410,14 @@ export class PedidosOnlineRepository {
           e.PONTO_REFERENCIA AS "END_REFERENCIA",
           COALESCE(i.ITEMS_COUNT, 0) AS "ITEMS_COUNT"
         FROM T_PedidosOnLine p
-        LEFT JOIN t_cli c ON c.id = p.ID_CLIENTE
-        LEFT JOIN T_ENDCLI e ON e.ID = p.ID_ENDERECO
+        LEFT JOIN t_cli c ON c.cdcli = p.CDCLI
+        LEFT JOIN T_ENDCLI e ON e.AUTOCOD = p.ENDERECO
         LEFT JOIN (
           SELECT ID_PEDIDO, COUNT(1) AS ITEMS_COUNT
           FROM T_PedidosOnLineItens
           GROUP BY ID_PEDIDO
         ) i ON i.ID_PEDIDO = p.ID
-        WHERE p.ID = ${this.asUuid(id)}
+        WHERE p.ID = ${pedidoId}
         LIMIT 1
       `,
     );

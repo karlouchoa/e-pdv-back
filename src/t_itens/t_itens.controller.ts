@@ -29,7 +29,9 @@ interface TenantRequest extends Request {
 export class TItensController {
   constructor(private readonly tItensService: TItensService) {}
 
-  private normalizeSyncItems(dto: SyncTItensBatchDto): SyncTItensBatchItemDto[] {
+  private normalizeSyncItems(
+    dto: SyncTItensBatchDto,
+  ): SyncTItensBatchItemDto[] {
     const directItems = Array.isArray(dto.items) ? dto.items : [];
     const groupedItems = (dto.Empresa ?? []).flatMap((group) =>
       (group.items ?? []).map((item) => {

@@ -39,7 +39,7 @@ export class ConfirmOnlineOrderResponseDto {
   status!: string;
 
   @Expose()
-  idVenda!: string | null;
+  idVenda!: number | null;
 
   @Expose()
   @Type(() => ConfirmOnlineOrderTotalsDto)

@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  ParseIntPipe,
   Patch,
   Post,
   Req,
@@ -40,21 +41,21 @@ export class TItensComboController {
   }
 
   @Get(':id')
-  findOne(@Req() req: TenantRequest, @Param('id') id: string) {
+  findOne(@Req() req: TenantRequest, @Param('id', ParseIntPipe) id: number) {
     return this.tItensComboService.findOne(req.user.tenant, id);
   }
 
   @Patch(':id')
   update(
     @Req() req: TenantRequest,
-    @Param('id') id: string,
+    @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateTItensComboDto,
   ) {
     return this.tItensComboService.update(req.user.tenant, id, dto);
   }
 
   @Delete(':id')
-  remove(@Req() req: TenantRequest, @Param('id') id: string) {
+  remove(@Req() req: TenantRequest, @Param('id', ParseIntPipe) id: number) {
     return this.tItensComboService.remove(req.user.tenant, id);
   }
 }

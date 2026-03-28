@@ -15,19 +15,19 @@ export class ProductBService extends ProductBaseService {
   async create(tenant: string, dto: CreateProductBDto) {
     const prisma = await this.getPrisma(tenant);
     const cdemp = await this.getMatrizCompanyId(tenant, prisma);
+    const cditem = await this.getNextCditem(prisma, cdemp);
 
     if (!Array.isArray(dto.formulaItems) || dto.formulaItems.length === 0) {
       throw new BadRequestException('formulaItems nao pode ser vazio.');
     }
 
-    const data = this.mapBaseCreateData(dto, cdemp, {
+    const data = this.mapBaseCreateData(dto, cdemp, cditem, {
       itprodsn: 'S',
       comboSN: 'N',
     });
 
     return prisma.$transaction(async (tx) => {
       const item = await tx.t_itens.create({ data });
-      const itemId = this.ensureItemId(item);
 
       const normalized = this.normalizeFormulaItems(
         dto.formulaItems,
@@ -36,7 +36,6 @@ export class ProductBService extends ProductBaseService {
 
       const formulaData = this.buildFormulaData(
         normalized,
-        itemId,
         cdemp,
         item.undven ?? 'UN',
         item.cditem,
@@ -64,12 +63,7 @@ export class ProductBService extends ProductBaseService {
 
     if (!hasFormulaInput) {
       const updated = await prisma.t_itens.update({
-        where: {
-          cdemp_cditem: {
-            cdemp,
-            cditem: item.cditem,
-          },
-        },
+        where: { cditem: item.cditem },
         data,
       });
 
@@ -87,21 +81,16 @@ export class ProductBService extends ProductBaseService {
 
     return prisma.$transaction(async (tx) => {
       const updated = await tx.t_itens.update({
-        where: {
-          cdemp_cditem: {
-            cdemp,
-            cditem: item.cditem,
-          },
-        },
+        where: { cditem: item.cditem },
         data,
       });
 
-      const itemId = this.ensureItemId(item);
-      await tx.t_formulas.deleteMany({ where: { id_item: itemId } });
+      await tx.t_formulas.deleteMany({
+        where: { empitem: item.cdemp, cditem: item.cditem },
+      });
 
       const formulaData = this.buildFormulaData(
         normalized,
-        itemId,
         cdemp,
         updated.undven ?? item.undven ?? 'UN',
         item.cditem,
@@ -122,16 +111,12 @@ export class ProductBService extends ProductBaseService {
     await this.ensureNoSalesDependencies(prisma, item.cditem);
 
     return prisma.$transaction(async (tx) => {
-      const itemId = this.ensureItemId(item);
-      await tx.t_formulas.deleteMany({ where: { id_item: itemId } });
+      await tx.t_formulas.deleteMany({
+        where: { empitem: item.cdemp, cditem: item.cditem },
+      });
 
       const updated = await tx.t_itens.update({
-        where: {
-          cdemp_cditem: {
-            cdemp,
-            cditem: item.cditem,
-          },
-        },
+        where: { cditem: item.cditem },
         data: {
           isdeleted: true,
           ativosn: 'N',
@@ -196,7 +181,6 @@ export class ProductBService extends ProductBaseService {
 
   private buildFormulaData(
     items: Array<{ matprima: number; quantity: number; unit: string }>,
-    itemId: string,
     cdemp: number,
     undven: string,
     cditem: number,
@@ -211,7 +195,6 @@ export class ProductBService extends ProductBaseService {
       undmp: formula.unit,
       empitemmp: cdemp,
       deitem_iv: null,
-      id_item: itemId,
     }));
   }
 
@@ -228,10 +211,9 @@ export class ProductBService extends ProductBaseService {
       throw new BadRequestException('Item pertence a produtos combo.');
     }
 
-    const itemId = this.ensureItemId(item);
     const { formulaCount, comboCount } = await this.getRelationCounts(
       prisma,
-      itemId,
+      item,
     );
 
     if (comboCount > 0) {

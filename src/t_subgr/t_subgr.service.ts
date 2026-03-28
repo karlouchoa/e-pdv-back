@@ -15,20 +15,11 @@ export class TSubgrService {
     return this.tenantDbService.getTenantClient(tenant);
   }
 
-  private normalizeUuid(value?: string) {
-    const trimmed = value?.trim();
-    return trimmed ? trimmed.toLowerCase() : null;
-  }
-
-  private async resolveGroupRelation(
-    tenant: string,
-    cdgru: number,
-    idGrupo?: string,
-  ) {
+  private async ensureGroupExists(tenant: string, cdgru: number) {
     const prisma = await this.getPrisma(tenant);
     const group = await prisma.t_gritens.findUnique({
       where: { cdgru },
-      select: { cdgru: true, id: true },
+      select: { cdgru: true },
     });
 
     if (!group) {
@@ -36,40 +27,20 @@ export class TSubgrService {
         `Grupo ${cdgru} nao encontrado em t_gritens.`,
       );
     }
-
-    const groupId = this.normalizeUuid(group.id ?? undefined);
-    const requestedGroupId = this.normalizeUuid(idGrupo);
-
-    if (requestedGroupId && groupId && requestedGroupId !== groupId) {
-      throw new BadRequestException(
-        'ID do grupo nao corresponde ao grupo informado (cdgru).',
-      );
-    }
-
-    if (requestedGroupId && !groupId) {
-      throw new BadRequestException(
-        'Grupo informado nao possui ID para vinculo com subgrupo.',
-      );
-    }
-
-    return {
-      cdgru: group.cdgru,
-      idGrupo: groupId ?? requestedGroupId,
-    };
+    return group.cdgru;
   }
 
   async create(tenant: string, dto: CreateTSubgrDto) {
     const prisma = await this.getPrisma(tenant);
-    const relation = await this.resolveGroupRelation(tenant, dto.cdgru, dto.id_grupo);
+    const cdgru = await this.ensureGroupExists(tenant, dto.cdgru);
 
     return prisma.t_subgr.create({
       data: {
-        cdgru: relation.cdgru,
+        cdgru,
         desub: dto.desub,
         idsugr: dto.idsugr,
         oldcod: dto.oldcod,
         cdsubext: dto.cdsubext,
-        id_grupo: relation.idGrupo,
         dtaltsub: new Date(),
         updatedat: new Date(),
       },
@@ -89,7 +60,6 @@ export class TSubgrService {
     const hasDataField =
       dto.cdgru !== undefined ||
       dto.desub !== undefined ||
-      dto.id_grupo !== undefined ||
       dto.idsugr !== undefined ||
       dto.oldcod !== undefined ||
       dto.cdsubext !== undefined;
@@ -100,25 +70,16 @@ export class TSubgrService {
       );
     }
 
-    let relation:
-      | {
-          cdgru: number;
-          idGrupo: string | null;
-        }
-      | undefined;
+    let resolvedCdgru: number | undefined;
 
-    if (dto.cdgru !== undefined || dto.id_grupo !== undefined) {
-      relation = await this.resolveGroupRelation(
-        tenant,
-        dto.cdgru ?? existing.cdgru,
-        dto.id_grupo,
-      );
+    if (dto.cdgru !== undefined) {
+      resolvedCdgru = await this.ensureGroupExists(tenant, dto.cdgru);
     }
 
     return prisma.t_subgr.update({
       where: { cdsub: id },
       data: {
-        ...(relation ? { cdgru: relation.cdgru, id_grupo: relation.idGrupo } : {}),
+        ...(resolvedCdgru !== undefined ? { cdgru: resolvedCdgru } : {}),
         ...(dto.desub !== undefined ? { desub: dto.desub } : {}),
         ...(dto.idsugr !== undefined ? { idsugr: dto.idsugr } : {}),
         ...(dto.oldcod !== undefined ? { oldcod: dto.oldcod } : {}),
@@ -147,19 +108,17 @@ export class TSubgrService {
 
   async findAll(
     tenant: string,
-    filters?: { iniciais?: string; cdgru?: string; id_grupo?: string },
+    filters?: { iniciais?: string; cdgru?: string },
   ) {
     const prisma = await this.getPrisma(tenant);
     const rawCdgru = filters?.cdgru?.trim();
     const parsedCdgru =
       rawCdgru && Number.isFinite(Number(rawCdgru)) ? Number(rawCdgru) : null;
-    const idGrupo = this.normalizeUuid(filters?.id_grupo);
     const iniciais = filters?.iniciais?.trim();
 
     return prisma.t_subgr.findMany({
       where: {
         ...(parsedCdgru !== null ? { cdgru: parsedCdgru } : {}),
-        ...(idGrupo ? { id_grupo: idGrupo } : {}),
         ...(iniciais ? { desub: { startsWith: iniciais } } : {}),
       },
       orderBy: [{ cdgru: 'asc' }, { cdsub: 'asc' }],

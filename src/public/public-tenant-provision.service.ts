@@ -116,7 +116,10 @@ export class PublicTenantProvisionService {
       lockAcquired = true;
       this.logger.log(`[${correlationId}] Lock de provisionamento adquirido.`);
 
-      await this.assertLoginUniqueness(lockClient, normalized.usuario.loginEmail);
+      await this.assertLoginUniqueness(
+        lockClient,
+        normalized.usuario.loginEmail,
+      );
 
       const databaseName = await this.resolveDatabaseName(
         lockClient,
@@ -133,12 +136,18 @@ export class PublicTenantProvisionService {
 
       await this.createTenantDatabase(lockClient, databaseName);
       createdDatabase = databaseName;
-      this.logger.log(`[${correlationId}] Banco tenant criado com template goldpdv.`);
+      this.logger.log(
+        `[${correlationId}] Banco tenant criado com template goldpdv.`,
+      );
 
       const { tenantUserPassword, acessoPassword } =
         await this.resolveStoredPasswords(normalized.usuario.senha);
 
-      await this.seedTenantDatabase(databaseName, normalized, tenantUserPassword);
+      await this.seedTenantDatabase(
+        databaseName,
+        normalized,
+        tenantUserPassword,
+      );
       this.logger.log(`[${correlationId}] Dados tenant aplicados com sucesso.`);
 
       await this.insertAcessoRecord(
@@ -183,14 +192,19 @@ export class PublicTenantProvisionService {
         throw error;
       }
 
-      const message = error instanceof Error ? error.message : String(error ?? '');
-      this.logger.error(`[${correlationId}] Falha no provisionamento: ${message}`);
+      const message =
+        error instanceof Error ? error.message : String(error ?? '');
+      this.logger.error(
+        `[${correlationId}] Falha no provisionamento: ${message}`,
+      );
       throw new InternalServerErrorException(
         'Falha ao provisionar tenant. Verifique os dados e tente novamente.',
       );
     } finally {
       if (lockAcquired) {
-        await this.releaseProvisionLock(lockClient, lockKey).catch(() => undefined);
+        await this.releaseProvisionLock(lockClient, lockKey).catch(
+          () => undefined,
+        );
       }
       await lockClient.$disconnect().catch(() => undefined);
     }
@@ -211,7 +225,9 @@ export class PublicTenantProvisionService {
   }
 
   private assertProvisionKey(providedKey?: string) {
-    const expectedKey = this.configService.get<string>('PROVISION_API_KEY')?.trim();
+    const expectedKey = this.configService
+      .get<string>('PROVISION_API_KEY')
+      ?.trim();
     if (!expectedKey) {
       throw new InternalServerErrorException(
         'PROVISION_API_KEY nao configurada no ambiente.',
@@ -243,10 +259,14 @@ export class PublicTenantProvisionService {
     const raw =
       this.configService.get<string>('PROVISION_HASH_PASSWORDS')?.trim() ?? '';
     const value = raw.toLowerCase();
-    return value === '1' || value === 'true' || value === 'yes' || value === 's';
+    return (
+      value === '1' || value === 'true' || value === 'yes' || value === 's'
+    );
   }
 
-  private normalizePayload(payload: ProvisionTenantDto): NormalizedProvisionPayload {
+  private normalizePayload(
+    payload: ProvisionTenantDto,
+  ): NormalizedProvisionPayload {
     const email = this.normalizeEmail(payload.email, 'email');
     const emailConfirm = payload.emailConfirmacao
       ? this.normalizeEmail(payload.emailConfirmacao, 'emailConfirmacao')
@@ -277,7 +297,8 @@ export class PublicTenantProvisionService {
       payload.contatoTelefone ?? payload.whatsapp ?? '',
       11,
     );
-    const phoneDdd = ddd || (phoneSource.length >= 10 ? phoneSource.slice(0, 2) : '');
+    const phoneDdd =
+      ddd || (phoneSource.length >= 10 ? phoneSource.slice(0, 2) : '');
     const phoneWithoutDdd =
       phoneSource.length >= 10 ? phoneSource.slice(2) : phoneSource;
     const phoneNumber = phoneWithoutDdd.slice(0, 10);
@@ -312,13 +333,20 @@ export class PublicTenantProvisionService {
         logonfe: this.normalizeText(payload.logoUrl, 200),
         imagemCapa: this.normalizeText(payload.imagemCapaUrl, 200),
         taxaEntrega,
-        caminhoCertificado: this.normalizeText(payload.certificadoCaminhoPfx, 120),
+        caminhoCertificado: this.normalizeText(
+          payload.certificadoCaminhoPfx,
+          120,
+        ),
         senhaCertificado: this.normalizeText(payload.certificadoSenha, 60),
-        numeroSerieCertificado: this.normalizeText(payload.certificadoNumeroSerie, 60),
+        numeroSerieCertificado: this.normalizeText(
+          payload.certificadoNumeroSerie,
+          60,
+        ),
         cscId,
         cscToken: this.normalizeText(payload.cscToken, 120),
         ultimaNfe: this.normalizeOptionalInt(payload.ultimaNfe),
-        serieNfe: this.normalizeOptionalInt(payload.serieNfe)?.toString() ?? null,
+        serieNfe:
+          this.normalizeOptionalInt(payload.serieNfe)?.toString() ?? null,
         ultimaNfce: this.normalizeOptionalInt(payload.ultimaNfce),
         serieNfce: this.normalizeOptionalInt(payload.serieNfce),
         crt: this.normalizeText(payload.crt, 24),
@@ -480,7 +508,11 @@ export class PublicTenantProvisionService {
     }
   }
 
-  private upsertConnectionParam(url: string, key: string, value: string): string {
+  private upsertConnectionParam(
+    url: string,
+    key: string,
+    value: string,
+  ): string {
     try {
       const parsed = new URL(url);
       parsed.searchParams.set(key, value);
@@ -492,7 +524,9 @@ export class PublicTenantProvisionService {
 
   private quoteIdentifier(identifier: string): string {
     if (!/^[a-z0-9_]+$/.test(identifier)) {
-      throw new BadRequestException('Nome de banco invalido para provisionamento.');
+      throw new BadRequestException(
+        'Nome de banco invalido para provisionamento.',
+      );
     }
     return `"${identifier}"`;
   }
@@ -516,7 +550,9 @@ export class PublicTenantProvisionService {
   private async assertLoginUniqueness(main: AccessQueryClient, login: string) {
     const exists = await this.acessoFieldExists(main, 'login', login);
     if (exists) {
-      throw new ConflictException(`Ja existe tenant provisionado para login ${login}.`);
+      throw new ConflictException(
+        `Ja existe tenant provisionado para login ${login}.`,
+      );
     }
   }
 
@@ -552,7 +588,7 @@ export class PublicTenantProvisionService {
     main: MainClient,
     databaseName: string,
   ): Promise<boolean> {
-    const rows = (await main.$queryRaw(
+    const rows = await main.$queryRaw<Array<{ exists: boolean }>>(
       MainPrisma.sql`
         SELECT EXISTS (
           SELECT 1
@@ -560,7 +596,7 @@ export class PublicTenantProvisionService {
           WHERE LOWER(datname) = LOWER(${databaseName})
         ) AS "exists"
       `,
-    )) as Array<{ exists: boolean }>;
+    );
 
     return rows[0]?.exists === true;
   }
@@ -604,7 +640,9 @@ export class PublicTenantProvisionService {
     const quoted = this.quoteIdentifier(databaseName);
 
     try {
-      await main.$executeRawUnsafe(`DROP DATABASE IF EXISTS ${quoted} WITH (FORCE)`);
+      await main.$executeRawUnsafe(
+        `DROP DATABASE IF EXISTS ${quoted} WITH (FORCE)`,
+      );
     } catch {
       await main.$executeRawUnsafe(`DROP DATABASE IF EXISTS ${quoted}`);
     }
@@ -644,7 +682,8 @@ export class PublicTenantProvisionService {
               logonfe: payload.empresa.logonfe ?? undefined,
               imagem_capa: payload.empresa.imagemCapa ?? undefined,
               taxa_entrega: payload.empresa.taxaEntrega ?? undefined,
-              caminhodocertificado: payload.empresa.caminhoCertificado ?? undefined,
+              caminhodocertificado:
+                payload.empresa.caminhoCertificado ?? undefined,
               senhadocertificado: payload.empresa.senhaCertificado ?? undefined,
               certificado: payload.empresa.numeroSerieCertificado ?? undefined,
               idcsc: payload.empresa.cscId ?? undefined,
@@ -680,25 +719,33 @@ export class PublicTenantProvisionService {
             },
           });
 
-          await tx.t_usere.upsert({
+          const userCompanyLink = await tx.t_usere.findFirst({
             where: {
-              codusu_codemp: {
-                codusu: payload.usuario.cdusu,
-                codemp: 1,
-              },
-            },
-            create: {
               codusu: payload.usuario.cdusu,
               codemp: 1,
-              isdeleted: false,
-              createdat: now,
-              updatedat: now,
             },
-            update: {
-              isdeleted: false,
-              updatedat: now,
-            },
+            select: { autocod: true },
           });
+
+          if (userCompanyLink) {
+            await tx.t_usere.update({
+              where: { autocod: userCompanyLink.autocod },
+              data: {
+                isdeleted: false,
+                updatedat: now,
+              },
+            });
+          } else {
+            await tx.t_usere.create({
+              data: {
+                codusu: payload.usuario.cdusu,
+                codemp: 1,
+                isdeleted: false,
+                createdat: now,
+                updatedat: now,
+              },
+            });
+          }
 
           const vendeUpdated = await tx.t_vende.updateMany({
             where: {
@@ -740,8 +787,14 @@ export class PublicTenantProvisionService {
   ): Promise<void> {
     await main.$transaction(
       async (tx: any) => {
-        await this.assertLoginUniqueness(tx as unknown as AccessQueryClient, payload.usuario.loginEmail);
-        await this.assertSubdomainUniqueness(tx as unknown as AccessQueryClient, subdomain);
+        await this.assertLoginUniqueness(
+          tx as unknown as AccessQueryClient,
+          payload.usuario.loginEmail,
+        );
+        await this.assertSubdomainUniqueness(
+          tx as unknown as AccessQueryClient,
+          subdomain,
+        );
 
         await tx.t_acessos.create({
           data: {

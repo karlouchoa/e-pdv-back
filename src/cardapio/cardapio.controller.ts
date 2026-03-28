@@ -8,12 +8,12 @@ import {
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { Public } from '../auth/decorators/public.decorator';
+import { listCompatibleComboRulesByItemCodes } from '../lib/combo-schema-compat';
 import { TenantDbService } from '../tenant-db/tenant-db.service';
 import { resolvePublicSubdomainFromRequest } from '../public/tenant-resolver';
 import { ListarProdutosCardapioQueryDto } from './dto/listar-produtos-cardapio-query.dto';
 
 type CardapioItemRecord = {
-  id: string | null;
   cditem: number;
   deitem: string | null;
   defat: string | null;
@@ -33,17 +33,6 @@ type CardapioItemRecord = {
     undmp: string | null;
     empitemmp: number | null;
     deitem_iv: string | null;
-    id_item: string | null;
-  }>;
-  t_itenscombo: Array<{
-    id: string;
-    id_item: string;
-    cdgru: number;
-    qtde: unknown;
-    id_subgrupo: string | null;
-    CDGRU?: number;
-    QTDE?: unknown;
-    ID_SUBGRUPO?: string | null;
   }>;
   cdgruit: number | null;
   subgru: number | null;
@@ -53,16 +42,38 @@ type CardapioItemResponse = Omit<
   CardapioItemRecord,
   't_imgitens' | 't_formulas' | 't_itenscombo'
 > & {
+  ID: string | null;
+  id: string | null;
+  ComboSN: string | null;
   saldo: number | null;
   locfotitem: string | null;
   imageUrls: string[];
   categoria: { cdgru: number; degru: string | null } | null;
   t_formulas?: CardapioItemRecord['t_formulas'];
-  t_itenscombo?: Array<
-    CardapioItemRecord['t_itenscombo'][number] & {
-      grupo: { cdgru: number; degru: string | null } | null;
-    }
-  >;
+  T_ItensCombo?: Array<{
+    ID: string | null;
+    id: string | null;
+    ID_ITEM: string | null;
+    id_item: string | null;
+    CDGRU: number;
+    cdgru: number;
+    QTDE: unknown;
+    qtde: unknown;
+    ID_SUBGRUPO: string | null;
+    id_subgrupo: string | null;
+    grupo: { cdgru: number; degru: string | null } | null;
+  }>;
+  t_itenscombo?: Array<{
+    id: string | null;
+    id_item: string | null;
+    cdgru: number;
+    qtde: unknown;
+    id_subgrupo: string | null;
+    CDGRU?: number;
+    QTDE?: unknown;
+    ID_SUBGRUPO?: string | null;
+    grupo: { cdgru: number; degru: string | null } | null;
+  }>;
 };
 
 type CardapioCategoryResponse = {
@@ -71,14 +82,13 @@ type CardapioCategoryResponse = {
 };
 
 type CardapioComboRecord = {
-  id: string | null;
   cditem: number;
   deitem: string | null;
   defat: string | null;
   undven: string | null;
   preco: unknown;
   negativo: string | null;
-  t_imgitens: Array<{ url: string | null }>;
+  locfotitem: string | null;
 };
 
 type CardapioComboResponse = {
@@ -153,16 +163,6 @@ export class CardapioController {
     return Number.isFinite(parsed) ? parsed : null;
   }
 
-  private normalizeUuid(value: unknown): string | null {
-    const normalized = String(value ?? '').trim();
-    if (!normalized) return null;
-    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-      normalized,
-    )
-      ? normalized.toLowerCase()
-      : null;
-  }
-
   private joinNonEmpty(
     parts: Array<string | null | undefined>,
     separator: string,
@@ -233,36 +233,60 @@ export class CardapioController {
   ): Promise<TenantCompanyProfile> {
     const accessProfile =
       await this.tenantDbService.getAccessProfileBySubdomain(subdomain);
-    const [acesso, company] = await Promise.all([
+    const [acesso, companyRows] = await Promise.all([
       Promise.resolve(accessProfile),
-      prisma.t_emp.findFirst({
-        where: { matriz: 'S' },
-        select: {
-          cdemp: true,
-          id: true,
-          deemp: true,
-          fantemp: true,
-          endemp: true,
-          numemp: true,
-          complemp: true,
-          baiemp: true,
-          cidemp: true,
-          estemp: true,
-          cepemp: true,
-          dddemp: true,
-          fonemp: true,
-          emailemp: true,
-          wwwemp: true,
-          logonfe: true,
-          path_img_capa: true,
-          imagem_capa: true,
-          latitude: true,
-          longitude: true,
-          taxa_entrega: true,
-        },
-        orderBy: { cdemp: 'asc' },
-      }),
+      prisma.$queryRawUnsafe<
+        Array<{
+          cdemp: number | null;
+          deemp: string | null;
+          fantemp: string | null;
+          endemp: string | null;
+          numemp: string | null;
+          complemp: string | null;
+          baiemp: string | null;
+          cidemp: string | null;
+          estemp: string | null;
+          cepemp: string | null;
+          dddemp: string | null;
+          fonemp: string | null;
+          emailemp: string | null;
+          wwwemp: string | null;
+          logonfe: string | null;
+          path_img_capa: string | null;
+          imagem_capa: string | null;
+          latitude: unknown;
+          longitude: unknown;
+          taxa_entrega: unknown;
+        }>
+      >(
+        `SELECT
+           cdemp,
+           deemp,
+           fantemp,
+           endemp,
+           numemp,
+           complemp,
+           baiemp,
+           cidemp,
+           estemp,
+           cepemp,
+           dddemp,
+           fonemp,
+           emailemp,
+           wwwemp,
+           logonfe,
+           path_img_capa,
+           imagem_capa,
+           latitude,
+           longitude,
+           taxa_entrega
+         FROM t_emp
+         WHERE matriz = 'S'
+         ORDER BY cdemp ASC
+         LIMIT 1`,
+      ),
     ]);
+    const company = companyRows[0] ?? null;
 
     const name =
       company?.fantemp?.trim() ||
@@ -295,7 +319,7 @@ export class CardapioController {
         typeof company?.cdemp === 'number' && Number.isFinite(company.cdemp)
           ? company.cdemp
           : null,
-      companyId: this.normalizeText(company?.id, 64),
+      companyId: null,
       taxaEntrega: this.toNumber(company?.taxa_entrega),
       logourl: logoFromCompany ?? this.normalizeText(acesso?.logoUrl, 1000),
       coverUrl: coverFromCompany ?? this.normalizeText(acesso?.coverUrl, 255),
@@ -350,37 +374,6 @@ export class CardapioController {
           .filter((id): id is number => typeof id === 'number'),
       ),
     ];
-
-    const comboSubgroupCodes = [
-      ...new Set(
-        items
-          .filter((item) => item.combosn === 'S')
-          .flatMap((item) => item.t_itenscombo ?? [])
-          .map((combo) => combo.cdgru)
-          .filter((id): id is number => typeof id === 'number'),
-      ),
-    ];
-    const comboSubgroupUuids = [
-      ...new Set(
-        items
-          .filter((item) => item.combosn === 'S')
-          .flatMap((item) => item.t_itenscombo ?? [])
-          .map((combo) => this.normalizeUuid(combo.id_subgrupo))
-          .filter((id): id is string => Boolean(id)),
-      ),
-    ];
-
-    const subgroupIds = [
-      ...new Set(
-        [
-          ...items
-            .map((item) => item.subgru)
-            .filter((id): id is number => typeof id === 'number'),
-          ...comboSubgroupCodes,
-        ].filter((id) => Number.isFinite(id)),
-      ),
-    ];
-
     const categories = categoryIds.length
       ? await prisma.t_gritens.findMany({
           where: { cdgru: { in: categoryIds } },
@@ -391,35 +384,8 @@ export class CardapioController {
       categories.map((category) => [category.cdgru, category]),
     );
 
-    const subgroups =
-      subgroupIds.length || comboSubgroupUuids.length
-      ? await prisma.t_subgr.findMany({
-          where: {
-            OR: [
-              ...(subgroupIds.length ? [{ cdsub: { in: subgroupIds } }] : []),
-              ...(comboSubgroupUuids.length ? [{ id: { in: comboSubgroupUuids } }] : []),
-            ],
-          },
-          select: { cdsub: true, desub: true, id: true },
-        })
-      : [];
-    const subgroupMapByCode = new Map(
-      subgroups.map((subgroup) => [subgroup.cdsub, subgroup]),
-    );
-    const subgroupMapById = new Map(
-      subgroups
-        .filter((subgroup) => Boolean(subgroup.id))
-        .map((subgroup) => [String(subgroup.id).toLowerCase(), subgroup]),
-    );
-
     return items.map((item) => {
-      const {
-        t_imgitens: rawImages,
-        t_formulas: rawFormulas,
-        t_itenscombo: rawCombos,
-        ...rest
-      } = item;
-
+      const { t_imgitens: rawImages, t_formulas: rawFormulas, ...rest } = item;
       const imageUrls = (rawImages ?? [])
         .map((image) => (image.url ?? '').trim())
         .filter((url) => url.length > 0);
@@ -429,62 +395,80 @@ export class CardapioController {
           imageUrls.push(fallback);
         }
       }
-      const primaryImage = imageUrls[0] ?? item.locfotitem ?? null;
-      const categoria =
-        typeof item.cdgruit === 'number'
-          ? (categoryMap.get(item.cdgruit) ?? null)
-          : null;
-      const formulas = item.itprodsn === 'S' ? (rawFormulas ?? []) : undefined;
-      const combos =
-        item.combosn === 'S'
-          ? (rawCombos ?? []).map((combo) => ({
-              ...((): CardapioItemRecord['t_itenscombo'][number] & {
-                grupo: { cdgru: number; degru: string | null } | null;
-              } => {
-                const subgroupId = this.normalizeUuid(combo.id_subgrupo);
-                const subgroup =
-                  (subgroupId ? subgroupMapById.get(subgroupId) : null) ??
-                  (typeof combo.cdgru === 'number'
-                    ? subgroupMapByCode.get(combo.cdgru)
-                    : null);
-
-                const resolvedCdgru =
-                  typeof subgroup?.cdsub === 'number'
-                    ? subgroup.cdsub
-                    : combo.cdgru;
-                const resolvedSubgroupId =
-                  subgroup?.id ?? combo.id_subgrupo ?? null;
-
-                return {
-                  ...combo,
-                  cdgru: resolvedCdgru,
-                  id_subgrupo: resolvedSubgroupId,
-                  CDGRU: resolvedCdgru,
-                  QTDE: combo.qtde,
-                  ID_SUBGRUPO: resolvedSubgroupId,
-                  grupo: subgroup
-                    ? { cdgru: subgroup.cdsub, degru: subgroup.desub }
-                    : null,
-                };
-              })(),
-            }))
-          : undefined;
 
       return {
         ...rest,
+        ID: String(item.cditem),
+        id: String(item.cditem),
+        ComboSN: item.combosn ?? null,
         saldo: saldoByCditem.get(item.cditem) ?? 0,
-        locfotitem: primaryImage,
+        locfotitem: imageUrls[0] ?? item.locfotitem ?? null,
         imageUrls,
-        categoria,
-        t_formulas: formulas,
-        t_itenscombo: combos,
+        categoria:
+          typeof item.cdgruit === 'number'
+            ? (categoryMap.get(item.cdgruit) ?? null)
+            : null,
+        t_formulas: item.itprodsn === 'S' ? (rawFormulas ?? []) : undefined,
+        T_ItensCombo: item.combosn === 'S' ? [] : undefined,
+        t_itenscombo: item.combosn === 'S' ? [] : undefined,
       };
     });
   }
 
+  private async attachFormulas(
+    prisma: Awaited<ReturnType<TenantDbService['getTenantClient']>>,
+    items: Array<
+      Omit<CardapioItemRecord, 't_formulas' | 't_imgitens'> & {
+        t_formulas?: CardapioItemRecord['t_formulas'];
+      }
+    >,
+  ): Promise<CardapioItemRecord[]> {
+    const cditems = [
+      ...new Set(
+        items
+          .map((item) => item.cditem)
+          .filter((cditem): cditem is number => typeof cditem === 'number'),
+      ),
+    ];
+
+    const formulaMap = new Map<number, CardapioItemRecord['t_formulas']>();
+    if (cditems.length) {
+      const formulas = await prisma.$queryRawUnsafe<
+        Array<CardapioItemRecord['t_formulas'][number]>
+      >(
+        `SELECT
+           autocod,
+           cditem,
+           empitem,
+           undven,
+           matprima,
+           qtdemp,
+           undmp,
+           empitemmp,
+           deitem_iv
+         FROM t_formulas
+         WHERE cditem IN (${cditems.join(',')})
+         ORDER BY autocod ASC`,
+      );
+
+      for (const formula of formulas) {
+        const cditem = formula.cditem;
+        if (typeof cditem !== 'number') continue;
+        const current = formulaMap.get(cditem) ?? [];
+        current.push(formula);
+        formulaMap.set(cditem, current);
+      }
+    }
+
+    return items.map((item) => ({
+      ...item,
+      t_imgitens: [],
+      t_formulas: formulaMap.get(item.cditem) ?? [],
+    }));
+  }
+
   private buildItemSelect() {
     return {
-      id: true,
       cditem: true,
       deitem: true,
       defat: true,
@@ -512,23 +496,32 @@ export class CardapioController {
           undmp: true,
           empitemmp: true,
           deitem_iv: true,
-          id_item: true,
         },
         orderBy: {
           autocod: 'asc' as const,
         },
       },
-      t_itenscombo: {
-        select: {
-          id: true,
-          id_item: true,
-          cdgru: true,
-          qtde: true,
-          id_subgrupo: true,
-        },
-      },
       cdgruit: true,
       subgru: true,
+    };
+  }
+
+  private buildComboSelect() {
+    return {
+      cditem: true,
+      deitem: true,
+      defat: true,
+      undven: true,
+      preco: true,
+      negativo: true,
+      t_imgitens: {
+        select: {
+          url: true,
+        },
+        orderBy: {
+          autocod: 'asc' as const,
+        },
+      },
     };
   }
 
@@ -552,18 +545,71 @@ export class CardapioController {
       stockByCditem.set(entry.cditem, this.toNumber(entry._sum.saldo) ?? 0);
     }
 
-    return combos.flatMap((item) =>
-      (item.t_imgitens ?? []).map((image) => ({
-        id: item.id,
-        CDITEM: item.cditem,
-        DEITEM: item.deitem,
-        defat: item.defat,
-        undven: item.undven,
-        preco: this.toNumber(item.preco),
-        NEGATIVO: item.negativo,
-        SALDO: stockByCditem.get(item.cditem) ?? 0,
-        url: image.url,
-      })),
+    return combos.map((item) => ({
+      id: String(item.cditem),
+      CDITEM: item.cditem,
+      DEITEM: item.deitem,
+      defat: item.defat,
+      undven: item.undven,
+      preco: this.toNumber(item.preco),
+      NEGATIVO: item.negativo,
+      SALDO: stockByCditem.get(item.cditem) ?? 0,
+      url: item.locfotitem,
+    }));
+  }
+
+  private async attachComboRules(
+    prisma: Awaited<ReturnType<TenantDbService['getTenantClient']>>,
+    items: CardapioItemResponse[],
+  ): Promise<CardapioItemResponse[]> {
+    const comboItems = items.filter(
+      (item) => (item.ComboSN ?? '').toString().trim().toUpperCase() === 'S',
+    );
+    if (!comboItems.length) {
+      return items;
+    }
+
+    const ruleRows = await listCompatibleComboRulesByItemCodes(
+      prisma,
+      comboItems.map((item) => item.cditem),
+    );
+    const rulesByItem = new Map<number, CardapioItemResponse['T_ItensCombo']>();
+
+    for (const row of ruleRows) {
+      const current = rulesByItem.get(row.cditem ?? 0) ?? [];
+      current.push({
+        ID:
+          row.autocod !== null
+            ? String(row.autocod)
+            : `${row.cditem ?? ''}:${row.cdgru}`,
+        id:
+          row.autocod !== null
+            ? String(row.autocod)
+            : `${row.cditem ?? ''}:${row.cdgru}`,
+        ID_ITEM: String(row.cditem ?? ''),
+        id_item: String(row.cditem ?? ''),
+        CDGRU: row.cdgru,
+        cdgru: row.cdgru,
+        QTDE: row.qtde,
+        qtde: row.qtde,
+        ID_SUBGRUPO: String(row.cdgru),
+        id_subgrupo: String(row.cdgru),
+        grupo: {
+          cdgru: row.cdgru,
+          degru: row.subgroupLabel ?? null,
+        },
+      });
+      rulesByItem.set(row.cditem ?? 0, current);
+    }
+
+    return items.map((item) =>
+      (item.ComboSN ?? '').toString().trim().toUpperCase() === 'S'
+        ? {
+            ...item,
+            T_ItensCombo: rulesByItem.get(item.cditem) ?? [],
+            t_itenscombo: rulesByItem.get(item.cditem) ?? [],
+          }
+        : item,
     );
   }
 
@@ -573,25 +619,44 @@ export class CardapioController {
     @Req() req: Request,
     @Query() query: ListarProdutosCardapioQueryDto,
   ) {
-    const pageSize = query.pageSize ?? 24;
-    const page = query.page ?? 1;
+    const pageSize = Math.max(1, query.pageSize ?? 24);
+    const page = Math.max(1, query.page ?? 1);
     const skip = (page - 1) * pageSize;
     const tenantSubdomain = resolvePublicSubdomainFromRequest(req);
     const prisma =
       await this.tenantDbService.getTenantClientBySubdomain(tenantSubdomain);
 
-    const where = { ativosn: 'S' };
-    const total = await prisma.t_itens.count({ where });
-    const items = (await prisma.t_itens.findMany({
-      where,
-      skip,
-      take: pageSize,
-      orderBy: [{ cditem: 'asc' }],
-      select: this.buildItemSelect(),
-    })) as CardapioItemRecord[];
+    const totalRows = await prisma.$queryRawUnsafe<Array<{ total: number }>>(
+      `SELECT COUNT(*)::int AS total
+       FROM t_itens
+       WHERE ativosn = 'S'`,
+    );
+    const total = totalRows[0]?.total ?? 0;
+    const rawItems = await prisma.$queryRawUnsafe<
+      Array<Omit<CardapioItemRecord, 't_formulas' | 't_imgitens'>>
+    >(
+      `SELECT
+         cditem,
+         deitem,
+         defat,
+         preco,
+         locfotitem,
+         itprodsn,
+         combosn,
+         negativo,
+         cdgruit,
+         subgru
+       FROM t_itens
+       WHERE ativosn = 'S'
+       ORDER BY cditem ASC
+       LIMIT ${pageSize}
+       OFFSET ${skip}`,
+    );
 
+    const items = await this.attachFormulas(prisma, rawItems);
     const itemsWithImages = await this.mapCardapioItems(prisma, items);
-    const categories = this.buildSortedCategories(itemsWithImages);
+    const itemsWithCombos = await this.attachComboRules(prisma, itemsWithImages);
+    const categories = this.buildSortedCategories(itemsWithCombos);
     const tenantProfile = await this.resolveTenantProfile(
       tenantSubdomain,
       prisma,
@@ -609,7 +674,7 @@ export class CardapioController {
       hasNextPage,
       hasPreviousPage,
       categories,
-      items: itemsWithImages,
+      items: itemsWithCombos,
     };
   }
 
@@ -620,32 +685,20 @@ export class CardapioController {
     const prisma =
       await this.tenantDbService.getTenantClientBySubdomain(tenantSubdomain);
 
-    const combos = (await prisma.t_itens.findMany({
-      where: {
-        ativosn: 'S',
-        combosn: 'S',
-        t_itenscombo: { some: {} },
-        t_imgitens: { some: {} },
-      },
-      orderBy: [{ cditem: 'asc' }],
-      select: {
-        id: true,
-        cditem: true,
-        deitem: true,
-        defat: true,
-        undven: true,
-        preco: true,
-        negativo: true,
-        t_imgitens: {
-          select: {
-            url: true,
-          },
-          orderBy: {
-            autocod: 'asc' as const,
-          },
-        },
-      },
-    })) as CardapioComboRecord[];
+    const combos = await prisma.$queryRawUnsafe<CardapioComboRecord[]>(
+      `SELECT
+         cditem,
+         deitem,
+         defat,
+         undven,
+         preco,
+         negativo,
+         locfotitem
+       FROM t_itens
+       WHERE ativosn = 'S'
+         AND COALESCE(combosn, 'N') = 'S'
+       ORDER BY cditem ASC`,
+    );
 
     return this.mapComboRows(prisma, combos);
   }
@@ -669,36 +722,38 @@ export class CardapioController {
     const trimmed = id.trim();
     const cditem = Number(trimmed);
     const byCode = Number.isInteger(cditem) && cditem > 0 ? cditem : null;
-    const isUuid =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-        trimmed,
-      );
-
-    const orFilters: Array<{ id: string } | { cditem: number }> = [];
-    if (isUuid) {
-      orFilters.push({ id: trimmed });
-    }
-    if (byCode) {
-      orFilters.push({ cditem: byCode });
-    }
-
-    if (!orFilters.length) {
+    if (!byCode) {
       throw new NotFoundException('Produto nao encontrado no cardapio.');
     }
 
-    const item = (await prisma.t_itens.findFirst({
-      where: {
-        ativosn: 'S',
-        OR: orFilters,
-      },
-      select: this.buildItemSelect(),
-    })) as CardapioItemRecord | null;
+    const rows = await prisma.$queryRawUnsafe<
+      Array<Omit<CardapioItemRecord, 't_formulas' | 't_imgitens'>>
+    >(
+      `SELECT
+         cditem,
+         deitem,
+         defat,
+         preco,
+         locfotitem,
+         itprodsn,
+         combosn,
+         negativo,
+         cdgruit,
+         subgru
+       FROM t_itens
+       WHERE ativosn = 'S'
+         AND cditem = ${byCode}
+       LIMIT 1`,
+    );
+    const item = rows[0] ?? null;
 
     if (!item) {
       throw new NotFoundException('Produto nao encontrado no cardapio.');
     }
 
-    const mapped = await this.mapCardapioItems(prisma, [item]);
-    return mapped[0];
+    const hydrated = await this.attachFormulas(prisma, [item]);
+    const mapped = await this.mapCardapioItems(prisma, hydrated);
+    const withCombos = await this.attachComboRules(prisma, mapped);
+    return withCombos[0];
   }
 }

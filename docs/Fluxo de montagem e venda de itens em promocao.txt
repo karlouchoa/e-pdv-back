@@ -1,0 +1,73 @@
+🏷️ Documento: Gestão e Ciclo de Vida de Promoções (t_itpromo)
+1. Visão Geral e Objetivos
+
+Este documento descreve a implementação do fluxo de promoções no frontend. O sistema trata a promoção como uma regra de preço especial temporária registrada na entidade t_itpromo, aplicada à vitrine do cardápio digital e transportada até o carrinho de compras.
+2. Arquitetura de Dados (Entidades)
+2.1 Promoção Principal (t_itpromo)
+
+Campos essenciais mapeados em src/app/admin/promocoes/page.tsx:
+
+    autocod: Identificador único da regra.
+
+    id_item / cditem: Chaves de ligação com o produto.
+
+    precopromo: Valor de venda durante a vigência.
+
+    data_promo: Data limite de validade.
+
+    preco: Preço original de referência.
+
+2.2 Objeto de Vitrine (Public)
+
+Campos mapeados para o consumidor final em src/lib/tenant-data.ts:
+
+    originalPrice vs promoPrice.
+
+    endsAt: Timestamp de expiração.
+
+3. Fluxo de Operação: Administrativo (Backoffice)
+3.1 Cadastro e Manutenção
+
+O gerenciamento ocorre em src/app/admin/promocoes/page.tsx.
+
+    Carga Inicial: Consulta GET /t_itpromo e normaliza para o tipo PromoRow (Linha 249).
+
+    Classificação de Status: O sistema calcula em tempo real se a promoção é Rascunho, Ativo ou Vencido baseado na data_promo (Linha 120).
+
+    Inclusão de Itens: Utiliza SearchLookup em t_itens. Se o item já possuir regra ativa, os valores são carregados; caso contrário, sugere-se validade de D+10 (Linha 278).
+
+    Validação de Negócio: Preço promocional deve ser menor que o original e data deve ser futura (Linha 352).
+
+3.2 Persistência
+
+    Salvamento em Lote: Envio de POST /t_itpromo/batch com a lista modificada (Linha 408).
+
+    Remoção: Chamada direta de DELETE /t_itpromo/:autocod (Linha 428).
+
+4. Fluxo de Publicação e Venda (Storefront)
+4.1 Regras de Exposição (Vitrine)
+
+O sistema filtra promoções em src/lib/tenant-data.ts antes de renderizar.
+
+    Filtro Crítico: Uma promoção só é exibida se promoPrice > 0 e promoPrice < originalPrice (Linhas 610, 625).
+
+    Consumo API: Utiliza o endpoint /t_itpromo/public (Linha 838).
+
+4.2 Comportamento do Carrinho
+
+    Seleção: Ao adicionar da seção "Em Promoção", o sistema captura o promoPrice (Linha 1422).
+
+    Persistência Local: O unitPrice promocional é gravado no estado do carrinho em src/lib/storefront-api.ts#L241.
+
+    Cálculo: O subtotal no checkout (src/app/carrinho/page.tsx#L190) utiliza o valor promocional fixado no ato da adição.
+
+5. Matriz de Responsabilidades (Frontend vs Backend)
+Funcionalidade	Responsabilidade do Frontend	Responsabilidade do Backend
+Cálculo de Preço	Exibe e soma o preço promocional no checkout.	Deve validar se o preço enviado no pedido condiz com t_itpromo.
+Vigência	Esconde itens vencidos da vitrine pública.	Deve impedir a venda de itens com data expirada via API.
+Página de Detalhe	Exibe o preço retornado pela rota /produtos/:id.	Deve garantir que o preço retornado no detalhe seja o promocional.
+6. Pontos de Atenção e Riscos
+
+    Inconsistência de Preço: A página individual do produto (src/app/produto/[id]/page.tsx#L88) pode divergir da vitrine se o backend não aplicar a lógica de promoção no retorno do produto isolado.
+
+    Payload de Pedido: No checkout, o frontend envia idItem e quantity. A aplicação do desconto final no faturamento depende estritamente da lógica do servidor no endpoint de finalização.

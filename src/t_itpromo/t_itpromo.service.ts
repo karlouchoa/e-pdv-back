@@ -32,7 +32,6 @@ const T_ITPROMO_FIELD_MAP = {
   hostname: 'HOSTNAME',
   ip: 'IP',
   data_promo: 'DATA_PROMO',
-  id_item: 'id_item',
 } as const;
 
 const T_ITPROMO_OUTPUT_COLUMNS = [
@@ -50,16 +49,15 @@ const T_ITPROMO_OUTPUT_COLUMNS = [
   'autocodext',
   'hostname',
   'ip',
-  'createdat',
-  'updatedat',
+  'CreatedAt',
+  'UpdatedAt',
   'DATA_PROMO',
-  'id_item',
 ];
 
 const T_ITPROMO_PUBLIC_COLUMNS = [
   'EMPROMO',
   'CDITEM',
-  'id_item',
+  'ID_ITEM',
   'DEITEM',
   'UNDVEN',
   'PRECO',
@@ -174,15 +172,16 @@ export class TItpromoService {
 
   private buildReturningColumns() {
     return T_ITPROMO_OUTPUT_COLUMNS.map((column) =>
-      TenantPrisma.raw(`${this.toReturningSourceColumn(column)} AS "${column}"`),
+      TenantPrisma.raw(
+        `${this.toReturningSourceColumn(column)} AS "${column}"`,
+      ),
     );
   }
 
   private toReturningSourceColumn(column: string): string {
-    if (column === 'createdat') return 'createdat';
-    if (column === 'updatedat') return 'updatedat';
+    if (column === 'CreatedAt') return 'createdat';
+    if (column === 'UpdatedAt') return 'updatedat';
     if (column === 'DATA_PROMO') return 'data_promo';
-    if (column === 'id_item') return 'id_item';
     return column;
   }
 
@@ -200,34 +199,9 @@ export class TItpromoService {
     let cditem = dto.cditem;
     let empitem = dto.empitem;
 
-    if ((cditem === undefined || empitem === undefined) && dto.id_item) {
-      const rows = await tx.$queryRaw<
-        Array<{ cditem: number | null; cdemp: number | null }>
-      >(
-        TenantPrisma.sql`
-          SELECT
-            CDITEM AS cditem,
-            CDEMP AS cdemp
-          FROM T_ITENS
-          WHERE ID = ${dto.id_item}
-          LIMIT 1
-        `,
-      );
-
-      const found = rows[0];
-      if (found) {
-        if (cditem === undefined && found.cditem !== null) {
-          cditem = found.cditem;
-        }
-        if (empitem === undefined && found.cdemp !== null) {
-          empitem = found.cdemp;
-        }
-      }
-    }
-
     if (cditem === undefined || empitem === undefined) {
       throw new BadRequestException(
-        'Informe CDITEM e CDEMP (EMPITEM) ou um id_item valido.',
+        'Informe CDITEM e CDEMP (EMPITEM).',
       );
     }
 
@@ -264,13 +238,11 @@ export class TItpromoService {
       data[field] = value;
     }
 
-    if (payload.id_item !== undefined) {
-      data.id_item = payload.id_item ? payload.id_item.trim() : null;
-    }
-
     if (payload.DATA_PROMO !== undefined) {
       data.DATA_PROMO =
-        payload.DATA_PROMO === null ? null : this.toSyncDate(payload.DATA_PROMO);
+        payload.DATA_PROMO === null
+          ? null
+          : this.toSyncDate(payload.DATA_PROMO);
     }
 
     return data;
@@ -281,32 +253,9 @@ export class TItpromoService {
     payload: SyncTItpromoBatchItemDto,
     data: Record<string, unknown>,
   ) {
-    const currentCditem = data.cditem;
-    const currentEmpitem = data.empitem;
-    const itemId = payload.id_item?.trim();
-    const needsItemLookup =
-      Boolean(itemId) &&
-      (typeof currentCditem !== 'number' || typeof currentEmpitem !== 'number');
-
-    if (!needsItemLookup) {
-      return;
-    }
-
-    const item = await prisma.t_itens.findFirst({
-      where: { id: itemId },
-      select: { cditem: true, cdemp: true },
-    });
-
-    if (!item) {
-      return;
-    }
-
-    if (typeof currentCditem !== 'number') {
-      data.cditem = item.cditem;
-    }
-    if (typeof currentEmpitem !== 'number') {
-      data.empitem = item.cdemp;
-    }
+    void prisma;
+    void payload;
+    void data;
   }
 
   private toSyncErrorMessage(error: unknown): string {
@@ -329,22 +278,38 @@ export class TItpromoService {
     let errors = 0;
 
     for (const item of items) {
-      const promoId = item.id?.trim();
-      if (!promoId) {
-        errors += 1;
-        results.push({
-          id: '',
-          action: 'ERROR',
-          message: 'ID da promocao nao informado.',
-        });
-        continue;
-      }
+      const promoId =
+        item.id?.trim() ||
+        (typeof item.autocodext === 'number' ? String(item.autocodext) : '');
 
       try {
         const incomingCreatedAt = this.toSyncDate(item.createdat);
         const incomingUpdatedAt = this.toSyncDate(item.updatedat);
+        const lookupData = this.buildSyncMutationData(item);
+        await this.enrichKeysByItemId(prisma, item, lookupData);
+        const lookupCditem =
+          typeof lookupData.cditem === 'number' ? lookupData.cditem : item.cditem;
+        const lookupEmpitem =
+          typeof lookupData.empitem === 'number'
+            ? lookupData.empitem
+            : item.empitem;
+
+        if (
+          typeof lookupCditem !== 'number' ||
+          !Number.isFinite(lookupCditem) ||
+          typeof lookupEmpitem !== 'number' ||
+          !Number.isFinite(lookupEmpitem)
+        ) {
+          throw new BadRequestException(
+            'Promocao deve informar CDITEM e EMPITEM para sincronizacao.',
+          );
+        }
+
         const existing = await prisma.t_itpromo.findFirst({
-          where: { id: promoId },
+          where: {
+            cditem: lookupCditem,
+            empitem: lookupEmpitem,
+          },
           select: {
             autocod: true,
             updatedat: true,
@@ -375,8 +340,7 @@ export class TItpromoService {
             continue;
           }
 
-          const data = this.buildSyncMutationData(item);
-          await this.enrichKeysByItemId(prisma, item, data);
+          const data = { ...lookupData };
           data.updatedat = incomingUpdatedAt;
 
           await prisma.t_itpromo.update({
@@ -403,9 +367,7 @@ export class TItpromoService {
           continue;
         }
 
-        const data = this.buildSyncMutationData(item);
-        await this.enrichKeysByItemId(prisma, item, data);
-        data.id = promoId;
+        const data = { ...lookupData };
         data.createdat = incomingCreatedAt;
         data.updatedat = incomingUpdatedAt ?? incomingCreatedAt;
 
@@ -463,7 +425,7 @@ export class TItpromoService {
       SELECT
         T_ITPROMO.EMPROMO AS "EMPROMO",
         T_ITENS.CDITEM AS "CDITEM",
-        T_ITPROMO.id_item AS "id_item",
+        NULL::text AS "ID_ITEM",
         T_ITENS.DEITEM AS "DEITEM",
         T_ITENS.UNDVEN AS "UNDVEN",
         T_ITENS.PRECO AS "PRECO",
@@ -476,7 +438,9 @@ export class TItpromoService {
         T_ITENS.PRECOMIN AS "PRECOMIN",
         T_ITENS.CUSTO AS "CUSTO"
       FROM T_ITENS
-      LEFT JOIN T_ITPROMO ON T_ITPROMO.id_item = T_ITENS.id
+      LEFT JOIN T_ITPROMO
+        ON T_ITPROMO.CDITEM = T_ITENS.CDITEM
+       AND T_ITPROMO.EMPITEM = T_ITENS.CDEMP
       WHERE T_ITPROMO.DATA_PROMO >= CURRENT_TIMESTAMP
     `;
 

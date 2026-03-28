@@ -56,10 +56,12 @@ export class ProductBaseService {
   protected mapBaseCreateData(
     dto: ProductBaseDto,
     cdemp: number,
+    cditem: number,
     flags: ItemTypeFlags,
   ): Prisma.t_itensUncheckedCreateInput {
     const data: Prisma.t_itensUncheckedCreateInput = {
       cdemp,
+      cditem,
       deitem: this.normalizeRequiredString(dto.name, 'name'),
       defat: this.trimString(dto.description),
       undven: this.trimString(dto.unit) ?? 'UN',
@@ -85,6 +87,24 @@ export class ProductBaseService {
     };
 
     return data;
+  }
+
+  protected async getNextCditem(
+    prisma: TenantClient,
+    cdemp: number,
+  ): Promise<number> {
+    const result = await prisma.t_itens.aggregate({
+      where: { cdemp },
+      _max: { cditem: true },
+    });
+
+    const current =
+      typeof result._max.cditem === 'number' &&
+      Number.isFinite(result._max.cditem)
+        ? result._max.cditem
+        : 0;
+
+    return current + 1;
   }
 
   protected mapBaseUpdateData(
@@ -169,13 +189,19 @@ export class ProductBaseService {
     cdemp: number,
     id: string,
   ): Promise<ItemSummary> {
+    const cditem = Number(id);
+    if (!Number.isFinite(cditem) || !Number.isInteger(cditem) || cditem <= 0) {
+      throw new BadRequestException(
+        'O identificador do item deve ser um cditem numerico.',
+      );
+    }
+
     const item = await prisma.t_itens.findFirst({
       where: {
         cdemp,
-        id: id,
+        cditem,
       },
       select: {
-        id: true,
         cditem: true,
         cdemp: true,
         itprodsn: true,
@@ -188,29 +214,27 @@ export class ProductBaseService {
       throw new NotFoundException('Item nao encontrado.');
     }
 
-    return item;
-  }
-
-  protected ensureItemId(item: ItemSummary): string {
-    const id = item.id?.trim();
-    if (!id) {
-      throw new BadRequestException('Item sem ID UUID valido.');
-    }
-
-    return id;
+    return {
+      ...item,
+      id: String(item.cditem),
+    };
   }
 
   protected async getRelationCounts(
     prisma: TenantClient,
-    itemId: string,
+    item: ItemSummary,
   ): Promise<{ formulaCount: number; comboCount: number }> {
-    // TODO: add product_type column in t_itens to avoid relation checks.
-    const [formulaCount, comboCount] = await Promise.all([
-      prisma.t_formulas.count({ where: { id_item: itemId } }),
-      prisma.t_itenscombo.count({ where: { id_item: itemId } }),
-    ]);
+    const formulaCount = await prisma.t_formulas.count({
+      where: {
+        empitem: item.cdemp,
+        cditem: item.cditem,
+      },
+    });
 
-    return { formulaCount, comboCount };
+    return {
+      formulaCount,
+      comboCount: 0,
+    };
   }
 
   protected trimString(value?: string | null): string | undefined {
@@ -248,4 +272,3 @@ export class ProductBaseService {
     return parsed;
   }
 }
-

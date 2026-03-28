@@ -31,6 +31,14 @@
 $ npm install
 ```
 
+## Desenvolvimento local
+
+Em `development`, use PostgreSQL local direto na porta `5432`.
+
+- Nao usar tunel SSH para rodar o backend localmente.
+- Ajuste `DATABASE_ACESSOS`, `DATABASE_MODELO`, `DATABASE_URL` e `DB_PORT` no `.env` para `localhost:5432`.
+- O arquivo [`conectar_banco.bat`](c:\projetos\goldPRD\goldpdv-backend\conectar_banco.bat) nao faz parte do fluxo padrao de dev local.
+
 ## Compile and run the project
 
 ```bash

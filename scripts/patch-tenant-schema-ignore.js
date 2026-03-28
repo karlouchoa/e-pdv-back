@@ -6,28 +6,25 @@ const contents = fs.readFileSync(schemaPath, 'utf8');
 const eol = contents.includes('\r\n') ? '\r\n' : '\n';
 
 const lines = contents.split(/\r?\n/);
-let found = false;
-let changed = false;
+let foundRelations = 0;
+let changedRelations = 0;
 
 const updatedLines = lines.map((line) => {
-  if (/^\s*t_itpromo\s+t_itpromo\[\]/.test(line)) {
-    found = true;
+  if (/^\s+\w+\s+t_itpromo\[\](?:\s+.*)?$/.test(line)) {
+    foundRelations += 1;
     if (!line.includes('@ignore')) {
-      changed = true;
+      changedRelations += 1;
       return `${line} @ignore`;
     }
   }
   return line;
 });
 
-if (!found) {
-  console.error('t_itpromo relation not found in schema_tenant.prisma');
-  process.exit(1);
-}
-
-if (changed) {
+if (changedRelations > 0) {
   fs.writeFileSync(schemaPath, updatedLines.join(eol), 'utf8');
-  console.log('Added @ignore to t_itpromo relation.');
+  console.log(`Added @ignore to ${changedRelations} t_itpromo relation field(s).`);
+} else if (foundRelations > 0) {
+  console.log('t_itpromo relation field already has @ignore.');
 } else {
-  console.log('t_itpromo relation already has @ignore.');
+  console.log('No t_itpromo relation field found in schema_tenant.prisma; nothing to patch.');
 }

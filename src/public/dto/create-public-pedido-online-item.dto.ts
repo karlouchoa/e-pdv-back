@@ -1,10 +1,10 @@
 import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
+  IsInt,
   IsNumber,
   IsOptional,
   IsString,
-  IsUUID,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -14,8 +14,11 @@ const toNumber = ({ value }: { value: unknown }) =>
   value === null || value === undefined ? value : Number(value);
 
 export class CreatePublicPedidoOnlineItemDto {
-  @IsUUID()
-  idItem!: string;
+  @Transform(({ value, obj }: { value: unknown; obj: Record<string, unknown> }) =>
+    toNumber({ value: value ?? obj.idItem ?? obj.id_item }),
+  )
+  @IsInt()
+  cditem!: number;
 
   @Transform(toNumber)
   @IsNumber()
