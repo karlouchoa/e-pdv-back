@@ -22,6 +22,12 @@ type TableColumnsInfo = {
   lower: Set<string>;
 };
 
+const incompatibleScalarFieldsByModel = new Map<string, Set<string>>([
+  ['t_emp', new Set(['location'])],
+  ['t_endcli', new Set(['location'])],
+  ['t_itens', new Set(['isdeleted'])],
+]);
+
 const tableColumnsCache = new WeakMap<
   object,
   Map<string, Promise<TableColumnsInfo>>
@@ -64,6 +70,12 @@ function getScalarFieldColumnMap(modelName: string): Map<string, string> {
 
   scalarFieldColumnMapByModel.set(modelName, map);
   return map;
+}
+
+function isIncompatibleScalarField(modelName: string, fieldName: string): boolean {
+  return incompatibleScalarFieldsByModel
+    .get(modelName)
+    ?.has(fieldName) ?? false;
 }
 
 export async function getTenantTableColumns(
@@ -126,6 +138,10 @@ export async function buildCompatibleScalarSelect(
 
   const select: Record<string, true> = {};
   for (const fieldName of fields) {
+    if (isIncompatibleScalarField(modelName, fieldName)) {
+      continue;
+    }
+
     const columnName = fieldColumnMap.get(fieldName);
     if (!columnName) {
       continue;
@@ -159,6 +175,10 @@ export async function filterCompatibleScalarData(
 
   return Object.fromEntries(
     Object.entries(data).filter(([fieldName]) => {
+      if (isIncompatibleScalarField(modelName, fieldName)) {
+        return false;
+      }
+
       const columnName = fieldColumnMap.get(fieldName);
       if (!columnName) {
         return false;

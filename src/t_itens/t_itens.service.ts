@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import {
   TenantPrisma as Prisma,
@@ -101,9 +101,20 @@ type TenantClientLike = TenantClient | PrismaTypes.TransactionClient;
 
 @Injectable()
 export class TItensService {
+  private readonly logger = new Logger(TItensService.name);
   private readonly defaultCompanyId = 1;
   private readonly companyCache = new Map<string, number>();
   private readonly matrizCompanyCache = new Map<string, number>();
+  private readonly imageTableCapabilitiesByTenant = new Map<
+    string,
+    Promise<{
+      select: Record<string, true>;
+      canRead: boolean;
+      canWrite: boolean;
+      hasAutocod: boolean;
+    }>
+  >();
+  private readonly warnedImageTableByTenant = new Set<string>();
   private readonly reservedFilters = new Set(['cdemp']);
   private readonly scalarFieldMap = new Map(
     Object.values(Prisma.T_itensScalarFieldEnum).map((field) => [
@@ -226,6 +237,49 @@ export class TItensService {
     }
 
     return this.getMatrizCompanyId(tenant, prisma);
+  }
+
+  private buildDescriptionFilter(
+    rawValue: string | undefined,
+  options?: { defaultMode?: 'contains' | 'startsWith' | 'endsWith' },
+  ): PrismaTypes.StringFilter | undefined {
+    const trimmed = rawValue?.trim();
+    if (!trimmed) {
+      return undefined;
+    }
+
+    const normalized = trimmed.replace(/\*/g, '%');
+    const hasWildcard = normalized.includes('%');
+    const startsWithWildcard = normalized.startsWith('%');
+    const endsWithWildcard = normalized.endsWith('%');
+    const token = normalized.replace(/%+/g, '').trim();
+
+    if (!token) {
+      return undefined;
+    }
+
+    if (hasWildcard) {
+      if (startsWithWildcard && endsWithWildcard) {
+        return { contains: token, mode: 'insensitive' };
+      }
+      if (startsWithWildcard) {
+        return { endsWith: token, mode: 'insensitive' };
+      }
+      if (endsWithWildcard) {
+        return { startsWith: token, mode: 'insensitive' };
+      }
+      return { contains: token, mode: 'insensitive' };
+    }
+
+    switch (options?.defaultMode) {
+      case 'startsWith':
+        return { startsWith: token, mode: 'insensitive' };
+      case 'endsWith':
+        return { endsWith: token, mode: 'insensitive' };
+      case 'contains':
+      default:
+        return { contains: token, mode: 'insensitive' };
+    }
   }
 
   /** -------------------------
@@ -1064,9 +1118,56 @@ export class TItensService {
     return items.map((item) => this.withImageUrls(item));
   }
 
+  private async getImageTableCapabilities(
+    tenant: string,
+    prisma: TenantClientLike,
+  ) {
+    const cached = this.imageTableCapabilitiesByTenant.get(tenant);
+    if (cached) {
+      return cached;
+    }
+
+    const capabilitiesPromise = (async () => {
+      const select = await buildCompatibleScalarSelect(prisma, 't_imgitens', [
+        'autocod',
+        'cditem',
+        'empitem',
+        'url',
+      ]);
+
+      const hasAutocod = Boolean(select.autocod);
+      const canRead = Boolean(select.cditem && select.empitem && select.url);
+      const canWrite = canRead && hasAutocod;
+
+      return {
+        select,
+        canRead,
+        canWrite,
+        hasAutocod,
+      };
+    })();
+
+    this.imageTableCapabilitiesByTenant.set(tenant, capabilitiesPromise);
+    return capabilitiesPromise;
+  }
+
+  private warnImageTableIncompatible(
+    tenant: string,
+    capabilities: { canRead: boolean; canWrite: boolean; hasAutocod: boolean },
+  ) {
+    if (this.warnedImageTableByTenant.has(tenant)) {
+      return;
+    }
+
+    this.warnedImageTableByTenant.add(tenant);
+    this.logger.warn(
+      `[t_imgitens] schema incompatível para tenant '${tenant}': canRead=${capabilities.canRead} canWrite=${capabilities.canWrite} hasAutocod=${capabilities.hasAutocod}. Usando fallback por locfotitem.`,
+    );
+  }
+
   private async attachImages<
     T extends { cditem?: number | null; cdemp?: number | null },
-  >(prisma: TenantClient, items: T[]): Promise<
+  >(tenant: string, prisma: TenantClient, items: T[]): Promise<
     Array<
       T & {
         t_imgitens: Array<{ autocod?: number | null; url?: string | null }>;
@@ -1092,19 +1193,20 @@ export class TItensService {
 
     const cditems = [...new Set(imageKeys.map((entry) => entry.cditem))];
     const emps = [...new Set(imageKeys.map((entry) => entry.cdemp))];
+    const capabilities = await this.getImageTableCapabilities(tenant, prisma);
+
+    if (!capabilities.canRead) {
+      this.warnImageTableIncompatible(tenant, capabilities);
+      return items.map((item) => ({ ...item, t_imgitens: [] }));
+    }
 
     const rows = await prisma.t_imgitens.findMany({
       where: {
         cditem: { in: cditems },
         empitem: { in: emps },
       },
-      orderBy: [{ autocod: 'asc' }],
-      select: {
-        autocod: true,
-        cditem: true,
-        empitem: true,
-        url: true,
-      },
+      ...(capabilities.hasAutocod ? { orderBy: [{ autocod: 'asc' }] } : {}),
+      select: capabilities.select,
     });
 
     const imageMap = new Map<string, Array<{ autocod?: number | null; url?: string | null }>>();
@@ -1230,12 +1332,19 @@ export class TItensService {
   }
 
   private async ensurePrimaryImageRecord(
+    tenant: string,
     prisma: TenantClient,
     item: { cdemp: number; cditem: number },
     imagePath: string | null | undefined,
   ) {
     const normalizedPath = this.normalizeImagePath(imagePath);
     if (!normalizedPath) {
+      return;
+    }
+
+    const capabilities = await this.getImageTableCapabilities(tenant, prisma);
+    if (!capabilities.canWrite) {
+      this.warnImageTableIncompatible(tenant, capabilities);
       return;
     }
 
@@ -1263,10 +1372,17 @@ export class TItensService {
   }
 
   private async syncItemImages(
+    tenant: string,
     prisma: TenantClient,
     item: { cdemp: number; cditem: number },
     images: Array<{ id?: string; url?: string }>,
   ) {
+    const capabilities = await this.getImageTableCapabilities(tenant, prisma);
+    if (!capabilities.canWrite) {
+      this.warnImageTableIncompatible(tenant, capabilities);
+      return;
+    }
+
     const urls = Array.from(
       new Set(
         images
@@ -1446,9 +1562,14 @@ export class TItensService {
       select: await this.buildTItensSelect(prisma),
     });
     if (hasImagesPayload) {
-      await this.syncItemImages(prisma, created, imageInputs);
+      await this.syncItemImages(tenant, prisma, created, imageInputs);
     }
-    await this.ensurePrimaryImageRecord(prisma, created, created.locfotitem);
+    await this.ensurePrimaryImageRecord(
+      tenant,
+      prisma,
+      created,
+      created.locfotitem,
+    );
     return this.ensureCdemp(created, cdemp);
   }
 
@@ -1481,7 +1602,7 @@ export class TItensService {
     const saldoCdemp = await this.resolveCompanyId(tenant, prisma, cdempParam);
     const itemsCdemp = await this.getMatrizCompanyId(tenant, prisma);
 
-    const descricaoPrefix = getParam('descricaoPrefix');
+    const descricaoPrefix = getParam('descricao') ?? getParam('descricaoPrefix');
     const cdgruitParam = getParam('cdgruit');
     const matprimaParam = getParam('matprima');
     const saldoParam = getParam('saldo');
@@ -1523,10 +1644,11 @@ export class TItensService {
       includeImages: true,
     });
 
-    if (descricaoPrefix && descricaoPrefix.trim()) {
-      where.deitem = {
-        startsWith: descricaoPrefix.trim(),
-      };
+    const descriptionFilter = this.buildDescriptionFilter(descricaoPrefix, {
+      defaultMode: 'contains',
+    });
+    if (descriptionFilter) {
+      where.deitem = descriptionFilter;
     }
 
     const cdgruit = Number(cdgruitParam);
@@ -1569,7 +1691,7 @@ export class TItensService {
         ensuredItems,
       );
       const itemsWithImages = this.withImageUrlsList(
-        await this.attachImages(prisma, itemsWithCategorias),
+        await this.attachImages(tenant, prisma, itemsWithCategorias),
       );
       const response = {
         data: itemsWithImages,
@@ -1665,7 +1787,7 @@ export class TItensService {
         : ensuredItems.slice(skip, skip + pageSize);
     const itemsWithCategorias = await this.attachCategorias(prisma, paginated);
     const itemsWithImages = this.withImageUrlsList(
-      await this.attachImages(prisma, itemsWithCategorias),
+      await this.attachImages(tenant, prisma, itemsWithCategorias),
     );
 
     const response = {
@@ -1715,6 +1837,9 @@ export class TItensService {
     const cdemp = await this.getMatrizCompanyId(tenant, prisma);
 
     const isNumeric = /^\d+$/.test(term);
+    const descriptionFilter = this.buildDescriptionFilter(term, {
+      defaultMode: 'contains',
+    });
 
     const where: PrismaTypes.t_itensWhereInput = isNumeric
       ? {
@@ -1723,7 +1848,7 @@ export class TItensService {
         }
       : {
           cdemp,
-          deitem: { startsWith: term },
+          ...(descriptionFilter ? { deitem: descriptionFilter } : {}),
         };
 
     const matprima = filters?.matprima?.trim().toUpperCase();
@@ -1751,7 +1876,7 @@ export class TItensService {
       ensuredItems,
     );
     return this.withImageUrlsList(
-      await this.attachImages(prisma, itemsWithCategorias),
+      await this.attachImages(tenant, prisma, itemsWithCategorias),
     );
   }
 
@@ -1769,7 +1894,7 @@ export class TItensService {
     if (!item) return item;
     const ensured = this.ensureCdemp(item, cdemp);
     const [withCategoria] = await this.attachCategorias(prisma, [ensured]);
-    const [withImages] = await this.attachImages(prisma, [withCategoria]);
+    const [withImages] = await this.attachImages(tenant, prisma, [withCategoria]);
     return this.withImageUrls(withImages);
   }
 
@@ -1912,9 +2037,14 @@ export class TItensService {
       select: await this.buildTItensSelect(prisma),
     });
     if (hasImagesPayload) {
-      await this.syncItemImages(prisma, updated, imageInputs);
+      await this.syncItemImages(tenant, prisma, updated, imageInputs);
     }
-    await this.ensurePrimaryImageRecord(prisma, updated, updated.locfotitem);
+    await this.ensurePrimaryImageRecord(
+      tenant,
+      prisma,
+      updated,
+      updated.locfotitem,
+    );
     return this.ensureCdemp(updated, cdemp);
   }
 

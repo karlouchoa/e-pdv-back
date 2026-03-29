@@ -167,7 +167,7 @@ export class TItpromoService {
   }
 
   private buildColumnList(columns: string[]) {
-    return columns.map((column) => TenantPrisma.raw(column));
+    return columns.map((column) => this.rawSqlColumn(column));
   }
 
   private buildReturningColumns() {
@@ -179,10 +179,18 @@ export class TItpromoService {
   }
 
   private toReturningSourceColumn(column: string): string {
-    if (column === 'CreatedAt') return 'createdat';
-    if (column === 'UpdatedAt') return 'updatedat';
-    if (column === 'DATA_PROMO') return 'data_promo';
-    return column;
+    return this.toSqlColumnName(column);
+  }
+
+  private toSqlColumnName(column: string): string {
+    if (column === 'CreatedAt') return '"CreatedAt"';
+    if (column === 'UpdatedAt') return '"UpdatedAt"';
+    if (column === 'DATA_PROMO') return '"DATA_PROMO"';
+    return column.toLowerCase();
+  }
+
+  private rawSqlColumn(column: string) {
+    return TenantPrisma.raw(this.toSqlColumnName(column));
   }
 
   private buildPromoMatchByKeys(keys: { cditem: number; empitem: number }) {
@@ -431,8 +439,8 @@ export class TItpromoService {
         T_ITENS.PRECO AS "PRECO",
         T_ITPROMO.PRECOPROMO AS "PRECOPROMO",
         CASE
-          WHEN T_ITPROMO.DATA_PROMO < CURRENT_DATE THEN NULL
-          ELSE T_ITPROMO.DATA_PROMO
+          WHEN T_ITPROMO."DATA_PROMO" < CURRENT_DATE THEN NULL
+          ELSE T_ITPROMO."DATA_PROMO"
         END AS "DATA_PROMO",
         T_ITENS.CDEMP AS "CDEMP",
         T_ITENS.PRECOMIN AS "PRECOMIN",
@@ -441,7 +449,7 @@ export class TItpromoService {
       LEFT JOIN T_ITPROMO
         ON T_ITPROMO.CDITEM = T_ITENS.CDITEM
        AND T_ITPROMO.EMPITEM = T_ITENS.CDEMP
-      WHERE T_ITPROMO.DATA_PROMO >= CURRENT_TIMESTAMP
+      WHERE T_ITPROMO."DATA_PROMO" >= CURRENT_TIMESTAMP
     `;
 
     return this.toPublicResponse(records);
@@ -482,9 +490,9 @@ export class TItpromoService {
         const values = insertEntries.map((entry) => entry.value);
         const updates = updateEntries.map(
           (entry) =>
-            TenantPrisma.sql`${TenantPrisma.raw(entry.column)} = ${entry.value}`,
+            TenantPrisma.sql`${this.rawSqlColumn(entry.column)} = ${entry.value}`,
         );
-        updates.push(TenantPrisma.raw('updatedat = CURRENT_TIMESTAMP'));
+        updates.push(TenantPrisma.raw(`${this.toSqlColumnName('UpdatedAt')} = CURRENT_TIMESTAMP`));
 
         if (!updates.length) {
           throw new BadRequestException('Informe ao menos um campo.');
@@ -502,7 +510,7 @@ export class TItpromoService {
               WHERE ${matchByKeys}
                 AND PRECOPROMO < PRECOMIN
                 AND PRECOMIN < PRECO
-                AND DATA_PROMO < CURRENT_TIMESTAMP
+                AND "DATA_PROMO" < CURRENT_TIMESTAMP
               ORDER BY autocod DESC
               LIMIT 1
             )
@@ -568,9 +576,9 @@ export class TItpromoService {
     const entries = this.buildEntries(dto);
     const updates = entries.map(
       (entry) =>
-        TenantPrisma.sql`${TenantPrisma.raw(entry.column)} = ${entry.value}`,
+        TenantPrisma.sql`${this.rawSqlColumn(entry.column)} = ${entry.value}`,
     );
-    updates.push(TenantPrisma.raw('updatedat = CURRENT_TIMESTAMP'));
+    updates.push(TenantPrisma.raw(`${this.toSqlColumnName('UpdatedAt')} = CURRENT_TIMESTAMP`));
     const output = this.buildReturningColumns();
 
     const records = await prisma.$queryRaw<TItpromoRecordDto[]>(

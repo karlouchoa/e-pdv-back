@@ -17,6 +17,7 @@ import {
   modelHasCompatibleScalarField,
 } from '../lib/tenant-schema-compat';
 import { CashierReportsPdfService } from './cashier-reports-pdf.service';
+import { parseReferenceDateInput } from './reference-date';
 import type {
   CashierAnalyticOrderRow,
   CashierAnalyticPaymentRow,
@@ -2085,14 +2086,9 @@ export class AdminOperationsService {
 
   private normalizeReferenceDate(value?: string): Date {
     if (!value) return new Date();
-    const normalized = value.trim();
-    if (!normalized) return new Date();
+    const parsed = parseReferenceDateInput(value);
 
-    const parsed = /^\d{4}-\d{2}-\d{2}$/.test(normalized)
-      ? new Date(`${normalized}T12:00:00`)
-      : new Date(normalized);
-
-    if (Number.isNaN(parsed.getTime())) {
+    if (!parsed) {
       throw new BadRequestException('Data de referencia invalida.');
     }
 

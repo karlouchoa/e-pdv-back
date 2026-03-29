@@ -3,9 +3,14 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import type { Prisma as PrismaTypes } from '../../prisma/generated/client_tenant';
 import { TenantDbService } from '../tenant-db/tenant-db.service';
 import { CreateTSubgrDto } from './dto/create-t_subgr.dto';
 import { UpdateTSubgrDto } from './dto/update-t_subgr.dto';
+import {
+  buildCompatibleScalarSelect,
+  filterCompatibleScalarData,
+} from '../lib/tenant-schema-compat';
 
 @Injectable()
 export class TSubgrService {
@@ -13,6 +18,20 @@ export class TSubgrService {
 
   private async getPrisma(tenant: string) {
     return this.tenantDbService.getTenantClient(tenant);
+  }
+
+  private async buildTSubgrSelect(
+    prisma: Awaited<ReturnType<TSubgrService['getPrisma']>>,
+    fields?: Iterable<string>,
+  ) {
+    return buildCompatibleScalarSelect(prisma, 't_subgr', fields);
+  }
+
+  private async sanitizeTSubgrData(
+    prisma: Awaited<ReturnType<TSubgrService['getPrisma']>>,
+    data: Record<string, unknown>,
+  ) {
+    return filterCompatibleScalarData(prisma, 't_subgr', data);
   }
 
   private async ensureGroupExists(tenant: string, cdgru: number) {
@@ -33,17 +52,19 @@ export class TSubgrService {
   async create(tenant: string, dto: CreateTSubgrDto) {
     const prisma = await this.getPrisma(tenant);
     const cdgru = await this.ensureGroupExists(tenant, dto.cdgru);
+    const data = (await this.sanitizeTSubgrData(prisma, {
+      cdgru,
+      desub: dto.desub,
+      idsugr: dto.idsugr,
+      oldcod: dto.oldcod,
+      cdsubext: dto.cdsubext,
+      dtaltsub: new Date(),
+      updatedat: new Date(),
+    })) as PrismaTypes.t_subgrUncheckedCreateInput;
 
     return prisma.t_subgr.create({
-      data: {
-        cdgru,
-        desub: dto.desub,
-        idsugr: dto.idsugr,
-        oldcod: dto.oldcod,
-        cdsubext: dto.cdsubext,
-        dtaltsub: new Date(),
-        updatedat: new Date(),
-      },
+      data,
+      select: await this.buildTSubgrSelect(prisma),
     });
   }
 
@@ -51,6 +72,7 @@ export class TSubgrService {
     const prisma = await this.getPrisma(tenant);
     const existing = await prisma.t_subgr.findUnique({
       where: { cdsub: id },
+      select: { cdsub: true },
     });
 
     if (!existing) {
@@ -76,17 +98,20 @@ export class TSubgrService {
       resolvedCdgru = await this.ensureGroupExists(tenant, dto.cdgru);
     }
 
+    const data = (await this.sanitizeTSubgrData(prisma, {
+      ...(resolvedCdgru !== undefined ? { cdgru: resolvedCdgru } : {}),
+      ...(dto.desub !== undefined ? { desub: dto.desub } : {}),
+      ...(dto.idsugr !== undefined ? { idsugr: dto.idsugr } : {}),
+      ...(dto.oldcod !== undefined ? { oldcod: dto.oldcod } : {}),
+      ...(dto.cdsubext !== undefined ? { cdsubext: dto.cdsubext } : {}),
+      dtaltsub: new Date(),
+      updatedat: new Date(),
+    })) as PrismaTypes.t_subgrUncheckedUpdateInput;
+
     return prisma.t_subgr.update({
       where: { cdsub: id },
-      data: {
-        ...(resolvedCdgru !== undefined ? { cdgru: resolvedCdgru } : {}),
-        ...(dto.desub !== undefined ? { desub: dto.desub } : {}),
-        ...(dto.idsugr !== undefined ? { idsugr: dto.idsugr } : {}),
-        ...(dto.oldcod !== undefined ? { oldcod: dto.oldcod } : {}),
-        ...(dto.cdsubext !== undefined ? { cdsubext: dto.cdsubext } : {}),
-        dtaltsub: new Date(),
-        updatedat: new Date(),
-      },
+      data,
+      select: await this.buildTSubgrSelect(prisma),
     });
   }
 
@@ -103,6 +128,7 @@ export class TSubgrService {
 
     return prisma.t_subgr.delete({
       where: { cdsub: id },
+      select: await this.buildTSubgrSelect(prisma),
     });
   }
 
@@ -122,6 +148,7 @@ export class TSubgrService {
         ...(iniciais ? { desub: { startsWith: iniciais } } : {}),
       },
       orderBy: [{ cdgru: 'asc' }, { cdsub: 'asc' }],
+      select: await this.buildTSubgrSelect(prisma),
     });
   }
 
@@ -129,6 +156,7 @@ export class TSubgrService {
     const prisma = await this.getPrisma(tenant);
     const record = await prisma.t_subgr.findUnique({
       where: { cdsub: id },
+      select: await this.buildTSubgrSelect(prisma),
     });
 
     if (!record) {

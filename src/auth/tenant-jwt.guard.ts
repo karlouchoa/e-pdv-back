@@ -14,6 +14,11 @@ type TenantRequest = {
   headers?: { 'x-tenant'?: string | string[] };
 };
 
+const normalizeTenantValue = (value?: string | null) => {
+  const normalized = value?.trim();
+  return normalized ? normalized : null;
+};
+
 @Injectable()
 export class TenantJwtGuard extends AuthGuard('jwt') {
   constructor(private readonly reflector: Reflector) {
@@ -38,19 +43,22 @@ export class TenantJwtGuard extends AuthGuard('jwt') {
     const req = context.switchToHttp().getRequest<TenantRequest>();
 
     const tokenTenant =
-      req?.user?.tenant?.trim() ??
-      req?.user?.tenantSlug?.trim() ??
-      req?.user?.banco?.trim();
-    if (!tokenTenant) {
+      normalizeTenantValue(req?.user?.tenant) ??
+      normalizeTenantValue(req?.user?.tenantSlug) ??
+      normalizeTenantValue(req?.user?.banco);
+
+    const rawHeaderTenant = req?.headers?.['x-tenant'];
+    const headerTenant = normalizeTenantValue(
+      Array.isArray(rawHeaderTenant) ? rawHeaderTenant[0] : rawHeaderTenant,
+    );
+
+    const resolvedTenant = tokenTenant ?? headerTenant;
+    if (!resolvedTenant) {
       throw new BadRequestException('Tenant nao encontrado no token JWT.');
     }
 
-    const rawHeaderTenant = req?.headers?.['x-tenant'];
-    const headerTenant = Array.isArray(rawHeaderTenant)
-      ? rawHeaderTenant[0]?.trim()
-      : rawHeaderTenant?.trim();
-
     if (
+      tokenTenant &&
       headerTenant &&
       headerTenant.toLowerCase() !== tokenTenant.toLowerCase()
     ) {
@@ -62,11 +70,11 @@ export class TenantJwtGuard extends AuthGuard('jwt') {
     // For protected routes, tenant source of truth is always the token.
     req.user = {
       ...(req.user ?? {}),
-      tenant: tokenTenant,
-      tenantSlug: tokenTenant,
-      banco: tokenTenant,
+      tenant: resolvedTenant,
+      tenantSlug: resolvedTenant,
+      banco: resolvedTenant,
     };
-    req.tenant = { ...(req.tenant ?? {}), slug: tokenTenant };
+    req.tenant = { ...(req.tenant ?? {}), slug: resolvedTenant };
 
     return true;
   }

@@ -12,6 +12,10 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+import {
+  IsReferenceDateInput,
+  TrimOptionalString,
+} from '../reference-date';
 
 export class CourierQueryDto {
   @IsOptional()
@@ -142,7 +146,8 @@ export class SalesQueryDto {
 
 export class DashboardRevenueByCategoryQueryDto {
   @IsOptional()
-  @IsDateString()
+  @TrimOptionalString()
+  @IsReferenceDateInput()
   referenceDate?: string;
 
   @IsOptional()
@@ -154,7 +159,8 @@ export class DashboardRevenueByCategoryQueryDto {
 
 export class DashboardRevenueMonthlyQueryDto {
   @IsOptional()
-  @IsDateString()
+  @TrimOptionalString()
+  @IsReferenceDateInput()
   referenceDate?: string;
 
   @IsOptional()
@@ -355,7 +361,8 @@ export class CashierReportQueryDto {
   codabe?: number;
 
   @IsOptional()
-  @IsDateString()
+  @TrimOptionalString()
+  @IsReferenceDateInput()
   referenceDate?: string;
 }
 

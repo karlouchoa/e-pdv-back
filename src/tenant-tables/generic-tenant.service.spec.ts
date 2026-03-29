@@ -128,6 +128,19 @@ describe('GenericTenantService', () => {
     expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
   });
 
+  it('deve excluir o campo location do select da tabela de empresa', async () => {
+    const { service, delegate } = buildService();
+
+    await service.findOne('tenant-a', { cdemp: '1' });
+
+    expect(delegate.findUnique).toHaveBeenCalledWith({
+      where: { cdemp: 1 },
+      select: expect.not.objectContaining({
+        location: true,
+      }),
+    });
+  });
+
   it('deve sincronizar logo/capa em t_acessos usando cnpj + apelido da empresa', async () => {
     const { service, delegate, mainPrisma } = buildService();
     delegate.update.mockResolvedValueOnce({

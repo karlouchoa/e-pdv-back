@@ -2,7 +2,7 @@
 
 import type { Prisma as PrismaTypes } from '../../prisma/generated/client_tenant';
 
-import type { TenantClient } from '../lib/prisma-clients';
+import { TenantPrisma, type TenantClient } from '../lib/prisma-clients';
 
 import { TenantDbService } from '../tenant-db/tenant-db.service';
 
@@ -179,29 +179,22 @@ export class InventoryService {
       return 0;
     }
 
-    const previous = await prisma.t_movest.findFirst({
+    const rows = await this.queryMovestRows<{
+      saldoant: unknown;
+      qtde: unknown;
+      st: string | null;
+      sldantemp: unknown;
+    }>(prisma, {
+      select: 'saldoant, qtde, st, sldantemp',
       where: {
         cdemp,
-
         cditem,
-
-        isdeleted: false,
-
-        data: { lt: before },
+        before,
       },
-
-      orderBy: [{ data: 'desc' }, { nrlan: 'desc' }],
-
-      select: {
-        saldoant: true,
-
-        qtde: true,
-
-        st: true,
-
-        sldantemp: true,
-      },
+      order: 'desc',
+      limit: 1,
     });
+    const previous = rows[0];
 
     if (!previous) {
       return 0;
@@ -226,6 +219,75 @@ export class InventoryService {
     }
 
     return quantity * unitPrice;
+  }
+
+  private buildMovestConditions(filters: {
+    cdemp?: number;
+    cditem?: number;
+    type?: 'E' | 'S';
+    start?: Date;
+    end?: Date;
+    before?: Date;
+  }) {
+    const conditions = [TenantPrisma.sql`COALESCE(isdeleted, false) = false`];
+
+    if (filters.cdemp !== undefined) {
+      conditions.push(TenantPrisma.sql`cdemp = ${filters.cdemp}`);
+    }
+
+    if (filters.cditem !== undefined) {
+      conditions.push(TenantPrisma.sql`cditem = ${filters.cditem}`);
+    }
+
+    if (filters.type) {
+      conditions.push(TenantPrisma.sql`st = ${filters.type}`);
+    }
+
+    if (filters.start) {
+      conditions.push(TenantPrisma.sql`data >= ${filters.start}`);
+    }
+
+    if (filters.end) {
+      conditions.push(TenantPrisma.sql`data <= ${filters.end}`);
+    }
+
+    if (filters.before) {
+      conditions.push(TenantPrisma.sql`data < ${filters.before}`);
+    }
+
+    return TenantPrisma.join(conditions, ' AND ');
+  }
+
+  private async queryMovestRows<T extends Record<string, unknown>>(
+    prisma: TenantClient,
+    options: {
+      select: string;
+      where: {
+        cdemp?: number;
+        cditem?: number;
+        type?: 'E' | 'S';
+        start?: Date;
+        end?: Date;
+        before?: Date;
+      };
+      order: 'asc' | 'desc';
+      limit?: number;
+    },
+  ) {
+    const limitSql =
+      options.limit !== undefined
+        ? TenantPrisma.sql`LIMIT ${options.limit}`
+        : TenantPrisma.empty;
+
+    return prisma.$queryRaw<T[]>(
+      TenantPrisma.sql`
+        SELECT ${TenantPrisma.raw(options.select)}
+        FROM t_movest
+        WHERE ${this.buildMovestConditions(options.where)}
+        ORDER BY data ${TenantPrisma.raw(options.order.toUpperCase())}, nrlan ${TenantPrisma.raw(options.order.toUpperCase())}
+        ${limitSql}
+      `,
+    );
   }
 
   async getKardex(
@@ -255,24 +317,30 @@ export class InventoryService {
         ? await this.getStartingBalance(prisma, cdemp, itemId, start)
         : 0;
 
-    const where: PrismaTypes.t_movestWhereInput = {
-      cditem: { equals: itemId },
-
-      isdeleted: { equals: false },
-
-      ...(cdemp !== undefined ? { cdemp: { equals: cdemp } } : {}),
-    };
-
-    const dateFilter = this.buildDateFilter(start, end);
-
-    if (dateFilter) {
-      where.data = dateFilter;
-    }
-
-    const movements = await prisma.t_movest.findMany({
-      where,
-
-      orderBy: [{ data: 'asc' }, { nrlan: 'asc' }],
+    const movements = await this.queryMovestRows<{
+      nrlan: number | null;
+      cdemp: number | null;
+      data: Date | null;
+      datadoc: Date | null;
+      createdat: Date | null;
+      numdoc: number | null;
+      st: string | null;
+      qtde: unknown;
+      preco: unknown;
+      valor: unknown;
+      saldoant: unknown;
+      sldantemp: unknown;
+      obs: string | null;
+    }>(prisma, {
+      select:
+        'nrlan, cdemp, data, datadoc, createdat, numdoc, st, qtde, preco, valor, saldoant, sldantemp, obs',
+      where: {
+        cdemp,
+        cditem: itemId,
+        start,
+        end,
+      },
+      order: 'asc',
     });
 
     let runningBalance = startingBalance;
@@ -345,30 +413,31 @@ export class InventoryService {
     const cdempFilter = this.toOptionalNumber(filters.cdemp);
     const cdemp = cdempFilter && cdempFilter > 0 ? cdempFilter : undefined;
 
-    const where: PrismaTypes.t_movestWhereInput = {
-      st: { equals: type },
-
-      isdeleted: { equals: false },
-
-      ...(cdemp !== undefined ? { cdemp: { equals: cdemp } } : {}),
-
-      ...(itemCode !== null ? { cditem: { equals: itemCode } } : {}),
-    };
-
-    const dateFilter = this.buildDateFilter(start, end);
-
-    if (dateFilter) {
-      where.data = dateFilter;
-    }
-
-    const movements = await prisma.t_movest.findMany({
-      where,
-
-      // Limita a resposta a 50 registros
-
-      take: 50,
-
-      orderBy: [{ data: 'desc' }, { nrlan: 'desc' }],
+    const movements = await this.queryMovestRows<{
+      nrlan: number | null;
+      cditem: number | null;
+      data: Date | null;
+      datadoc: Date | null;
+      numdoc: number | null;
+      especie: string | null;
+      qtde: unknown;
+      preco: unknown;
+      valor: unknown;
+      clifor: number | null;
+      obs: string | null;
+      empitem: number | null;
+    }>(prisma, {
+      select:
+        'nrlan, cditem, data, datadoc, numdoc, especie, qtde, preco, valor, clifor, obs, empitem',
+      where: {
+        cdemp,
+        cditem: itemCode ?? undefined,
+        type,
+        start,
+        end,
+      },
+      order: 'desc',
+      limit: 50,
     });
 
     const itemIds = Array.from(
@@ -511,24 +580,19 @@ export class InventoryService {
       );
     }
 
-    const where: PrismaTypes.t_movestWhereInput = {
-      isdeleted: { equals: false },
-
-      ...(cdemp !== undefined ? { cdemp: { equals: cdemp } } : {}),
-
-      ...(itemCode !== null ? { cditem: { equals: itemCode } } : {}),
-    };
-
-    const dateFilter = this.buildDateFilter(start, end);
-
-    if (dateFilter) {
-      where.data = dateFilter;
-    }
-
-    const movements = await prisma.t_movest.findMany({
-      where,
-
-      orderBy: [{ data: 'asc' }, { nrlan: 'asc' }],
+    const movements = await this.queryMovestRows<{
+      st: string | null;
+      qtde: unknown;
+      valor: unknown;
+    }>(prisma, {
+      select: 'st, qtde, valor',
+      where: {
+        cdemp,
+        cditem: itemCode ?? undefined,
+        start,
+        end,
+      },
+      order: 'asc',
     });
 
     let entriesQty = 0;
@@ -785,14 +849,34 @@ export class InventoryService {
 
     const itemIdentifier = dto.itemId.trim();
     const parsedCditem = Number(itemIdentifier);
-    const item = await prisma.t_itens.findFirst({
-      where: {
-        cdemp,
-        ...(Number.isInteger(parsedCditem) && parsedCditem > 0
-          ? { cditem: parsedCditem }
-          : { id: itemIdentifier }),
-      },
-    });
+    const hasItemIdField = await modelHasCompatibleScalarField(
+      prisma,
+      't_itens',
+      'id',
+    );
+    if (!(Number.isInteger(parsedCditem) && parsedCditem > 0) && !hasItemIdField) {
+      throw new BadRequestException(
+        'Item invalido. Envie o cditem numerico para este tenant.',
+      );
+    }
+    const itemLookup = Number.isInteger(parsedCditem) && parsedCditem > 0
+      ? await prisma.$queryRaw<Array<{ cditem: number | null }>>`
+          SELECT cditem
+          FROM t_itens
+          WHERE cdemp = ${cdemp}
+            AND cditem = ${parsedCditem}
+          LIMIT 1
+        `
+      : await prisma.$queryRaw<Array<{ cditem: number | null }>>(
+          TenantPrisma.sql`
+            SELECT cditem
+            FROM t_itens
+            WHERE cdemp = ${cdemp}
+              AND "id" = ${itemIdentifier}
+            LIMIT 1
+          `,
+        );
+    const item = itemLookup[0] ?? null;
 
     if (!item) {
       throw new BadRequestException(
@@ -800,7 +884,12 @@ export class InventoryService {
       );
     }
 
-    const cditem = item.cditem; // ok (int)
+    const cditem = this.toOptionalNumber(item.cditem);
+    if (cditem === null) {
+      throw new BadRequestException(
+        `Item '${dto.itemId}' retornou codigo invalido para o almoxarifado '${warehouseLabel}'.`,
+      );
+    }
 
     const empitem = cdemp; // almoxarifado do item
 
@@ -822,62 +911,84 @@ export class InventoryService {
 
     // 6ï¸âƒ£ Criar movimento
 
+    const documentDate = dto.document?.date ? new Date(dto.document.date) : serverNow;
+
     const created = await prisma.$transaction(async (tx) => {
-      const movement = await tx.t_movest.create({
-        data: {
-          cdemp, // empresa onde o movimento acontece
+      const inserted = await tx.$queryRaw<Array<{ nrlan: number; data: Date | null }>>(
+        TenantPrisma.sql`
+          INSERT INTO t_movest (
+            cdemp,
+            cditem,
+            data,
+            st,
+            qtde,
+            preco,
+            valor,
+            custo,
+            numdoc,
+            datadoc,
+            especie,
+            clifor,
+            codusu,
+            empitem,
+            empfor,
+            empmov,
+            empven,
+            saldoant,
+            sldantemp,
+            obs,
+            obsit,
+            datalan,
+            isdeleted,
+            createdat,
+            updatedat
+          )
+          VALUES (
+            ${cdemp},
+            ${cditem},
+            ${movementDate},
+            ${type},
+            ${quantity},
+            ${unitPrice},
+            ${totalValue},
+            ${cost},
+            ${dto.document?.number ?? null},
+            ${documentDate},
+            ${especie},
+            ${dto.customerOrSupplier},
+            ${userCode},
+            ${empitem},
+            ${empfor},
+            ${empmov},
+            ${empven},
+            ${previousBalance},
+            ${currentBalance},
+            ${dto.notes ?? null},
+            ${dto.notes ?? null},
+            ${serverNow},
+            ${false},
+            ${serverNow},
+            ${serverNow}
+          )
+          RETURNING nrlan, data
+        `,
+      );
 
-          cditem, // cÃ³digo numÃ©rico do item
+      const movement = inserted[0];
+      if (!movement) {
+        throw new BadRequestException('Falha ao inserir movimento em t_movest.');
+      }
 
-          data: movementDate,
-
-          st: type,
-
+      await applyMovestBalanceFromCreates(tx, [
+        {
+          cdemp,
+          cditem,
+          empitem,
           qtde: quantity,
-
-          preco: unitPrice,
-
-          valor: totalValue,
-
-          custo: cost,
-
-          numdoc: dto.document?.number ?? null,
-
-          datadoc: dto.document?.date ? new Date(dto.document.date) : serverNow,
-
-          especie,
-
-          clifor: dto.customerOrSupplier,
-
-          codusu: userCode,
-
-          empitem, // almoxarifado informado
-
-          empfor, // empresa de referencia
-
-          empmov, // empresa do movimento (codigo numerico)
-
-          empven,
-
-          saldoant: previousBalance,
-
-          sldantemp: currentBalance,
-
-          obs: dto.notes ?? null,
-
-          obsit: dto.notes ?? null,
-
-          datalan: serverNow,
-
+          st: type,
           isdeleted: false,
-
-          createdat: serverNow,
-
-          updatedat: serverNow,
         },
-      });
-
-      await applyMovestBalanceFromCreates(tx, [movement]);
+      ]);
       return movement;
     });
 
